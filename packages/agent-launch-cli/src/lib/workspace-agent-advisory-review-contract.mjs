@@ -175,8 +175,7 @@ export function consumeAdvisoryReviewInput(input, expected = {}) {
 
 function advisoryReviewFirstReadCalls(subject) {
   const sliceMatch = String(subject).match(/^(WK-\d{4})#SLICE-\d{3}$/u);
-  const rootCall = subject => JSON.stringify({ subject });
-  return sliceMatch ? [rootCall(subject), rootCall(sliceMatch[1])] : [rootCall(subject)];
+  return [JSON.stringify({ reads: [{ subject }, ...(sliceMatch ? [{ subject: sliceMatch[1] }] : [])] })];
 }
 
 export function renderFamilyNeutralAdvisoryReviewInput(input) {

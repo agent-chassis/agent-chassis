@@ -197,9 +197,7 @@ export function registerMcpContentReferenceTools() {}
 export function registerToolRouterTools() {}
 export function registerInitiativeStatusTools() {}
 export function registerSubmitForReviewTools() {}
-export function createGraphImpactToolResponse(value) { return value; }
 export function registerCodeIndexTools() {}
-export function registerGraphImpactPersistenceTools() {}
 export function registerStaticResources() {}
 export function registerWorkRecordReadTools() {}
 export function registerWorkRecordEntryTools() {}
@@ -343,9 +341,7 @@ async function importServerWithFakes(t) {
     "runWorkspaceWorkRecordAdmissionRefreshRoute",
     "WORKSPACE_WORK_RECORD_REFRESH_ADMISSION_METRICS_TOOL_NAME",
     "WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME",
-    "createGraphImpactToolResponse",
     "registerCodeIndexTools",
-    "registerGraphImpactPersistenceTools",
     "registerStaticResources",
     "registerWorkRecordReadTools",
     "registerWorkRecordEntryTools",

@@ -10,8 +10,6 @@ import {
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { RECORD_AUTHORING_LABEL_PATTERN, workItemRequirementBatchSchema } from
   "@agent-chassis/wiki-core/src/lib/record-authoring-schema.mjs";
-import { REQUIREMENT_SOURCE_FIELD, REQUIREMENT_SOURCE_LOCATION_UNIT } from
-  "@agent-chassis/wiki-core/src/operations/controlled-contract/contract-requirement-source-links.mjs";
 import { RECORD_AUTHORING_REQUIREMENT_MEMBERS } from "@agent-chassis/wiki-core/src/lib/record-authoring-availability.mjs";
 import { selectCelDefinition } from
   "@agent-chassis/wiki-core/src/operations/controlled-contract/contract-requirement-vocabulary.mjs";
@@ -31,10 +29,10 @@ const SLICE_UNIT = "<WK-NNNN#SLICE-NNN>";
 export const REQUIREMENT_GUIDANCE_SUBJECT = Object.freeze({ requirement_guidance: true });
 
 export const REQUIREMENT_GUIDANCE_ENTRY_STATEMENT =
-  `${READ_TOOL} ${JSON.stringify({ subject: REQUIREMENT_GUIDANCE_SUBJECT })}`;
+  `${READ_TOOL} ${JSON.stringify({ reads: [{ subject: REQUIREMENT_GUIDANCE_SUBJECT }] })}`;
 
 export const REQUIREMENT_VOCABULARY_ENTRY_STATEMENT =
-  `${READ_TOOL} ${JSON.stringify({ subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: [AUTHORING_VOCABULARY_TOPIC] } })}`;
+  `${READ_TOOL} ${JSON.stringify({ reads: [{ subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: [AUTHORING_VOCABULARY_TOPIC] } }] })}`;
 
 const OWNER_MEMBERS = Object.freeze(["required_object_shapes", "conditional_verification_requirements",
   "runtime_test_authoring", "vocabulary", "observation_vocabulary", "native_runtime_test_vocabulary", "case_authoring"]);
@@ -46,12 +44,11 @@ const BATCH = "changes.requirements";
 const requirementField = (member) => `${BATCH}.requirements[].${member}`;
 const obligationField = (member) => `changes.obligations[].${member}`;
 const REMOVE_REQUIREMENTS = "changes.remove.requirements";
-const REMOVE_REQUIREMENT_ROWS = "changes.remove.requirement_rows";
 
 const batchSchema = workItemRequirementBatchSchema();
 const statementRow = batchSchema.$defs.requirement;
 const membershipRow = batchSchema.$defs.membership_requirement;
-const ROW_SELECTORS = Object.freeze(["key", "row_id", "id"]);
+const ROW_SELECTORS = Object.freeze(["key", "target"]);
 const requirementRowRequired = statementRow.required;
 
 const { requirement_rebinding: ownerRebinding, requirement_retirement: ownerRetirement,
@@ -85,26 +82,23 @@ const REQUIRED_OBJECT_SHAPES = Object.freeze({
   requirement_rebinding: Object.freeze({
     ...ownerRebinding,
     field: requirementField("rebind_case_ids"),
-    requires: Object.freeze([requirementField("id")])
+    requires: Object.freeze([requirementField("target")])
   }),
   requirement_retirement: Object.freeze({
     ...ownerRetirement,
     field: REMOVE_REQUIREMENTS,
-    selection: "Each entry is a current non-verification requirement claim, listed once and not also named by a " +
-      `${requirementField("id")} or authored by a ${BATCH} row in the same save. A save carries ` +
-      `${BATCH}, ${REMOVE_REQUIREMENTS} or both, and a supplied list is never empty. A claim that is one of several ` +
-      `a saved requirement row emits together is retired with its whole row through ${REMOVE_REQUIREMENT_ROWS}.`,
+    selection: 'Select each saved requirement or behavioral part by authored meaning, once. A grouped declaration must be removed as a whole unless its existing integrity rules permit the narrower correction. A supplied list is never empty.',
     dependent_uses: "For explicit removal only, a parent or slice obligation whose explicit links and case support only retired requirements " +
       "is deleted. An affected obligation that also supports a remaining requirement, or that the same save amends, " +
       `is refused with its unit, obligation, case and identities; amend its ${obligationField("claims")} or case in ` +
       "the same save to keep the remaining meaning. Obligations with no retired link or case are unchanged.",
     bounds: Object.freeze({ ...ownerRetirement.bounds,
-      answer_census: `each ${BATCH}.requirements row plus each ${REMOVE_REQUIREMENTS} entry, counted together; ${REMOVE_REQUIREMENT_ROWS} entries are bounded on their own` })
+      answer_census: 'Submitted declarations and individual assertion removals share the existing batch bound; whole-declaration and collection removals retain their separate bounds.' })
   })
 });
 
 const guidanceRead = (...topic) => buildNextCall({ tool: READ_TOOL,
-  arguments: { subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic } } });
+  arguments: { reads: [{ subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic } }] } });
 
 const REQUIREMENT_BATCH = Object.freeze({
   field: BATCH,
@@ -112,72 +106,42 @@ const REQUIREMENT_BATCH = Object.freeze({
   compact_pattern_applicability: COMPACT_RECORD_PATTERN.applicability,
   schema_read: guidanceRead(REQUIREMENT_SCHEMA_TOPIC, "existing"),
   schema_selection: REQUIREMENT_SCHEMA_METADATA.selection,
-  batching: "Append new rows in successive saves; restate saved rows by row_id only to correct them. The request bound is eight requirement rows and claim retirements counted together, with whole-row retirements bounded separately. Group only identical applicability, observation boundary and comparison semantics. Include declarations used in this batch: saved row-bound bindings need no redeclaration; verifier-only aliases need a matching typed declaration in every batch using them. Preserve exact source links and unresolved meaning. Select compact_record_comparison for the example rather than reading the full schema.",
+  batching: "Append new declarations with optional request-local key. Restate saved meaning with target. Preserve applicability, observation boundaries, source links and unresolved meaning. Include declarations used by this batch; existing entity bindings cannot be retyped.",
   members: Object.freeze(Object.keys(batchSchema.properties)),
   entities: REQUIRED_OBJECT_SHAPES.referent.rule,
-  requirements: `1-${batchSchema.properties.requirements.maxItems} rows, each one statement (subject, behavior, and its strength) or one closed membership ` +
-    "(subject, membership). A modality, a relation's objects, an applicability its relation needs or an entity type left " +
-    "out, and a number or boolean stated as {\"pending\": true}, save the row as incomplete: it keeps everything it says, " +
-    "has no identity and no generated expression, and is completed by restating it with its row_id.",
-  collections: "Groups of requirement rows. A member is \"$key\" of a row in this request or a saved row's row_id. A closed set " +
-    "has no order; an ordered sequence keeps the order given and takes no row stored as several statements.",
-  unresolved: "Meaning no relation carries, word for word, with or without a reason. Supplied, it replaces the saved list; " +
-    "omitted, the saved list stays. It keeps the saved meaning incomplete and is never compiled.",
-  row_addressing: Object.freeze({ selectors: ROW_SELECTORS, rule: "A row carries at most one of them.",
-    key: "A new row, labelled for this request.",
-    row_id: "A saved requirement row requires a complete restatement of its authored meaning, even when the intent is to change only provenance. Omitted row fields are not a patch. For saved-meaning reads and source-passage repair, select source_link.repair in this requirement_batch guidance.",
-    id: "One saved requirement claim to correct, as before. A claim that is one of several its row emits is corrected through row_id." }),
-  emitted_identities: "A complete statement row emits one canonical constraint and one native claim per object where its relation is a " +
-    "set of pairs, otherwise one of each. A closed membership emits one constraint and no claim. An incomplete row emits none. " +
-    "A save answer's requirement_rows and bindings.requirement state row_id, state, constraint_ids and claim_ids as full arrays. " +
-    "\"$key\" in changes.obligations[].claims is every claim the row emits; a row that emits none is refused there.",
-  correction: "Restating a row keeps every claim both declarations emit, with its links; a claim only the old declaration " +
-    "emitted retires, and a claim only the new one emits is new. Correction-induced retirement cannot delete obligations or cases: " +
-    "a remaining dependent use refuses the entire save with affected row, claim, verification, obligation and case identities. " +
-    "For a single-claim row choose id and explicit rebind_case_ids. For grouped corrections, first save the intended " +
-    "verification on unchanged requirement meaning. Explicitly amend existing dependencies to that saved verification, " +
-    "restate the original row, then restore intended claim associations from its saved bindings. Shared-case uses may " +
-    "retain old and chosen verification links while being amended across units; select case.verification through its " +
-    "target owner, then remove changed old links. Without a replacement verification, explicitly clear changed claim " +
-    "associations before correction and restore them afterwards; retained bound cases need valid test_execution " +
-    "verifications. Nothing is mapped or granted proof credit automatically.",
+  requirements: "Statements, typed definitions and closed memberships retain every supplied field. Missing required meaning remains an incomplete draft. Target that draft by its known authored meaning when completing it.",
+  collections: "A member is a request-local $key or a whole requirement selector. A closed set is unordered; ordered_sequence preserves the authored order. Target a saved collection by its kind, purpose or semantically selected members.",
+  unresolved: "Meaning the grammar cannot carry stays explicit. Supplied: replaces the saved list. Omitted: retains it.",
+  row_addressing: Object.freeze({ selectors: ROW_SELECTORS, rule: "Use at most one of key and target.",
+    key: "A new declaration, labelled only within this request.",
+    target: "Select one saved declaration by its authored meaning and restate it completely. A requirement target selects the whole declaration, including drafts and grouped assertions. A claim target selects one behavioral part and preserves grouped-correction restrictions. Ambiguity requires a narrower public target; unresolved targets never create." }),
+  associations: "Use requirement, claim or verification selectors in obligations[].claims. A whole requirement selects all its assertions, without adding its verifications. Use an explicit verification selector when intended. Same-request $key associations are resolved by the server. Receipts contain only necessary new public identities; later saves reuse semantic targets.",
+  correction: "A restatement preserves unchanged assertions. Changed assertions require explicit compatible dependency amendments under the existing integrity rules. Select saved requirements/verifications by authored meaning and saved cases/obligations by public identity. No association or proof credit is inferred. Source and revision movement never silently retargets an amendment.",
   source_link: Object.freeze({ members: Object.freeze(["user_requirement", "user_requirement_occurrence"]),
-    source: `the work item's ${REQUIREMENT_SOURCE_FIELD} as this same save leaves it`,
-    matching: "The passage is compared exactly: no trimming, case folding or normalization. Occurrences are counted from 1, " +
-      "left to right, overlapping occurrences included.",
-    occurrence: "A passage that occurs once needs no occurrence. One that occurs more than once needs " +
-      "user_requirement_occurrence; none is guessed. A passage that is not found, or an occurrence out of range, refuses the whole save.",
-    stored: `The passage, the chosen occurrence, the digest of the source text and the location in ${REQUIREMENT_SOURCE_LOCATION_UNIT}, ` +
-      "linked to every constraint and claim the row emits.",
-    currentness: "A link is current while the source text is unchanged. After the text changes it is reported stale, as saved, " +
-      "until the row is restated with user_requirement. Omitting user_requirement keeps a saved link and creates none.",
-    meaning: "Provenance only. It changes no identity and no generated expression, and does not establish that the passage " +
-      "and the compiled meaning say the same thing.",
+    source: "the work item's sections.user_requirements as this save leaves it",
+    matching: "Compare exact literal passages without trimming or case folding; count overlapping occurrences from one.",
+    occurrence: "Choose user_requirement_occurrence when the exact passage repeats. Missing passages and out-of-range occurrences refuse the coherent save.",
+    currentness: "A saved source link becomes stale when source text changes. Restate it with the intended passage to repair it; omission preserves the saved link.",
     repair: Object.freeze({
-      intent: "Changing only provenance still requires a complete row restatement through row_id. Copy all saved authored meaning, including modality, behavior, applicability, lexical scopes and membership where present. Omitting modality can save an incomplete row and retire its former claims; incomplete drafts remain supported.",
-      read: `Read the current unit with ${READ_TOOL} {subject:<unit>} for its revision and reference. With that reference, select {contract:\"requirements\",view:\"row\",row_id:<saved row_id>} for row.input, its bound entities, identities and source link. This row read does not include verification; follow its emitted {contract:\"requirements\",view:\"verifications\",row_id:<saved row_id>} call for the native verifications, requirement-to-verification identities and referenced entities with type_term and identity.`,
-      payload: "Use row.input with bound entity objects replaced by their ids, preserving every other field. Declare each named entity under changes.requirements.entities with its returned type_term and identity. Recover verification method, verifier, observes, fails_when and runtime_test when present from the native verification meaning; resolve every select and runtime boundary subject reference through the returned references and declare it under an entity id. The runtime read's falsifiers.items holds each saved falsifier with its strategy and mutation details; author the intended falsifier without its read-only selector, mutation_id and proposition_id. A verifier-only entity needs its matching declaration in this batch. Do not substitute a case target for verification meaning.",
-      save: "Restate the saved row_id with that full payload and the intended exact user_requirement and explicit user_requirement_occurrence where repeated. Use the current revision. A stale revision requires rereading the current unit and saved meaning before rebuilding the request. Read back the row, its verifications, cases and each affected unit's obligations and criteria to check identities, verification relationships and acceptance mappings.",
-      limit: "If a supported read refuses or omits required saved meaning or verification, report that exact gap and stop the repair. Do not guess fields, omit missing verification, or claim a faithful repair. Reading and saving execute no proof."
+      intent: "Target the saved whole declaration and preserve its complete behavior, applicability, verification and intended associations while changing the source link.",
+      read: "If meaning is missing, request requirements with include:[verifications,dependencies] and all affected obligations together in workspace_read_wiki reads. Use the known semantic target and request for_changes for the writable unit. Do not acquire internal addresses.",
+      payload: "Reuse the requested authored meaning and declared entity identities. The caller chooses the new exact user_requirement passage and any repeated occurrence; a case target never substitutes for verification meaning.",
+      save: "Save the full declaration with target at the returned current revision. Reconcile a stale revision. Successful correction can finish; inspection and reassessment are conditional on the requested task.",
+      limit: "If required saved meaning is unavailable, preserve that specific failure and stop the dependent edit. Do not guess or omit a missing verification."
     }) }),
-  generated: "Canonical constraints, renderings, generated CEL and its typed bindings are derived from the saved rows. No member " +
-    "takes an expression, and saving evaluates none.",
-  authorization: Object.freeze({ members: Object.freeze(RECORD_AUTHORING_REQUIREMENT_MEMBERS.map(member => `changes.${member}`)),
-    rule: "The serving host authorizes requirement compilation and retirement; no request member can authorize an operation." }),
-  remove_rows: Object.freeze({ field: REMOVE_REQUIREMENT_ROWS,
-    rule: "Removes whole saved requirement rows, or saved collections, by the row identity a save issued. A claim only a removed " +
-      "row emitted retires under the retirement rules; a collection that still lists a removed row refuses the save." })
+  authorization: Object.freeze({ members: Object.freeze(RECORD_AUTHORING_REQUIREMENT_MEMBERS.map(member => "changes." + member)),
+    rule: "The serving host authorizes requirement authoring and removal; availability grants no permission." }),
+  remove_rows: Object.freeze({ field: REMOVE_REQUIREMENTS,
+    collections_field: "changes.remove.collections",
+    rule: "Remove a whole requirement or one permitted behavioral part by semantic selector; remove a collection with its collection selector. Existing dependency and grouped-assertion integrity remains enforced. A surviving collection cannot retain a removed member." })
 });
 
 const SLICE_COVERAGE = Object.freeze({
   steps: Object.freeze([
     "A slice needs its own criterion-to-obligation associations: a parent's obligations, criterion labels and " +
       "coverage transfer none to it, and a slice is covered only by obligations saved on that slice unit.",
-    `Read the slice's criterion identities and its current revision: ${READ_TOOL} {subject:${SLICE_UNIT}} returns the ` +
-      "revision and a reference, and that reference's {contract:\"criteria\"} selection returns each criterion's identity.",
-    "Reuse an applicable saved parent requirement claim and case.id: the parent's {contract:\"requirements\"} " +
-      "selection returns claim_id and its {contract:\"cases\"} selection returns case_id. Name them only where the " +
-      "author judges that the parent requirement and its test apply to the slice criterion.",
+    'Read the slice criteria and all needed parent requirement/case meaning together in workspace_read_wiki reads. Request for_changes for the writable slice to obtain its current revision.',
+    'Select parent requirements by known authored meaning and cases by public case identity only where the author judges that they apply. The server resolves associations; no compiler-identity acquisition is needed.',
     `Save the slice-local obligations on the slice unit at the slice's revision, without duplicating requirements ` +
       "or cases. A proof-backed obligation states changes.obligations[].claims, case.id and criteria, restates " +
       "neither changes.requirements nor a case body, and selects the proof that saved case verifies in " +
@@ -190,16 +154,12 @@ const SLICE_COVERAGE = Object.freeze({
 
 const { verification_association: ownerAssociation, falsification: ownerFalsification } = OWNER.case_authoring;
 const association = Object.freeze({
-  ...ownerAssociation,
   field: `changes.${ownerAssociation.authoring.field}`,
-  eligible: "One test_execution verification claim_id the SAME obligation makes eligible: a verification claim " +
-    `it lists in its own ${obligationField("claims")}, or one an explicit verifies relationship ties to a ` +
-    "requirement claim it lists there. A requirement already records which verification verifies it, so linking " +
-    "only the requirement claim is enough and the verification identity is not repeated. Eligibility reads these " +
-    "semantic facts alone; whether an executable binding exists never changes it.",
-  correction: `List the requirement claim, or the verification claim_id itself, in ${obligationField("claims")}, ` +
-    `and name an eligible claim_id in ${obligationField("case.verification")} when several are eligible. ` +
-    "Replacing the verification a saved case names is the same amendment.",
+  cardinality: ownerAssociation.cardinality,
+  authoring: { choose_when: 'Several eligible verifications require an explicit semantic choice.',
+    omit_when: 'The established case association already identifies its eligible verification.' },
+  eligible: 'A test_execution verification associated with the same obligation, explicitly or through a selected requirement. Executability grants no additional association.',
+  correction: 'Use semantic selectors or same-request keys in obligations[].claims. Choose among eligible verifications with case.verification; the server resolves its internal binding.',
   omission: "A case may omit case.verification. A saved case that names an eligible verification keeps it. " +
     "Otherwise exactly one eligible, selectable verification is adopted. With none or several the save still " +
     "commits and the case stays an unresolved draft that names no verification: nothing is chosen for the " +
@@ -211,10 +171,10 @@ const FALSIFICATION = Object.freeze(Object.fromEntries(Object.entries(ownerFalsi
 const CASE_AUTHORING = Object.freeze(Object.fromEntries(Object.entries(OWNER.case_authoring).map(([member, value]) =>
   [member, member === "verification_association" ? association : member === "falsification" ? FALSIFICATION : value])));
 const ASSOCIATIONS = Object.freeze([
-  { from: "changes.obligations[].claims", to: `${requirementField("key")}, or a saved requirement's claim_id`,
+  { from: "changes.obligations[].claims", to: 'A semantic requirement, claim or verification selector, or a same-request $key',
     meaning: "The obligation supports each requirement claim it names; a row label names every claim its row emits. " +
       association.eligible },
-  { from: "changes.obligations[].criteria", to: "changes.criteria[].key, or a saved criterion's identity",
+  { from: "changes.obligations[].criteria", to: "changes.criteria[].key, or a saved criterion's semantic selector",
     meaning: "The obligation covers each criterion it names. A unit's criterion is covered only by an obligation " +
       "saved on that same unit." },
   { from: "changes.obligations[].proof.name", to: `a proof ${FIND_TOOL} lists`,
@@ -235,11 +195,8 @@ const ASSOCIATIONS = Object.freeze([
 
 const SAVE_RECORD_INPUTS = Object.freeze({
   request: `${SAVE_TOOL} {unit, revision, changes}. revision is the unit's current revision: the revision of ` +
-    `${READ_TOOL} {subject:<unit>} or of a prior save answer. Omitted changes members are preserved.`,
-  labels: `A new row states key, a label matching ${RECORD_AUTHORING_LABEL_PATTERN}. A saved requirement row uses row_id, including grouped and incomplete rows, with its complete authored meaning. A single-claim requirement may instead use id for its saved claim; a claim from a grouped row requires row_id. A saved obligation uses id; a reused case uses case.id. ` +
-    "Only the label_references members name a new row as $<key>; the reference resolves to the identity its " +
-    "owner issued, never to the row's text. A saved answer's bindings map every key to that identity; a " +
-    "requirement row's key maps to its row_id with the full constraint_ids and claim_ids it emits.",
+    `${READ_TOOL} reads with for_changes or of a prior save answer. Omitted changes members are preserved.`,
+  labels: 'A new declaration may carry key for same-request associations. A saved requirement or collection uses target with its complete authored meaning. Saved obligations use id; shared cases use case.id. Receipts expose only newly issued public identities. Later saves reuse semantic selectors, without acquiring internal bindings.',
   requirement_batch: REQUIREMENT_BATCH,
   criterion_text: "changes.criteria[].text is a readable criterion of the selected unit, and its key is the only " +
     "criterion label. slices[].acceptance.criteria and ready_slices[].acceptance.criteria are the slice's own " +
@@ -254,11 +211,11 @@ const SAVE_RECORD_INPUTS = Object.freeze({
     ["(new verification label)", requirementField("verification.key")],
     ["(new criterion label)", "changes.criteria[].key"],
     ["obligations[].obligation_id", `${obligationField("id")}, or key for a new obligation`],
-    ["obligations[].controlled_contract_node_ids", obligationField("claims")],
+    ["Semantic requirement/claim/verification selection", obligationField("claims")],
     ["obligations[].acceptance_criteria", obligationField("criteria")],
     ["obligations[].selection.proof_name", obligationField("proof.name")],
     ["cases[].case_id", `${obligationField("case.id")}, or key for a new case`],
-    ["cases[].verification_id", obligationField("case.verification")]
+    ["Semantic verification selection", obligationField("case.verification")]
   ].map(([owner_field, save_record_field]) => Object.freeze({ owner_field, save_record_field }))),
   label_references: Object.freeze(["changes.obligations[].claims[]", "changes.obligations[].criteria[]",
     "changes.obligations[].case.verification", "changes.dispositions[].entry.id", `${BATCH}.collections[].members[]`]),
@@ -351,7 +308,7 @@ export const REQUIREMENT_AUTHORING_GUIDANCE_TOPICS = Object.freeze(Object.keys(R
   .filter((member) => !["schema_version", "overview"].includes(member)).map((member) => Object.freeze([member])));
 
 export const REQUIREMENT_BIRTH_SCHEMA_ENTRY_STATEMENT =
-  `${READ_TOOL} ${JSON.stringify({ subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: [REQUIREMENT_SCHEMA_TOPIC, 'birth'] } })}`;
+  `${READ_TOOL} ${JSON.stringify({ reads: [{ subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: [REQUIREMENT_SCHEMA_TOPIC, 'birth'] } }] })}`;
 
 export const REQUIREMENT_AUTHORING_GUIDANCE_REVISION = requirementGuidanceRevision();
 export function requirementGuidanceRevision(registeredTier = "paid_cce", detail = requirementSchemaIdentity(), exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION) {
@@ -452,7 +409,7 @@ export function requirementGuidanceRecoveryCall(ownerPath, registeredTier = "pai
   if (!Array.isArray(ownerPath) || ![...OWNER_MEMBERS, REQUIREMENT_SCHEMA_TOPIC, AUTHORING_VOCABULARY_TOPIC, "unresolved_coverage", "save_record_inputs", "compact_record_comparison"].includes(ownerPath[0]) ||
       !resolveRequirementAuthoringGuidance(ownerPath, registeredTier, exceptionPublication).ok) return null;
   return buildNextCall({ tool: READ_TOOL, recommended: true,
-    arguments: { subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: [...ownerPath] } } });
+    arguments: { reads: [{ subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: [...ownerPath] } }] } });
 }
 
 export function sessionRequirementAuthoringGuidance(registeredTier, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION) {

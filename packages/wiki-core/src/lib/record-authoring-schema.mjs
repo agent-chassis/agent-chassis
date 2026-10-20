@@ -4,8 +4,9 @@ import { createRequire } from "node:module";
 import { sourceAreaBirthSchema } from "../operations/record-birth-plan.mjs";
 
 import { CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA } from "./controlled-contract-tools.mjs";
-import { REQUIREMENT_COLLECTION_ROW_ID_PATTERN, REQUIREMENT_ROW_ID_PATTERN, admit, buildRequirementBatchSchema } from
+import { admit, buildRequirementBatchSchema } from
   "./controlled-requirement-authoring-schema.mjs";
+import { buildPublicSelectionSchema } from '../operations/controlled-contract/public-selection.mjs';
 import { kindRecordEditableScalarFields } from "./kind-record-edit.mjs";
 import { WORK_RECORD_EDIT_FIELD_REGISTRY, WORK_RECORD_TASK_EDIT_ACTIONS } from
   "./work-record-contract-edit-operations.mjs";
@@ -38,7 +39,6 @@ export const RECORD_AUTHORING_LABEL_REFERENCE_PATTERN = "^\\$[a-z][a-z0-9-]{0,63
 const semantic = CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA;
 const upsertObligation = semantic.properties.obligations.items.properties;
 const upsertRequirement = semantic.properties.contract_requirements.properties.requirements.items;
-const retiredClaim = semantic.properties.contract_requirements.properties.retire_claim_ids.items;
 
 const label = Object.freeze({ type: "string", pattern: RECORD_AUTHORING_LABEL_PATTERN });
 const labelReference = Object.freeze({ type: "string",
@@ -144,8 +144,7 @@ const withSliceListNotes = (properties) => ({ ...properties,
 
 export const WORK_ITEM_CRITERION_NOTES = Object.freeze({
   criteria: "Readable criteria of the selected unit. A new row's key is its same-request label.",
-  obligation_criteria: "Criterion ids or $key labels of changes.criteria rows; a label resolves to the issued " +
-    "identity, never to text."
+  obligation_criteria: "Select saved criteria by authored text or typed_identity, or use $key for a new changes.criteria row in this request."
 });
 
 function registryValueSchema(field) {
@@ -172,22 +171,26 @@ export const WORK_ITEM_SHARED_DEFINITIONS = Object.freeze({
 const requirementBatches = new Map();
 function requirementBatch(existing) {
   if (!requirementBatches.has(existing)) requirementBatches.set(existing, Object.freeze(buildRequirementBatchSchema({
-    label, labelReference, claimId: retiredClaim, rebindCaseIds: upsertRequirement.properties.rebind_case_ids, existingRows: existing })));
+    label, labelReference, rebindCaseIds: upsertRequirement.properties.rebind_case_ids, existingRows: existing })));
   return requirementBatches.get(existing);
 }
 
 export const workItemRequirementBatchSchema = (context = "existing", capabilities = null) => capabilities === null
   ? requirementBatch(context !== "birth").schema
-  : buildRequirementBatchSchema({ label, labelReference, claimId: retiredClaim,
+  : buildRequirementBatchSchema({ label, labelReference,
     rebindCaseIds: upsertRequirement.properties.rebind_case_ids, existingRows: context !== "birth", capabilities }).schema;
 
 function workItemChangeComposition(context) {
   const { obligation_id: obligationId, controlled_contract_node_ids: _nodes,
     acceptance_criteria: _criteria, proof_name: proofName, parameters, clear_parameters: clearParameters,
     refresh_proof_version: refresh, case: authoredCase, ...obligation } = upsertObligation;
-  const { case_id: caseId, verification_id: verificationId, ...caseBody } = authoredCase.properties;
+  const { case_id: caseId, verification_id: _verificationId, ...caseBody } = authoredCase.properties;
 
-  const obligationCase = optionallyKeyed(caseId, { verification: orLabel(verificationId), ...caseBody });
+  const component = authoredCase.properties.component.oneOf.find(branch => branch.properties?.identity !== undefined);
+  if (component === undefined) throw new TypeError('The case authoring owner must declare its authored component identity.');
+  const obligationCase = optionallyKeyed(caseId, { ...caseBody,
+    component,
+    verification: buildPublicSelectionSchema({ kinds: ['verification'], allowLocalKeys: true }) });
 
   const readySliceEditTargets = { type: "array", items: structuredClone(WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA) };
   const readyProvenance = readyEditTargetProvenance(readySliceEditTargets);
@@ -219,12 +222,14 @@ function workItemChangeComposition(context) {
       disposition: { type: "string", enum: [...ADVISORY_DISPOSITION_JUDGMENTS] },
       rationale: { type: "string" } }) },
     criteria: { type: "array", minItems: 1, description: WORK_ITEM_CRITERION_NOTES.criteria,
-      items: keyed({ type: "string", minLength: 1 }, { text: { type: "string", minLength: 1 } }, ["text"]) },
+      items: { oneOf: [closed({ key: label, text: { type: "string", minLength: 1 } }, ['text']),
+        closed({ target: buildPublicSelectionSchema({ kinds: ['criterion'] }), text: { type: "string", minLength: 1 } }, ['target', 'text'])] } },
     requirements: requirementBatch(context !== "birth").batch,
     obligations: { type: "array", minItems: 1, items: keyed(obligationId, { ...obligation,
       criteria: { type: "array", uniqueItems: true, description: WORK_ITEM_CRITERION_NOTES.obligation_criteria,
-        items: orLabel({ type: "string", minLength: 1 }) },
-      claims: { type: "array", uniqueItems: true, items: orLabel(semantic.$defs.id) },
+        items: buildPublicSelectionSchema({ kinds: ['criterion'], allowLocalKeys: true }) },
+      claims: { type: "array", uniqueItems: true,
+        items: buildPublicSelectionSchema({ kinds: ['requirement', 'claim', 'verification'], allowLocalKeys: true }) },
       proof: { type: "object", additionalProperties: false, properties: { name: proofName,
         parameters, clear_parameters: clearParameters, refresh } },
       case: obligationCase }) },
@@ -254,11 +259,11 @@ function workItemChangeComposition(context) {
     [...WORK_RECORD_READY_SLICE_CREATION_REQUIREMENTS.every_shaping_mode]) },
     remove: { type: "object", additionalProperties: false, properties: {
       criteria: { type: "array", minItems: 1, uniqueItems: true,
-        items: { type: "string", minLength: 1 } },
-      requirements: semantic.properties.contract_requirements.properties.retire_claim_ids,
-
-      requirement_rows: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true, items: { anyOf: [
-        { type: "string", pattern: REQUIREMENT_ROW_ID_PATTERN }, { type: "string", pattern: REQUIREMENT_COLLECTION_ROW_ID_PATTERN }] } },
+        items: buildPublicSelectionSchema({ kinds: ['criterion'] }) },
+      requirements: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true,
+        items: buildPublicSelectionSchema({ kinds: ['requirement', 'claim'] }) },
+      collections: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true,
+        items: buildPublicSelectionSchema({ kinds: ['collection'] }) },
       obligations: { type: "array", minItems: 1, maxItems: 64, items: { type: "object",
         additionalProperties: false, required: ["id", "scope"], properties: { id: obligationId,
           scope: { type: "string", enum: ["selection", "obligation"] } } } },
@@ -275,7 +280,7 @@ function workItemChangeComposition(context) {
     shared: [[names.case, obligationCase],
       ...['statement', 'criteria', 'claims', 'proof'].map(member => [
         `obligation_${member}`, properties.obligations.items.oneOf[0].properties[member]]),
-      [names.caseComponent, caseBody.component], [names.caseTarget, caseBody.target],
+      [names.caseComponent, component], [names.caseTarget, caseBody.target],
       [names.caseFalsification, caseBody.falsification], [names.readySliceEditTargets, readySliceEditTargets],
       [WORK_ITEM_BIRTH_SHARED_DEFINITIONS.contentCarrier, contentCarrier],
       [WORK_ITEM_BIRTH_SHARED_DEFINITIONS.editTargetProvenance, readyProvenance]] };
@@ -524,7 +529,7 @@ function classifyError(schema, changes, error, evaluation) {
   return {};
 }
 
-const REQUIREMENT_ROW_SELECTORS = Object.freeze(["key", "row_id", "id"]);
+const REQUIREMENT_ROW_SELECTORS = Object.freeze(["key", "target"]);
 function requirementRowSelectorConflicts(changes) {
   const batch = changes?.requirements;
   if (batch === null || typeof batch !== "object" || Array.isArray(batch)) return [];
@@ -537,7 +542,7 @@ function requirementRowSelectorConflicts(changes) {
 function requirementRowOrphanRebinds(changes) {
   const rows = changes?.requirements?.requirements;
   return (Array.isArray(rows) ? rows : []).flatMap((row, index) =>
-    has(row, "rebind_case_ids") && !has(row, "id") ? [`changes.requirements.requirements[${index}].rebind_case_ids`] : []);
+    has(row, "rebind_case_ids") && !has(row, "target") ? [`changes.requirements.requirements[${index}].rebind_case_ids`] : []);
 }
 
 const namedDefinitions = (value) => Array.isArray(value) ? value.map(namedDefinitions)
@@ -597,8 +602,8 @@ export function validateRecordAuthoringChanges(kind, context, changes) {
   }
   for (const path of orphanRebinds) {
     if (!byPath.has(path)) byPath.set(path, { message: "retains cases only for a row that replaces a saved requirement; " +
-      "state that requirement's claim id as id in the same row, or remove rebind_case_ids",
-    constraint: { keyword: "dependentRequired", members: ["id"] } });
+      "select the saved requirement or assertion with target in the same amendment, or remove rebind_case_ids",
+    constraint: { keyword: "dependentRequired", members: ["target"] } });
   }
   for (const error of validate.errors ?? []) {
     if (batchFindings.length > 0 && /^\/requirements(?:\/|$)/u.test(error.instancePath)) continue;

@@ -41,7 +41,7 @@ export function createInitiativeGuidanceProjector(contracts) {
         break;
       case "inspect":
         operation = row.reason_code === "review_result_ready" ? "get_run_result" : "workspace_read_wiki";
-        args = { subject: unit };
+        args = operation === "workspace_read_wiki" ? { reads: [{ subject: unit }] } : { subject: unit };
         break;
       case "no_action":
         break;
@@ -64,7 +64,7 @@ export function createInitiativeGuidanceProjector(contracts) {
         args = row.arguments ?? row.next_call?.arguments ?? null;
         if (operation !== null && args === null) missingInputs = ["arguments"];
     }
-    if (missingInputs.length === 0 && args?.subject === undefined && args?.unit === undefined &&
+    if (missingInputs.length === 0 && args?.subject === undefined && args?.unit === undefined && args?.reads?.[0]?.subject === undefined &&
         ["start_agent", "workspace_assess_contract", "workspace_read_wiki", "get_run_result"].includes(operation)) {
       missingInputs.push(operation === "workspace_assess_contract" ? "unit" : "subject");
     }
@@ -78,7 +78,7 @@ export function createInitiativeGuidanceProjector(contracts) {
     if (operation !== null && !available) missingCapability ??= `current_role_operation_for_${row.kind ?? "recommendation"}`;
 
     if (nextCalls.length === 0 && WORK_UNIT.test(unit ?? "") && row.kind !== "no_action") {
-      const inspection = await admitted("workspace_read_wiki", { subject: unit }, "information_acquisition");
+      const inspection = await admitted("workspace_read_wiki", { reads: [{ subject: unit }] }, "information_acquisition");
       if (inspection !== null) nextCalls.push(inspection);
     }
     const guidance = { state: missingCapability !== null ? "capability_unavailable"

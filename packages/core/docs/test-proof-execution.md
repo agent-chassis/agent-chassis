@@ -161,24 +161,37 @@ described in
 
 ## Host execution
 
-Under `decision` (repository-only: `wiki/decisions/decision.md`), the shared
-executor starts every test process directly on the host with the host user's
-permissions (`runHostTestInvocation` in `test-execution/confined-invocation.mjs`).
-No bubblewrap namespace, read-only mount, secret mask or network denial applies
-to an ordinary run or to any proof stage. Test code can read and write the
-checkout, its Git metadata, accepted decisions, dependencies and anything else
-the host user can reach, and nothing it writes is reset. This is one capability,
-bound to the authenticated source and assignment; a request names no command,
-argument, environment variable or path, so it is not a host shell. It is
-separate from two confinements that are unchanged:
+Under accepted `decision`, test execution uses the finalized session contract's
+`execution_backend` fact. The host authenticator verifies the complete carrier
+against independently transported launcher expectations. The ordinary-test and
+proof handlers install that verified value in an async-local context; candidate
+comparisons, proof stages and declared regressions inherit it. Missing, unbound,
+contradictory or copied authority refuses execution.
 
-- the invoking agent's session stays in its own namespace, which neither
-  confines these processes nor is widened by them (see
-  [Agent-launch confinement and MCP conduit](agent-launch-confinement-mcp-conduit.md#test-and-proof-execution-is-a-separate-host-capability)
-  and the [enforcement model](enforcement-model.md));
-- local test-runtime setup's verification probes stay confined, read-only and
-  network-denied (see
-  [Verification and readiness](local-test-runtime-setup.md#verification-and-readiness)).
+With authenticated inactive confinement, the shared driver runs directly on the
+host with its normal writes. With active confinement, the selected backend must
+provide a disposable writable checkout layer. The Linux implementation requires
+non-setuid bubblewrap with `--overlay-src` and `--tmp-overlay` support and usable
+kernel overlay mounts. An unsupported active backend or a failed overlay refuses
+execution; neither condition runs the command on the host.
+
+The test-specific plan preserves the host filesystem view, prepared environment,
+command, arguments, cwd and dependency/configuration access. It overlays the
+selected source at its existing realpath: dirty source for ordinary tests and
+the existing transformed copy for a transformed proof stage. Arbitrary checkout
+creates, modifications and deletions exist within that invocation, then disappear
+when its namespace settles. Nothing is copied back. Independent invocations share
+no disposable outputs. The launcher-owned execution root and observation channels
+stay outside the source overlay and host-readable. Dependency preparation happens
+before the invocation and is unchanged.
+
+This guarantee covers selected-source checkout writes. Git metadata outside that
+source, dependency stores, other host paths and network access retain their
+existing reach. The test plan adds no source alias, later mount over its layer,
+replacement home, setup `/tmp` mount or new session boundary. The existing capture
+owner retains its process group, budget, bounded channels, cancellation and
+settlement semantics. Unconfirmed settlement retains the owned root and makes no
+cleanup claim. Agent confinement and setup probes keep their existing plans.
 
 Every run has this shape:
 

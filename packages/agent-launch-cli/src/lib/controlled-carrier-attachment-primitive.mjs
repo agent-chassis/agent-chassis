@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { mintGitFailure } from "./terminal-wk-candidate-ref-publication.mjs";
 
 import {
   controlledContractGenerationDigest,
@@ -299,10 +300,12 @@ function resolveRefTip(runGit, gitDir, ref, {
           recovery_route_kind: "operator_lifecycle_action",
           recovery_route_callable: false
         }
-      : {};
+      : { ref, operation: "resolve_persistent_wk_ref" };
     fail(failureCode, confirmedAbsent
       ? "persistent WK ref is absent or unresolvable"
-      : "persistent WK ref could not be resolved", details);
+      : "persistent WK ref could not be resolved", details,
+      confirmedAbsent ? undefined : mintGitFailure(failureCode,
+        "persistent WK ref could not be resolved", result, { args: ["rev-parse"], path: ref }));
   }
   return assertOid(stdoutText(result).trim(), "persistent WK ref tip");
 }
@@ -332,10 +335,12 @@ async function resolveRefTipAsync(runGit, repo, gitDir, ref, {
           recovery_route_kind: "operator_lifecycle_action",
           recovery_route_callable: false
         }
-      : {};
+      : { ref, operation: "resolve_persistent_wk_ref" };
     fail(failureCode, confirmedAbsent
       ? "persistent WK ref is absent or unresolvable"
-      : "persistent WK ref could not be resolved", details);
+      : "persistent WK ref could not be resolved", details,
+      confirmedAbsent ? undefined : mintGitFailure(failureCode,
+        "persistent WK ref could not be resolved", result, { args: ["rev-parse"], path: ref }));
   }
   return assertOid(stdoutText(result).trim(), "persistent WK ref tip");
 }
@@ -384,12 +389,14 @@ export async function resolveControlledContractGenerationBinding(input = {}) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INVALID_INPUT,
       "generation binding requires canonical repository and WK identity");
   }
-  assertGenerationEnvelope(generation, wkId);
-  await validateControlledContractAttachmentGenerationDescriptors({
-    wkId,
-    descriptors: generation.descriptors,
-    generationDigest: generation.generation_digest
-  });
+  if (generation !== null) {
+    assertGenerationEnvelope(generation, wkId);
+    await validateControlledContractAttachmentGenerationDescriptors({
+      wkId,
+      descriptors: generation.descriptors,
+      generationDigest: generation.generation_digest
+    });
+  }
   const source = await resolveCanonicalWkSource({ repoRoot, wkId, lifecycleBinding, deps });
   return deepFreeze({
     schema_version: "controlled-contract-generation-binding.v1",
@@ -400,9 +407,9 @@ export async function resolveControlledContractGenerationBinding(input = {}) {
     output_branch: source.output_branch,
     ref: source.ref,
     wk_tip_sha: source.wk_tip_sha,
-    generation_count: generation.count,
-    generation_digest: generation.generation_digest,
-    descriptors: cloneDescriptors(generation.descriptors),
+    generation_count: generation?.count ?? null,
+    generation_digest: generation?.generation_digest ?? null,
+    descriptors: generation === null ? [] : cloneDescriptors(generation.descriptors),
     resolved_generation: generation,
     git_dir: source.git_dir
   });
@@ -976,7 +983,7 @@ function receipt(binding, {
       commit: invocationCommit,
       ref_write_succeeded: invocationRefWrite
     },
-    generation: {
+    generation: binding.resolved_generation === null ? null : {
       count: binding.generation_count,
       digest: binding.generation_digest,
       descriptors: binding.descriptors.map(({ path: carrierPath, content_digest }) => ({
@@ -991,8 +998,13 @@ export function admitVerifiedReceipt({ runGit, binding, receiptValue }) {
   assertExactKeys(receiptValue, RECEIPT_FIELDS, "persistence receipt");
   assertExactKeys(receiptValue.invocation, RECEIPT_INVOCATION_FIELDS,
     "persistence receipt invocation");
-  assertExactKeys(receiptValue.generation, RECEIPT_GENERATION_FIELDS,
-    "persistence receipt generation");
+  if (binding.resolved_generation !== null) {
+    assertExactKeys(receiptValue.generation, RECEIPT_GENERATION_FIELDS,
+      "persistence receipt generation");
+  } else if (receiptValue.generation !== null) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
+      "record-only persistence cannot claim a generation");
+  }
   if (receiptValue.schema_version !==
         CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_RECEIPT_VERSION ||
       receiptValue.record_id !== binding.record_id ||
@@ -1020,24 +1032,26 @@ export function admitVerifiedReceipt({ runGit, binding, receiptValue }) {
       "persistence receipt invocation facts are inconsistent with its disposition");
   }
   const generation = receiptValue.generation;
-  if (!Array.isArray(generation.descriptors) ||
-      !Number.isInteger(generation.count) ||
-      generation.count !== generation.descriptors.length ||
-      generation.count !== binding.generation_count ||
-      generation.digest !== binding.generation_digest ||
-      generation.descriptors.length !== binding.descriptors.length) {
-    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
-      "persistence receipt generation identity does not match the bound generation");
-  }
-
-  for (const [index, descriptor] of generation.descriptors.entries()) {
-    assertExactKeys(descriptor, RECEIPT_GENERATION_DESCRIPTOR_FIELDS,
-      "persistence receipt generation descriptor");
-    if (descriptor.path !== binding.descriptors[index].path ||
-        descriptor.content_digest !== binding.descriptors[index].content_digest) {
+  if (binding.resolved_generation !== null) {
+    if (!Array.isArray(generation.descriptors) ||
+        !Number.isInteger(generation.count) ||
+        generation.count !== generation.descriptors.length ||
+        generation.count !== binding.generation_count ||
+        generation.digest !== binding.generation_digest ||
+        generation.descriptors.length !== binding.descriptors.length) {
       fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
-        "persistence receipt generation population does not match the bound generation",
-        { index });
+        "persistence receipt generation identity does not match the bound generation");
+    }
+
+    for (const [index, descriptor] of generation.descriptors.entries()) {
+      assertExactKeys(descriptor, RECEIPT_GENERATION_DESCRIPTOR_FIELDS,
+        "persistence receipt generation descriptor");
+      if (descriptor.path !== binding.descriptors[index].path ||
+          descriptor.content_digest !== binding.descriptors[index].content_digest) {
+        fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
+          "persistence receipt generation population does not match the bound generation",
+          { index });
+      }
     }
   }
   const liveTip = resolveRefTip(runGit, binding.git_dir, binding.ref, {
@@ -1216,7 +1230,7 @@ async function observeExactChild({
       "candidate winner changes a path outside the authenticated generation union");
   }
   const post = await generationFromTree({
-    runGit, binding, treeish: liveTip, allowEmpty: false
+    runGit, binding, treeish: liveTip, allowEmpty: binding.resolved_generation === null
   });
   if (!generationMatches(post.descriptors, binding.descriptors)) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.CAS_CONFLICT,
@@ -1326,8 +1340,8 @@ function buildGenerationTree({
 }
 
 export async function persistControlledContractGeneration(input = {}) {
-  assertExactKeys(input, ["binding", "deps"], "generation persistence request");
-  const { binding, deps = {} } = input;
+  assertExactKeys(input, ["binding", "deps", "beforeFirstWrite"], "generation persistence request");
+  const { binding, deps = {}, beforeFirstWrite = null } = input;
   if (!isPlainObject(binding) ||
       binding.schema_version !== "controlled-contract-generation-binding.v1" ||
       !isPlainObject(deps)) {
@@ -1337,18 +1351,22 @@ export async function persistControlledContractGeneration(input = {}) {
   assertOid(binding.wk_tip_sha, "binding.wk_tip_sha");
   if (binding.ref !== `refs/heads/wk/${binding.initiative}/${binding.record_id}` ||
       binding.output_branch !== `wk/${binding.initiative}/${binding.record_id}` ||
-      binding.generation_count !== binding.descriptors?.length ||
-      controlledContractGenerationDigest({
-        wkId: binding.record_id, descriptors: binding.descriptors
-      }) !== binding.generation_digest) {
+      (binding.resolved_generation === null
+        ? binding.generation_count !== null || binding.generation_digest !== null || binding.descriptors?.length !== 0
+        : binding.generation_count !== binding.descriptors?.length ||
+          controlledContractGenerationDigest({
+            wkId: binding.record_id, descriptors: binding.descriptors
+          }) !== binding.generation_digest)) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.BINDING_INVALID,
       "generation persistence binding identity is inconsistent");
   }
-  await validateControlledContractAttachmentGenerationDescriptors({
-    wkId: binding.record_id,
-    descriptors: binding.descriptors,
-    generationDigest: binding.generation_digest
-  });
+  if (binding.resolved_generation !== null) {
+    await validateControlledContractAttachmentGenerationDescriptors({
+      wkId: binding.record_id,
+      descriptors: binding.descriptors,
+      generationDigest: binding.generation_digest
+    });
+  }
 
   reauthenticateBindingSource(binding);
 
@@ -1356,7 +1374,8 @@ export async function persistControlledContractGeneration(input = {}) {
     repoRoot: binding.repository,
     wkId: binding.record_id
   });
-  if (current === null || current.generation_digest !== binding.generation_digest ||
+  if (current === null ? binding.resolved_generation !== null
+    : current.generation_digest !== binding.generation_digest ||
       !generationMatches(current.descriptors, binding.descriptors)) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.SOURCE_CHANGED,
       "canonical controlled-contract generation changed after binding");
@@ -1410,6 +1429,8 @@ export async function persistControlledContractGeneration(input = {}) {
     });
   }
 
+  if (beforeFirstWrite !== null) await beforeFirstWrite();
+  reauthenticateBindingSource(binding);
   const tree = buildGenerationTree({
     runGit, binding, prior, priorManifestPaths, manifestArtifacts,
     runtimePackageArtifacts, recordArtifact
@@ -1433,7 +1454,7 @@ export async function persistControlledContractGeneration(input = {}) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
       "generation replacement changes an unauthorized path");
   }
-  const post = await generationFromTree({ runGit, binding, treeish: tree, allowEmpty: false });
+  const post = await generationFromTree({ runGit, binding, treeish: tree, allowEmpty: binding.resolved_generation === null });
   if (!generationMatches(post.descriptors, binding.descriptors)) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
       "materialized tree does not contain the exact current generation");
@@ -1458,7 +1479,7 @@ export async function persistControlledContractGeneration(input = {}) {
     "-c", `user.email=${COMMITTER.email}`,
     "commit-tree", tree,
     "-p", binding.wk_tip_sha,
-    "-m", `chore(controlled-contract): persist ${binding.record_id} generation`
+    "-m", `chore(controlled-contract): persist ${binding.record_id} canonical state`
   ], "generation persistence commit could not be created");
   const commit = assertOid(stdoutText(commitResult).trim(), "generation commit");
   const cas = runGit({

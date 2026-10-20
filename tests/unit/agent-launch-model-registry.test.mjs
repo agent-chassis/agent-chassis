@@ -112,6 +112,9 @@ test("registry exports the array source and model-name set used by the DEC-0114 
       "gemini-3.8-flash-low",
       "gemini-3.8-flash-medium",
       "gemini-3.8-flash-high",
+      "gemini-4-argon-medium",
+      "gemini-4-argon-high",
+      "google-vertex/gemini-4-argon",
       "google-vertex-anthropic/claude-sonnet-5-5@default",
       "google-vertex/gemini-3.8-flash",
       "gpt-5.3-codex",
@@ -156,4 +159,24 @@ test("Codex Vertex mappings and native OpenCode Vertex registration stay separat
   for (const token of ["opus", "sonnet", "haiku", "fable", "gpt-5.4"]) {
     assert.equal(resolveModel(token).vertex_model, null);
   }
+});
+
+test("Argon native registrations have exact family defaults without a gateway mapping", () => {
+  for (const [model, app, effort] of [
+    ["gemini-4-argon-medium", "agy", "medium"],
+    ["gemini-4-argon-high", "agy", "high"],
+    ["google-vertex/gemini-4-argon", "opencode", "medium"]
+  ]) {
+    const spec = resolveModel(model);
+    assert.equal(spec.app, app);
+    assert.equal(spec.backend, app);
+    assert.equal(spec.default_effort, effort);
+    assert.equal(spec.vertex_model, null);
+    assert.equal(spec.codex_profile, null);
+  }
+  for (const model of ["gemini-4-argon", "gemini-4-argon-low", "google/gemini-4-argon"]) {
+    assert.equal(resolveModel(model), null);
+  }
+  assert.equal(resolveModel("gemini-3.8-flash-medium").default_effort, "medium");
+  assert.equal(resolveModel("google-vertex/gemini-3.8-flash").default_effort, "medium");
 });

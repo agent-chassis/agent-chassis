@@ -1,3 +1,5 @@
+import { buildPublicSelectionSchema } from '@agent-chassis/wiki-core/src/operations/controlled-contract/public-selection.mjs';
+import { requestSchema } from './proof-request-schema.mjs';
 import { readySliceAuthoringOperations } from "@agent-chassis/wiki-core/src/lib/record-authoring-schema.mjs";
 import { DEFAULT_EXCEPTION_PUBLICATION } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-publication-config.mjs";
 
@@ -20,7 +22,7 @@ const SUBJECT_SOURCE_KINDS = ["record", "canonical_record", "document", "manifes
 export const READ_WIKI_INVENTORIES = Object.freeze(["entries", "slices", "tasks", "fields", "matches", "findings"]);
 export const READ_WIKI_MEMBERSHIPS = Object.freeze(["work", "integration"]);
 export const READ_WIKI_CONTRACT_POPULATIONS = Object.freeze(
-  ["criteria", "requirements", "obligations", "cases", "references", "coverage"]);
+  ["criteria", "requirements", "verifications", "collections", "obligations", "cases", "references", "coverage"]);
 
 export function requirementChoiceQueryIssue(select) {
   if (select === null || typeof select !== 'object' || select.contract !== 'requirements' || !Object.hasOwn(select, 'query')) return null;
@@ -40,26 +42,21 @@ export const WORK_RECORD_PLANNING_READ_FIELDS = Object.freeze([
 const READ_WIKI_SOURCES = Object.freeze(["subject", "search", "assignment", "reference"]);
 
 export function describeReadWikiTool(inputSchema) {
-  const declared = new Set(READ_WIKI_SOURCES.filter((key) => Object.hasOwn(inputSchema._def.schema.shape, key)));
-  const list = (items) => items.length > 1 ? `${items.slice(0, -1).join(", ")} or ${items.at(-1)}` : items[0];
-  const material = [
-    ...(declared.has("subject") || declared.has("search") ? ["saved work", "references"] : []),
-    ...(declared.has("assignment") ? ["a frozen assignment"] : []),
-    ...(declared.has("subject") || declared.has("search") ? [] : ["the references this server returns"])
-  ];
-  const sources = [...declared].map((key) => key === "reference" ? "returned reference" : key);
-  return `Read-only ${list(material)}: ${list(sources)}; reference+select.` +
-    (declared.has("subject") ? " terminal_review_designation/review_purpose: no permission. Slices: inventory:\"slices\"." : "");
+  return 'Read requested saved meaning in bulk. Known subjects accept selections directly.';
 }
 
 function selectionSchemas(z, grants, exceptionPublication) {
   const text = z.string().min(1);
   const positive = z.number().int().positive();
+  const authoredMatch = z.record(z.unknown()).refine(value => Object.keys(value).length > 0,
+    'A nonempty authored pattern is required.');
   return {
-    context: [z.object({ context: z.literal(true),
-      ...(grants.granted('record', 'input_contract') ? { for_changes: z.array(text).min(1).optional()
-        .describe('save_record members together; held-schema identity.') } : {}) }).strict()],
-    field: [...(grants.granted('record', 'field') ? [z.object({ field: z.enum(['read_scope', 'write_scope']),
+    context: [z.object({ context: z.literal(true) }).strict()],
+    field: [...(grants.granted('document', 'field') || grants.granted('package_document', 'field') ? [z.object({
+      field: z.enum([...(grants.granted('document', 'field') ? ['body'] : []),
+        ...(grants.granted('package_document', 'field') ? ['text'] : [])]),
+      view: z.literal('sections'), match: authoredMatch.optional() }).strict()] : []),
+      ...(grants.granted('record', 'field') ? [z.object({ field: z.enum(['read_scope', 'write_scope']),
       directory: z.string().min(1).describe('Scope directory; root: dot.') }).strict()] : []),
       z.object({ field: z.enum([...new Set([
       ...(grants.granted("record", "field") ? [...WORK_RECORD_EDIT_FIELD_REGISTRY.map(row => row.field),
@@ -70,12 +67,13 @@ function selectionSchemas(z, grants, exceptionPublication) {
         package_document: PACKAGE_DOCUMENT_READ_FIELDS })
         .flatMap(([kind, fields]) => grants.granted(kind, "field") ? fields : [])
     ])]) }).strict()],
-    inventory: [z.object({ inventory: z.enum(READ_WIKI_INVENTORIES) }).strict()],
+    inventory: [z.object({ inventory: z.enum(READ_WIKI_INVENTORIES) }).strict(),
+      z.object({ inventory: z.literal('tasks'), match: authoredMatch }).strict()],
     entry: [
       z.object({ entry: positive, version: positive.optional() }).strict(),
       z.object({ entry: positive, history: z.literal(true) }).strict(),
       z.object({ entry: positive, version: positive.optional(), view: z.literal('structure'),
-        path: z.array(text).optional(), full: z.literal(true).optional() }).strict()
+        path: z.array(z.union([text, z.object({ match: authoredMatch }).strict()])).optional(), full: z.literal(true).optional() }).strict()
     ],
     text: [z.object({ text }).strict()],
     integrity: [z.object({ integrity: z.literal(true) }).strict()],
@@ -83,17 +81,14 @@ function selectionSchemas(z, grants, exceptionPublication) {
     membership: [z.object({ membership: z.enum(READ_WIKI_MEMBERSHIPS) }).strict()],
     action: [z.object({ action: text }).strict()],
     contract: [
-      z.object({ contract: z.enum(READ_WIKI_CONTRACT_POPULATIONS) }).strict(),
-      z.object({ contract: z.literal("obligations"), view: z.enum(["associated", "proofs"]) }).strict(),
+      z.object({ contract: z.enum(READ_WIKI_CONTRACT_POPULATIONS),
+        where: requestSchema(z, buildPublicSelectionSchema({ kinds: ['requirement', 'claim', 'verification', 'collection', 'case', 'obligation', 'entity', 'criterion', 'unresolved'] }), {}, { memoize: true })
+          .optional().describe('Authored semantic selector.'),
+        include: z.array(z.enum(['verifications', 'dependencies'])).min(1).optional() }).strict(),
       z.object({ contract: z.literal('requirements'), view: z.literal('choices'),
-        query: z.string().regex(/\S/u, 'requirement_query_blank').optional()
-          .describe('Requirements choices; omitted: full inventory.') }).strict(),
-      z.object({ contract: z.literal("requirements"), view: z.enum(["summary", "identities", "definitions", "row", "verifications", "dependencies", "compiled", "unresolved"]),
-        row_id: text.optional().describe("Saved row id; row/verifications/dependencies only.") }).strict()
+        query: z.string().regex(/\S/u, 'requirement_query_blank').optional() }).strict()
     ],
-    obligation: [z.object({ obligation: text, parameters: z.literal(true).optional() }).strict(),
-      z.object({ obligation: text, view: z.literal("row") }).strict()],
-    finding: [z.object({ finding: text }).strict()],
+    finding: [],
 
     guidance: [z.object({ guidance: z.array(text).min(1) }).strict()],
 
@@ -123,7 +118,7 @@ function selectionSchemas(z, grants, exceptionPublication) {
   };
 }
 
-export function createReadWikiInputSchema(z, grants, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION) {
+export function createReadWikiReadSchema(z, grants, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION) {
   if (grants.rows.length === 0) return null;
   const contextKinds = new Set(grants.contextKinds);
   const { selections } = grants;
@@ -169,19 +164,20 @@ export function createReadWikiInputSchema(z, grants, exceptionPublication = DEFA
   const referenceForms = [
     ...(grants.rows.some(row => row.source_kind === "entry")
       ? [z.object({ ref: nonEmpty() }).strict()] : []),
-    z.object({ ...selectedResponseLocatorSchema(z).shape,
-      ...(grants.granted("receipt", "finding") ? { finding_id: nonEmpty().optional() } : {}) }).strict(),
+    selectedResponseLocatorSchema(z),
 
     ...(contextKinds.has("package_document")
       ? [z.object({ tool_name: nonEmpty(), path: nonEmpty() }).strict()] : [])
   ];
   shape.reference = (referenceForms.length === 1 ? referenceForms[0] : z.union(referenceForms)).optional().describe(
-    "Returned reference; select detail.");
+    "Issued source.");
   const byName = selectionSchemas(z, grants, exceptionPublication);
   const members = selections.flatMap((name) => byName[name] ?? []);
   shape.select = (members.length === 1 ? members[0] : z.union(members)).optional().describe(
-    "reference+select, or subject+context.");
+    "Requested meaning.");
 
+  if (grants.granted('record', 'input_contract')) shape.for_changes = z.array(z.string().min(1)).min(1).optional()
+    .describe('Needed save members; current unit only.');
   const sources = READ_WIKI_SOURCES.filter((key) => Object.hasOwn(shape, key));
   return z.object(shape).strict().superRefine((args, context) => {
     const queryIssue = requirementChoiceQueryIssue(args.select);
@@ -191,24 +187,17 @@ export function createReadWikiInputSchema(z, grants, exceptionPublication = DEFA
       context.addIssue({ code: z.ZodIssueCode.custom, path: present.length === 0 ? [] : [present[1]],
         message: `exactly one source is required: ${sources.join(", ")}` });
     }
-    if (args.select !== undefined && args.reference === undefined &&
-        !(args.subject !== undefined && args.select.context === true)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ["select"],
-        message: "select needs the reference a first context returned; call without select first" });
-    }
     if (args.search !== undefined && args.search.query === undefined && args.search.inventory !== true) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["search", "query"],
         message: "search needs query, or inventory:true for the complete filtered population" });
     }
-    if (args.select?.contract === "requirements") {
-      const needsRow = ["row", "verifications", "dependencies"].includes(args.select.view);
-      if (needsRow !== (args.select.row_id !== undefined)) context.addIssue({ code: z.ZodIssueCode.custom,
-        path: ["select", "row_id"], message: needsRow ? "row, verifications and dependencies require row_id from the saved requirements population"
-          : "row_id is allowed only with requirements view row, verifications or dependencies" });
-    }
-    if (args.reference?.finding_id !== undefined && args.select !== undefined) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ["select"],
-        message: "finding_id already selects one receipt finding" });
-    }
+
   });
+}
+
+export function createReadWikiInputSchema(z, grants, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION,
+  { advertise = false } = {}) {
+  const read = createReadWikiReadSchema(z, grants, exceptionPublication);
+  if (read === null) return null;
+  return z.object({ reads: z.array(advertise ? read : z.unknown()).min(1) }).strict();
 }

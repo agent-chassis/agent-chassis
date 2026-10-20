@@ -1,179 +1,198 @@
 # Wiki reader
 
-`workspace_read_wiki` reads one selected source in the session's configured
-repository. Exactly one of `subject`, `search`, `assignment:true`, or a returned
-`reference` selects that source. A reference grants no authority. The role policy,
-source owner, frozen assignment/review source, and registered receiving schema
-continue to decide access and acceptance.
+`workspace_read_wiki` accepts `{reads:[Read,...]}`. A single selection is an array
+of length one. Each read names exactly one source: `subject`, `search`,
+`assignment:true` or an issued `reference`, with optional `select` and
+`for_changes`. Known subjects accept selections directly; acquiring a context or
+storage address first is unnecessary. The singular top-level envelope is not
+served.
 
-## Answers and choices
+```json
+{"reads":[
+  {"subject":"work record","select":{"field":"sections.user_requirements"}},
+  {"subject":"work record","select":{"contract":"obligations"}}
+]}
+```
 
-Initial context returns a source identity, a short authored description where
-present, and the choices needed to acquire further meaning. Saved-unit authoring
-context preserves the current combined write revision. Source hashes,
-authentication, successful checks, retention bookkeeping and byte accounting are
-server-owned, not optional agent reading tasks.
+Results correspond to requests in order, including duplicates. Each result is
+`{status:"ok",value}`, `{status:"partial",value,issues}` or
+`{status:"refused"|"ambiguous"|"unavailable",issue}`. A failed member does not hide
+independent authorized results. Malformed outer envelopes refuse the whole call.
+A complete answer can finish immediately; optional reading never makes another
+read compulsory.
 
-`next_calls` contains concrete calls. A choice population may instead declare one
-`selection_context` template and common bindings for every member. A WK context's
-`selections` are complete selectors: choose one and call
-`{reference,select:selections[i]}` using the returned reference unchanged. A
-selection already expanded into a concrete call is not repeated in `selections`.
-Inventory bindings explicitly name the member values used in the request. A
-schema's accepted selector alone is not a discovered choice.
+Malformed requests identify the affected fields and items and the usable input
+form. Even a whole-envelope refusal diagnoses invalid supplied read items; it
+executes none of them. Valid bulk envelopes keep authorized sibling results.
+When structural placement is wrong or an already named form lacks a uniquely
+determined required literal, the refusal can supply a validated current-schema
+correction preserving its source, selection and constraints. The malformed
+request itself is never accepted.
+Missing or conflicting sources and selections require an explicit caller choice;
+the reader invents no subject, drops no unknown constraint and chooses no default
+selection. Diagnostics describe deciding causes without validator branch reports.
 
-Choices are not a sequence or a permission. Entry and slice inventories select
-no first member for the caller. Ordinary record context likewise recommends no
-first detail read merely from its storage order; a bare subject names no task.
-Explicit focused-edit context still selects the requested schema job. Exact
-fields and completed meaning reads finish
-without recommending a duplicate read or unrelated parent/sibling discovery.
-Parent context identifies unread slice design; reviewing a parent does not read
-its slices. A requested parent review discovers the complete slice inventory and
-opens the members in its review scope, including non-first members.
+The role policy and source owners enforce access. The server captures a current
+unit once per call and reuses its authorized source for prose and contract
+selections. It promises no atomic snapshot across different units. Frozen review
+and worker sources retain their launcher authority and confinement. Reading
+executes no save, proof, refresh, launch or publication and grants no credit.
 
-## Search
+## Contract meaning
 
-Ordinary search returns discriminating choices with excerpts and exact source
-bindings. `search:{inventory:true,...}` returns all matching choices directly,
-without pagination or the unchosen full bodies. An ordinary preview with omitted
-members offers the complete inventory call. A chosen passage opens through the
-shared binding `{reference:{ref:members[i].source.reference},select:{field:"text"}}`
-(or `results[i]` for a preview). That selection delivers its complete exact text.
+Contract selections use `{contract,where?,include?}`. Populations are
+`requirements`, `verifications`, `collections`, `obligations`, `cases`, `criteria`,
+`references` and `coverage`. Omitting `where` explicitly requests the complete
+authorized population. Requirements are whole authored declarations, including
+drafts, definitions and grouped statements; compiled assertions do not replace
+that population. Broad slice requirement reads remain parent requirements, with
+slice applicability not established. Associated obligation closure cannot
+establish that every relevant requirement has been reviewed.
 
-Each supported hit also offers a concrete context call for its saved record or
-document. A canonical record hit may open parent context, from which slice
-identities and assignments are discovered. An immutable entry passage and the
-saved unit's current context are different observations. Entry/version identities
-remain explicit; historical content does not grant a current write revision.
+Selectors use caller-known authored meaning:
 
-Search reports material corpus exclusions and source limitations. Successful
-index reconstruction and hashing mechanics do not qualify an otherwise complete
-answer. A failed corpus read is an unavailable search, never an empty result.
-Movement of a Markdown or canonical JSON passage offers the same source's current
-context when that source kind is granted, then requires a new selection.
+- `{kind:"requirement",match:{subject:{identity:{...}},...}}` selects a whole
+  declaration. `{kind:"requirement",obligation:"OBL-003"}` selects the actual
+  associated declaration set.
+- `{kind:"claim",requirement:<requirement selector>,match:{...}}` selects a
+  generated behavioral part by its authored statement.
+- `{kind:"verification",requirement:<requirement selector>,match?:{...}}` selects
+  a verification; omitting its match requires uniqueness.
+  `{kind:"verification",case:"case-001"}` selects the established saved case
+  association.
+- `{kind:"collection",match:{kind?,purpose?,members?,absent?}}` selects an authored
+  collection. Members use whole requirement selectors; sequence order remains
+  significant for ordered sequences.
+- `{kind:"case",id:"case-001"}` and `{kind:"obligation",id:"OBL-003"}` use public
+  domain identities. `{kind:"entity",identity:{...},type_term?}` uses an authored
+  entity identity.
+- `{kind:"criterion",match:{text?,typed_identity?}}` selects exactly one saved
+  criterion using at least one authored field. Only an actually authored typed
+  identity is eligible. `{kind:"unresolved",match:{text,reason?,candidate_concept?,absent?}}`
+  selects one saved unresolved fragment through the requirements population.
+  Its recorded exception and enforcement consequence remain with its meaning.
 
-The `currentness` selection compares the original observations of canonical WK
-records, including populations larger than 100, in one server-completed answer.
-It does not establish Markdown, DEC/IN, entry-version or whole-corpus currentness.
-An empty supported observation population says `state:"not_checked"` explicitly.
-An entirely current population answers `state:"unchanged"` without returning its
-successful comparison inventory. Changed, absent and unreadable subjects appear
-once in `affected`, preserving their specific diagnostics. Mixed movement and
-unavailable sources answer `changed_with_unavailable_sources`; unavailable
-evidence is never reported as unchanged. Only changed readable subjects offer
-current-context calls. Every captured observation is still checked server-side;
-internal batches, digests and successful checks are not agent tasks.
+Patterns are nonempty structural subsets of authored fields. Scalars match
+exactly; nested objects constrain supplied fields and arrays constrain the whole
+array. Entity aliases do not replace authored identity. `absent:["field.path"]`
+expresses intentional absence and cannot contradict a supplied field. Zero
+matches, several matches and unavailable association evidence remain distinct.
+Identical public meaning cannot be resolved by storage order, recency or a hash.
+An omitted optional draft-obligation association and an explicit empty association
+both establish an empty associated claim and verification set. Malformed associations,
+unresolved saved bindings and unavailable source evidence do not establish emptiness.
+The draft retains its authored meaning without invented coverage.
+An unavailable obligation association blocks only selections that need that
+association. Independent declarations and verifications remain selectable. Reads
+of the defective obligation or a population containing it return known meaning
+as `partial`, with its affected field, cause and uncertainty. The unknown
+claim and verification set is omitted rather than reported as empty. Selecting
+that set for dependent work remains unavailable until its saved association is corrected.
 
-## Assignment and contract meaning
+An obligation returns `claims:[Selector,...]`, directly reusable as
+`changes.obligations[].claims`. A whole-requirement selector appears only when
+all of that declaration's behavioral claims are linked. A grouped subset uses
+`kind:"claim"`; explicitly linked verifications use `kind:"verification"`.
+Mixed links remain mixed. An explicit verification link also makes its owning
+declarations available through the obligation-associated requirement read;
+that context does not add their behavioral claims to the obligation's links.
+No separate lossy declaration-association representation is returned.
 
-Saved field discovery names the actual owner and presence of the field. A slice's
-`sections.user_requirements` is parent-owned; its inventory and selected value
-agree. Planning facts are readable independently of editing grammar. Fields
-registered for both editing and planning appear once in the inventory.
+Saved selectors name the captured saved content. They never silently select a
+replacement declaration submitted in the same save. Under the save owner's
+grammar, a whole-requirement amendment can explicitly name its submitted
+assertions with `replacement_key:"changed"`: `$changed` selects that complete
+population, and `{kind:"claim",requirement:"$changed",match:{...}}` selects
+exactly one submitted assertion. Its check retains a separate
+`verification.key`/`$check` binding. Ambiguous submitted parts return meaningful
+choices preserving the local key so a chosen selector is reusable in that save.
+These bindings are write-only; reader requests use saved semantic selections.
+Fresh readback returns the exact saved associations without local labels.
+Other-unit uses remain unchanged, and unresolved retirement uses still refuse.
+Successful saves require no readback; request one only when the task needs it.
 
-Context exposes criteria, references, obligations, cases and complete coverage.
-Associated review meaning keeps the selected unit's obligations and their
-requirement, verification, definition, reference, case and criterion closure. It
-does not establish that a reviewer has seen every relevant requirement.
+This local obligation isolation requires a valid complete captured graph. A
+malformed or dangling authored collection membership, or a missing semantic
+reference definition, prevents that graph from supplying semantic selections.
+The response preserves the specific cause, affected field and known authored
+subject; absent correspondence stays unavailable. It reports no write effects
+and the stopping condition when no supported semantic save can infer the missing
+meaning. It exposes no compiler addresses and advertises no unchanged retry or
+guessed repair. Independent record-field reads in the bulk request remain usable.
 
-Broad slice requirement discovery remains the parent requirement population,
-explicitly labelled with slice applicability not established. It preserves draft
-and unclaimed requirements. The reader does not infer applicability from an
-obligation mapping or remove global notes/residue that lack an applicability map.
+Bulk envelope acceptance does not establish that each requested item is granted.
+Optional package-guidance calls must also satisfy the receiving role's published
+request schema and the bound document selection. A role denied package-document
+reads receives no such optional call; required correction guidance remains inline.
+Missing or altered document bindings still refuse.
 
-Requirement summary returns states and counts, not a byte-budget-filled subset of
-rows. Its `selection_context` declares the requirements `choices` query template:
-reuse its reference and select, then supply the caller's own nonblank `query`.
-For example, `select:{contract:"requirements",view:"choices",query:"hierarchy jobs"}`
-returns every matching choice in source order. It does not first read a full
-inventory or automatically read the first match. Omitting `query` explicitly
-selects the complete choice inventory; `identities`
-supplies complete row, constraint, claim, verification and collection identities.
-Both supply a shared row-selection template for row, verification or definition
-dependency detail. `definitions`, `unresolved` and `compiled` are explicit complete
-details. Verification answers do not send the caller back to an already read row.
-An aggregate unresolved-scope marker is incomplete knowledge, not zero unresolved
-meaning. Response delivery completeness and semantic extent remain distinct.
+The shared source/resolver owns all associations. Its private row, claim,
+constraint, verification and reference bindings never become agent selectors or
+optional compiler-carrier reads. Returned selectors can serve dependent saves
+under the save owner's grammar and current revision; reading grants no write
+authority. Necessary definitions accompany selected meaning. `include` adds
+`verifications` or `dependencies` when needed. Repeated identical required
+entity definitions appear once in `shared`, identified by their natural authored
+identity.
 
-Requirement queries split on whitespace and lowercase each term. Every term must
-occur literally within at least one scalar value of that row's own authored
-statement: subject identity, modality, relation/constraint operands, applicability,
-membership, lexical scope or definition input. Terms may match different values.
-Punctuation and quotation marks are literal characters, with no regex, phrase,
-synonym or accent-folding syntax. Storage metadata, rendered vocabulary and
-transitive definitions are not searched. The response preserves the exact query,
-matching rule, authorized population count and complete match count.
+A verification answer includes its method, verifier, observed/falsifying
+statements and complete saved runtime declaration when present. The capture owner
+applies saved case-derived runtime meaning before projection. An intentionally
+absent declaration stays absent. An unresolved or unavailable association never
+borrows another verification's binding. Complete selected meaning needs no reread.
 
-Choice descriptions retain subject and constraint distinctions. Defining rows
-identify their subject/relation and mark their body as `selected_row`; the chosen
-row supplies the exact definition body. Identical descriptions remain explicitly
-ambiguous. Draft and unclaimed rows remain searchable. A slice query uses the
-same parent requirement population with applicability not established; a managed
-worker still sees only its authenticated assigned population.
+Lexical discovery remains available through
+`{contract:"requirements",view:"choices",query:"caller words"}`. Every term must
+occur literally in the declaration's own authored scalar values, ignoring case.
+No fuzzy applicability or transitive-definition search is inferred. Omitted query
+requests complete choices; blank queries refuse. Choices preserve incomplete and
+unclaimed declarations and lead through semantic selectors to selected meaning.
 
-No lexical match is distinct from an empty present population, absent source and
-an unavailable source. No match establishes nothing about applicability. A
-zero-match response supplies the caller-query template for refinement and a
-concrete complete-inventory option, without returning unrelated rows. Blank,
-non-string and wrong-view queries refuse specifically and never become implicit
-full inventories. Queries issue no write revision and preserve existing frozen
-source, movement and role restrictions.
+## Fields, tasks, documents and entries
 
-Case readback preserves every selected-unit obligation mapping, including
-obligations without cases, the criteria and referenced component definitions.
-Source presence, mapping absence, empty population and incomplete meaning remain
-distinct. A source-absent case answer does not establish a complete assignment.
+Existing field, scope-directory, guidance, schema, search, entry/history and
+literal-passage selections use the same `reads` envelope. Exact field values and
+selected originals are delivered whole. Scope directories return immediate paths
+and child choices; invalid saved scope is not an empty scope. Search offers
+meaningful excerpts and exact passage bindings, with material corpus exclusions.
+Complete inventories require no pagination or per-member opening tour.
 
-Workers start with `assignment:true`. Its concrete first call reads the full
-frozen guidance; additional assigned-contract choices are optional and use a
-shared selection binding. This changes no captured assignment content, required
-parent prose, worker role grant or source restriction.
+Tasks use `{inventory:"tasks",match?:{heading?,text?,absent?}}`. Document sections
+use `{field:"body",view:"sections",match?:{heading?,heading_path?,text?,absent?}}`;
+package sections use `field:"text"` from the advertised serving owner. Omitted
+match discovers complete semantic choices; a supplied match selects exactly one.
+Repeated descriptions remain ambiguous until authored meaning distinguishes them.
+Section boundaries reuse the Markdown passage owner. Package reads never
+substitute workspace content. No hashed member handle or first-item default is
+served.
 
-## Entries and retained selections
+Structured entries use `{entry,version?,view:"structure",path?,full?}`. Path
+segments are object member names or `{match:<authored pattern>}` for array members.
+A directory omits unchosen bodies and unrelated root scalar values. `full:true`
+returns the complete chosen value without repeating its directory. Missing or
+ambiguous members return containing choices in the same immutable version.
+Immutable entry/version bindings remain available for exact originals and
+material attachment; they do not grant a current write revision.
 
-Entry inventories expose complete current choices and separate history
-navigation. A history answer declares its own version-choice template. Native
-owner paging and retired route calls stay internal. Selected entry material
-retains its immutable version reference and material attachment binding; callers
-choose the target unit and acquire its current revision and grammar before a save.
+## Editing, retained reads and failures
 
-Structured entry directories supply names and authored row labels where recorded.
-They do not include the preamble or scalar sibling values merely because those
-values are at the root. A needed root scalar is available through its returned
-member selection, just like any other member. An explicit `full:true` selection
-returns the entire chosen value without repeating its directory of member names.
-Arrays without named row identity state that focused member selection is
-unavailable; their complete value remains an explicit `full:true` selection.
-The exact original, including its entire preamble and all scalar values, remains
-available through the immutable source binding. Reads do not invent positional
-identities, reinterpret provenance or rewrite material.
+`for_changes:["notes",...]` explicitly requests current authoring context for a
+writable unit. `contexts` is keyed by public unit and supplies its revision once,
+with the fitting grammar calls for all requested members together. Ordinary
+reading supplies no current write revision. Frozen, historical and assignment
+material cannot supply a current write context. Save still validates authority,
+source selection, the revision fence and prospective dependencies.
 
-A retained reader descriptor names a live source. Movement reacquires context of
-the same subject explicitly, while a selected mutable-source read refuses.
-Explicit immutable entry versions remain pinned. Captured producer originals are
-read only through their actual offered owner; reading never reruns a producer.
-Receipt discovery offers a complete findings selection even when the compact
-identity listing omitted findings. Captured effects and causes remain intact.
+Concrete `next_calls` use the bulk envelope. Choice populations can share one
+`selection_context` template instead of repeating navigation for every row.
+Choices and successful reading authorize no subsequent effect. Retained reads
+never replay the originating operation or silently replace the selected source.
+Mutable-source movement offers authorized reacquisition of that same subject;
+explicit immutable versions remain historical.
 
-## Editing and failures
-
-`{subject,select:{context:true,for_changes:[...]}}` returns only the selected unit,
-current write revision, held-grammar identity, reference and one complete schema
-call for all requested members. It does not carry ordinary reading menus or
-unrelated authored context. Schema choices disclose only the selected members'
-capabilities. Schemas retain reachable definitions, object constraints and
-cross-member validation boundaries; reading grants no save authority.
-
-Reader-owned selection refusals use `workspace-read-wiki-refusal.v1`. They preserve
-the specific code, subject, cause, actual known effects and caller choices.
-Known corrections are structured public calls accepted by the reader's full
-request schema. Missing member choices have an explicit selection template.
-Unavailable sources preserve the native diagnostic and responsible recovery
-actor; no read repairs canonical or captured bytes. Native authentication and
-retention refusals remain owned by the shared source owner. Unknown, foreign,
-lost, corrupt and obsolete locators are never replaced with a newer source.
-
-Missing focused capabilities, such as individual anonymous tasks or document
-sections without source-owned selectors, do not authorize guessed IDs, filesystem
-rescue, transport decoding or a broader read presented as mandatory recovery.
+Failures preserve their specific cause, affected public subject/field, actual
+known effects and uncertainty. Known corrections are directly usable calls.
+Missing caller choices stay explicit. Empty established populations, absent
+saved meaning and unavailable evidence differ. If no supported correction exists,
+the result states the stopping condition; filesystem rescue, decoding,
+agent-side integrity checks and unchanged retry loops are not recovery routes.

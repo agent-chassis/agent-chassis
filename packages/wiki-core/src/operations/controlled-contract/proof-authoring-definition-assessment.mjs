@@ -5,6 +5,8 @@ import { requirementUses } from './contract-requirement-normalization.mjs';
 import { projectControlledContractRequirements } from './contract-requirement-authoring.mjs';
 import { prepareProofAuthoringDescriptionRead, projectProofAuthoringContractInputs } from './proof-authoring-contract-inputs.mjs';
 import { unresolvedSpecificationMeanings } from './authoring-exception-assessment.mjs';
+import { createPublicSelectionSource, resolvePublicSelections, projectPublicSelection } from './public-selection.mjs';
+import { projectRequirementDefinitionMeaning } from './contract-requirement-description-sources.mjs';
 
 const json = value => JSON.stringify(value);
 const unique = values => [...new Set(values)].sort();
@@ -21,6 +23,21 @@ const authoredIdentity = finding => finding.source !== undefined &&
       finding.source.candidates?.length > 0));
 const nodeIds = (resolved, pkg, row) => [...(row.controlled_contract_node_ids ?? []),
   ...resolved.cases.filter(definition => definition.case_id === row.case_id).map(pkg.authoredCaseVerificationId)];
+
+async function authoredTargets(resolved) {
+  const source = await createPublicSelectionSource({ captured: resolved, population: 'all' });
+  const population = (await resolvePublicSelections({ source, population: 'requirements', intent: 'read' })).results[0];
+  if (population.status !== 'resolved') return { rows: new Map(), issue: projectPublicSelection(population).issue };
+  const rows = population.matches.filter(match => match.kind === 'requirement');
+  if (!rows.length) return { rows: new Map() };
+  const selections = await resolvePublicSelections({ source, selectors: rows.map(match => match.selector), intent: 'read' });
+  return { rows: new Map(rows.map((match, index) => {
+    const selected = projectPublicSelection(selections.results[index]);
+    return [match.internal.row_id, selected.status === 'ok'
+      ? { target: selected.value.members[0].selector, declaration: selected.value.members[0].declaration }
+      : { targeting: { status: selected.status, issue: selected.issue } }];
+  })) };
+}
 
 export async function assessProofAuthoringSpecification(resolved, pkg, obligationId, preparation = null) {
   const rows = resolved.rows.filter(row => obligationId === undefined || row.obligation_id === obligationId);
@@ -65,6 +82,10 @@ export async function assessProofAuthoringDefinitions(resolved, pkg, obligationI
     resolved.contract?.content ?? null, { controlledContractNodeIds: nodeIds(resolved, pkg, row) })
     .requirements.map(requirement => requirement.claim_id))]));
   const nodes = new Map(descriptions.nodes.map(node => [node.key, node]));
+  const publicRequirements = assessed.findings.length === 0 ? { rows: new Map() } : await authoredTargets(resolved);
+  const targeting = id => publicRequirements.rows.get(id) ?? { targeting: { status: 'unavailable',
+    ...(publicRequirements.issue === undefined ? { cause: 'No public authored declaration target is established for this requirement.' }
+      : { issue: publicRequirements.issue }) } };
   const entries = assessed.findings.map(({ finding, category }) => {
     const affectedRoots = descriptions.roots.filter(root => root.missing.some(row => json(row) === json(finding)));
     const affected = requirements.requirements.filter(requirement => affectedRoots.some(root =>
@@ -79,25 +100,29 @@ export async function assessProofAuthoringDefinitions(resolved, pkg, obligationI
       .map(row => row.obligation_id);
     const object = nodes.get(finding.key);
     const uses = [];
+    const identityUseRows = new Set();
     const reachableConstraints = new Set(affectedRoots.flatMap(root => root.defining_constraint_ids));
     for (const row of resolved.contract?.content.authored_requirements?.rows ?? []) {
       if (!requirementRowIds.includes(row.row_id) && !row.constraint_ids.some(id => reachableConstraints.has(id))) continue;
       const locations = [];
       requirementUses([row.input], locations);
       for (const use of locations) if (object !== undefined && json(use.id.identity) === json(object.entity.identity)) {
-        uses.push({ row_id: row.row_id, claim_ids: row.claim_ids, entity_id: use.id.id,
+        identityUseRows.add(row.row_id);
+        const { declaration: _declaration, ...selection } = targeting(row.row_id);
+        uses.push({ ...selection,
           path: use.path.slice(2), role: use.role, accepted_types: use.types });
       }
     }
     const requiredUses = object?.uses.filter(use => use.missing.some(row => json(row) === json(finding))) ?? [];
-    const facts = { finding: structuredClone(finding), requirement_claim_ids: claimIds,
-      requirement_row_ids: requirementRowIds, uses,
+    const { key: _key, claim_id: _claim, ...findingMeaning } = finding;
+    const facts = { finding: projectRequirementDefinitionMeaning(findingMeaning),
+      requirements: requirementRowIds.filter(id => !authoredIdentity(finding) || identityUseRows.has(id)).map(targeting), uses,
       required_uses: requiredUses.map(({ required_meaning, applicability }) => ({ required_meaning, applicability,
         entity_type: object.entity.type_term,
         required_value_type: required_meaning === 'condition' ? 'bool' : null })),
       ...(authoredIdentity(finding) ? { authored_identity_correction: true } : {}),
-      ...(object === undefined ? {} : { object: { key: object.key, owner: object.owner, entity: object.entity,
-        reference_ids: object.reference_ids } }) };
+      ...(object === undefined ? {} : { object: { entity: { type_term: object.entity.type_term,
+        identity: structuredClone(object.entity.identity) } } }) };
     const diagnosticGroupId = proofAuthoringDiagnosticGroupId(resolved.revision, 'requirement-definition-assessment.v1', finding);
     const subjects = obligationIds.length === 0 ? [facts] : obligationIds.map(obligation_id => ({ obligation_id, ...facts }));
     const selected = { diagnostic_group_id: diagnosticGroupId, family: 'definition', owner, code: finding.code, category,

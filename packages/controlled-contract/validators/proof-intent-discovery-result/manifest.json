@@ -55,10 +55,10 @@
     "custom_keywords": []
   },
   "group_id": "controlled-contract.proof-intent-discovery-result.v1",
-  "schema_digest": "1305d7aecf203b8dbf00e9af49d8e58c8e1d0f162570d20d76c94b6b2bb19dac",
+  "schema_digest": "f7faafe73924d44abfb72b092db18abff3aca3b1005d37e1d4be74ecdebfe91b",
   "file": "validators.cjs",
-  "code_bytes": 74889,
-  "code_sha256": "0a324d530e20f3f598959fb5b4d0531e6d8950a0ea0c07827f031d09c4f340f6",
+  "code_bytes": 92502,
+  "code_sha256": "d9e9404851f405bbdd36ccc02de71f199982e9e648de33da9ce3f9cffb3d9785",
   "validators": [
     {
       "name": "validateProofIntentDiscoveryResult",

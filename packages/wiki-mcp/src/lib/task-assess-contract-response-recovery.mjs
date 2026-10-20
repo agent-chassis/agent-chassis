@@ -11,7 +11,7 @@ export const assessmentAddress = carrier => ({ unit: carrier.unit,
 const canWrite = carrier => ['operator', 'orchestrator'].includes(carrier.source_authority.role);
 const root = carrier => carrier.unit.split('#')[0];
 const read = (unit, members) => ({ tool: 'workspace_read_wiki',
-  arguments: { subject: unit, select: { context: true, for_changes: members } }, purpose: 'current_correction_context' });
+  arguments: { reads: [{ subject: unit, select: { context: true }, for_changes: members }] }, purpose: 'current_correction_context' });
 
 export function authoringRecipe(carrier, tier, { unit, members, instruction }) {
   const status = !canWrite(carrier) ? 'authoring_not_authorized'
@@ -25,8 +25,8 @@ export function authoringRecipe(carrier, tier, { unit, members, instruction }) {
         ? 'save_record cannot write this named focused contract. Do not redirect the correction to the root.'
         : 'Requirement compilation is unavailable in this session; required meaning remains unfinished.' }, next_calls: [] };
   return { save_guidance: { unit, instruction,
-    revision_from: 'current_correction_context response.revision',
-    changes_schema_from: { reference_from: 'current_correction_context response.reference',
+    revision_from: `current_correction_context response.contexts[${JSON.stringify(unit)}].revision`,
+    changes_schema_from: { calls_from: `current_correction_context response.contexts[${JSON.stringify(unit)}].next_calls`,
       select: { input_contract: { tool: 'save_record', members } } },
     after_save: { when: 'Only when reassessment is requested; correction-only work may finish after save.',
       tool: 'workspace_assess_contract', arguments: assessmentAddress(carrier) } }, next_calls: [read(unit, members)] };
@@ -58,6 +58,10 @@ export function selectedAssessmentRecovery(carrier, diagnosis, clauses, tier) {
   if (authored === undefined) return { recovery: { status: diagnosis.recovery_status ?? 'inspection_only',
     cause: projected.recovery.explanation ?? diagnosis.meaning,
     stop: 'This assessment establishes no supported authored correction for this cause.' }, next_calls: [] };
+  const definitions = Object.values(authored.correction_definitions ?? {});
+  if (definitions.length && definitions.every(correction => correction.limitation !== undefined)) return {
+    recovery: { ...definitions[0].limitation,
+      ...(definitions.length > 1 ? { affected_corrections: definitions.map(correction => correction.limitation) } : {}) }, next_calls: [] };
   const meaning = ['definition', 'specification_meaning'].includes(authored.purpose);
   const competition = diagnosis.subjects.some(subject => subject.association?.competitions?.length > 0);
   const missingCaseChain = diagnosis.code === 'obligation_coverage_authored_case_missing'
@@ -67,18 +71,32 @@ export function selectedAssessmentRecovery(carrier, diagnosis, clauses, tier) {
     subject: root(carrier), cause: 'The missing case depends on absent requirement and verification meaning. Requirement compilation is unavailable in this session.',
     stop: 'Authoring only a case cannot supply the missing requirement meaning.' }, next_calls: [] };
   const members = meaning ? ['requirements'] : authored.purpose === 'applicability' ? ['controlled_acceptance'] : ['obligations'];
+  const restatesAssociations = competition || codes.includes('obligation_coverage_node_unknown') ||
+    diagnosis.subjects.some(subject => subject.association?.condition === 'no_eligible_verification');
   const instruction = authored.purpose === 'applicability'
     ? 'Choose controlled_acceptance.disposition from the selected schema. This declaration supplies no missing requirements or evidence.'
     : meaning ? 'Author the diagnosed typed meaning, preserving source links and intended verification/case associations.'
-      : 'Correct only the diagnosed authored fields. Use the saved obligation id; derived native bindings are never authored.';
+      : 'Correct only the diagnosed authored fields. Use the saved obligation id; derived native bindings are never authored.' +
+        (restatesAssociations ? ' When restating associations, reuse the obligation read’s exact claims selections, preserving grouped subsets and explicit verifications. Unavailable membership requires the caller’s intended replacement, never an inferred empty set.' : '');
   const recipe = authoringRecipe(carrier, tier, { unit: authored.unit, members, instruction });
   if (recipe.limitation !== undefined) return { recovery: recipe.limitation,
     next_calls: ['definition', 'specification_meaning'].includes(diagnosis.family)
-      ? [{ tool: 'workspace_read_wiki', arguments: { subject: root(carrier) }, purpose: 'inspect_required_meaning' }] : [] };
+      ? [{ tool: 'workspace_read_wiki', arguments: { reads: [{ subject: root(carrier) }] }, purpose: 'inspect_required_meaning' }] : [] };
   const { status: _status, executable: _executable, unit: _unit, purpose: _purpose, scope: _scope,
     focus: _focus, obligation_id: _obligation, current_read: _read, save: _save,
     subjects: _subjects, grammar_guidance: grammar, discovery, ...meaningInputs } = authored;
   const calls = [...recipe.next_calls];
+  if (diagnosis.code === 'obligation_coverage_node_unknown' || diagnosis.subjects.some(subject => subject.association?.condition === 'no_eligible_verification')) {
+    calls.push({ tool: 'workspace_read_wiki', purpose: 'association_correction_choices', arguments: {
+      reads: [{ subject: root(carrier), select: { contract: 'requirements', view: 'choices' } }] } });
+  }
+  if (diagnosis.code === 'obligation_coverage_authored_case_missing') {
+    calls.push({ tool: 'workspace_read_wiki', purpose: 'case_verification_choices', arguments: {
+      reads: [...new Set(diagnosis.subjects.map(subject => subject.obligation_id).filter(Boolean))].map(id => ({
+        subject: carrier.unit, select: { contract: 'verifications', where: { kind: 'verification', requirement: { kind: 'requirement', obligation: id } } }
+      })) } });
+  }
+
   for (const call of [...(grammar ?? []), ...(discovery ?? [])]) {
     if (call != null) calls.push(call);
   }
@@ -92,8 +110,7 @@ export function selectedAssessmentRecovery(carrier, diagnosis, clauses, tier) {
       'Link this unit’s obligations to the returned requirement/verification identities and author the selected case.',
       'Read each write unit’s current revision before saving. A save supplies no execution or proof credit.' ] } : {}),
     ...((missingCaseChain || competition) && recordAuthoringAvailability(tier).compile_requirements
-      ? { requirements_read: { tool: 'workspace_read_wiki', arguments: { subject: root(carrier),
-        select: { context: true, for_changes: ['requirements'] } } } } : {}) },
+      ? { requirements_read: { tool: 'workspace_read_wiki', arguments: { reads: [{ subject: root(carrier), select: { context: true }, for_changes: ['requirements'] }] } } } : {}) },
     save_guidance: recipe.save_guidance, next_calls: calls };
 }
 
@@ -127,7 +144,7 @@ export function assessmentIndependentGaps(carrier, tier) {
         exception_schemas: !canWrite(carrier) || carrier.focus != null ? []
           : Object.keys(accounting.recovery.saved_exception_binding_gaps)
             .filter(kind => kind !== 'grammar' || recordAuthoringAvailability(tier).grammar_exception)
-            .map(kind => ({ reference_from: 'current_correction_context response.reference',
+            .map(kind => ({ calls_from: `current_correction_context response.contexts[${JSON.stringify(accounting.parent_unit)}].next_calls`,
               select: { input_contract: { tool: 'save_record', operation: 'exception', kind } } })) }) });
     if (guidance && gaps.at(-1).save_guidance) gaps.at(-1).next_calls.push(guidance);
   }
@@ -135,6 +152,6 @@ export function assessmentIndependentGaps(carrier, tier) {
   if (coverage?.correction != null) add('acceptance_criterion_coverage_incomplete',
     'Some declared criteria lack a valid obligation association, or an association is stale.', carrier.unit,
     ['obligations'], 'Choose the intended criterion associations; repairing them supplies no missing obligation meaning.',
-    { meaning_selection: { reference_from: 'current_correction_context response.reference', select: { contract: 'coverage' } } });
+    { meaning_selection: { tool: 'workspace_read_wiki', arguments: { reads: [{ subject: carrier.unit, select: { contract: 'coverage' } }] } } });
   return gaps;
 }

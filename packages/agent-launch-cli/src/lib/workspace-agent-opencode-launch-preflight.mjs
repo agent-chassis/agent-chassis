@@ -1,3 +1,4 @@
+import { isConfiguredOpenCodeModel } from "./agent-launch-role-config.mjs";
 import { projectStdioMcpChannelClientRegistration } from "./stdio-mcp-conduit-channel.mjs";
 import { TERMINAL_STRUCTURED_ROLE_RESULT_MODES } from "@agent-chassis/agent-launch-core/src/lib/work-record-launch-prompt.mjs";
 import { resolveConfiguredAgentExecutable } from "@agent-chassis/agent-launch-core/src/lib/registry.mjs";
@@ -10,15 +11,15 @@ import { ensureLauncherRuntimeStateDir } from "@agent-chassis/agent-launch-core/
 import { isWithinRepo } from "./launch-isolation.mjs";
 import { serializeOpenCodeNativePermissions } from "./workspace-agent-opencode-native-permissions.mjs";
 
-export function buildOpenCodeNativeConfiguration({ conduitBinding, model, guideDelivery, effort, permissionFacts } = {}) {
+export function buildOpenCodeNativeConfiguration({ conduitBinding, model, guideDelivery, effort, permissionFacts, opencode = null } = {}) {
   const registration = projectStdioMcpChannelClientRegistration(conduitBinding);
   if (!guideDelivery?.guidePath || guideDelivery.highPriority !== true) {
     throw new Error("opencode_native_guide_delivery_unavailable: lower-priority compact reminders are unqualified");
   }
 
-  return Object.freeze({ model, small_model: model, default_agent: "launcher", share: "disabled", autoupdate: false,
+  return Object.freeze({ ...opencode, instructions: [], plugin: [], model, small_model: model, default_agent: "launcher", share: "disabled", autoupdate: false,
     permission: serializeOpenCodeNativePermissions(permissionFacts),
-    agent: { launcher: { mode: "primary", model, ...(effort === undefined ? {} : { variant: effort }), prompt: `{file:${guideDelivery.guidePath}}` } },
+    agent: { launcher: { mode: "primary", model, ...(effort == null ? {} : { variant: effort }), prompt: `{file:${guideDelivery.guidePath}}` } },
     mcp: { wiki: { type: "local", command: [registration.command, ...registration.args],
       environment: { ...registration.env }, enabled: true } } });
 }
@@ -48,14 +49,17 @@ export async function prepareOpenCodeLaunch({ input, resultMode, prompt, env, op
     throw Object.assign(new Error("OpenCode native Glob/Grep require preinstalled ripgrep on the launcher PATH; install it or rebuild the prepared image before launch", { cause }),
       { code: "opencode_ripgrep_unavailable" });
   }
+  const effort = input.model_selection === undefined ? input.default_effort : input.model_selection.effort;
   const commandLine = buildOpenCodeCommandLine({ executable: configured.executable, leadingArgs: configured.leadingArgs,
-    model: input.model, effort: input.model_selection?.effort ?? input.default_effort,
+    model: input.model, effort,
+    opencode: input.model_selection?.opencode,
     prompt: withRoleGuideInstructionsPrompt(prompt, guideDelivery), resultMode,
     headless: options.headless ?? true, nativeSessionId: options.nativeSessionId ?? null });
 
   let provider = null;
   let credentialsFile = null;
-  if (typeof env.GOOGLE_APPLICATION_CREDENTIALS === "string") {
+  if (!isConfiguredOpenCodeModel(input.model, input.model_selection?.opencode)
+      && typeof env.GOOGLE_APPLICATION_CREDENTIALS === "string") {
     credentialsFile = await realpath(env.GOOGLE_APPLICATION_CREDENTIALS);
     const credential = JSON.parse(await readFile(credentialsFile, "utf8"));
     if (credential.type !== "service_account" || typeof credential.project_id !== "string") {
@@ -74,8 +78,9 @@ export async function prepareOpenCodeLaunch({ input, resultMode, prompt, env, op
       { code: "opencode_runtime_state_unavailable", detail: runtimeState });
   }
   return { commandLine, guideDelivery, profile, executable, provider, credentialsFile, model: input.model,
+    opencode: input.model_selection?.opencode ?? null,
     runtimeReadOnlyRoots: ripgrep.readOnlyRoots,
-    runtimeStateDir: runtimeState.dir, effort: input.model_selection?.effort ?? input.default_effort,
+    runtimeStateDir: runtimeState.dir, effort,
     nativePermissionContext: { role: input.role, workspaceDir: await realpath(input.workspace_dir),
       registeredTier: options.registeredTier,
       publishControlledAcceptanceOptOut: options.publishControlledAcceptanceOptOut } };

@@ -605,7 +605,7 @@ export function createBackendIntegration(ctx) {
   }
   async function requestCommittedSliceIntegration(request = {}) {
     if (request?.approvedDelivery === undefined) return executeIntegrationRequest(request);
-    const key = `approved:${JSON.stringify([request.subject, request.approvedDelivery])}`;
+    const key = `approved:${JSON.stringify([request.subject, request.approvedDelivery, request.candidateVersion ?? null])}`;
     try { await fenceApprovedDelivery(request); } catch (error) {
       const refused = nonIntegratedFromError(error, "approved delivery could not be authenticated");
 
@@ -632,6 +632,7 @@ export function createBackendIntegration(ctx) {
               result.record_reconciliation?.state !== INTEGRATED_RECORD_RECONCILIATION_STATES.BLOCKED &&
               finalizeCommittedSliceIntegration !== null) {
             result = await finalizeCommittedSliceIntegration(result, { approvedDelivery: request.approvedDelivery,
+              candidateVersion: request.candidateVersion ?? null,
               retireManagedWorkerIdentity: ctx.retireManagedWorkerIdentity });
           }
         } catch (error) {

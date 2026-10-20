@@ -56,6 +56,8 @@ import {
   canonicalSerializeLauncherAgentSessionContract,
   isTrustedStdioMcpConduitAuthority,
   mintLauncherAgentSessionContract,
+  bindLauncherAgentSessionExecutionBackend,
+  resolveLauncherAgentSessionContract,
   resolveLauncherAgentSessionContractFacts,
   resolveTrustedStdioMcpFrozenReviewContractSnapshot,
   resolveTrustedStdioMcpWorkerAssignmentSnapshot
@@ -373,7 +375,7 @@ export function authenticateStdioMcpCompletionCredential({
   expectedFacts,
   consumerVersion
 } = {}) {
-  return authenticateLauncherAgentSessionContract({ contract, expectedFacts, consumerVersion });
+  return authenticateLauncherAgentSessionContract({ contract, expectedFacts, consumerVersion, preparation: true });
 }
 
 async function reapChild(child, signal = "SIGTERM", timeoutMs = 2_000, termination = null) {
@@ -441,7 +443,8 @@ function validateConduitInput(input) {
   });
   const sessionContract = authenticateLauncherAgentSessionContract({
     contract: input.sessionContract,
-    expectedFacts: resolveLauncherAgentSessionContractFacts(authority)
+    expectedFacts: resolveLauncherAgentSessionContractFacts(authority),
+    preparation: true
   });
   return { family, role, authority, sessionContract };
 }
@@ -739,7 +742,8 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       app: family,
       assignedUnit: input.assignedUnit,
       workspaceDir: path.resolve(input.workspaceDir),
-      sessionContract,
+      get sessionContract() { return resolveLauncherAgentSessionContract(authority); },
+      bindExecutionBackend: observation => bindLauncherAgentSessionExecutionBackend(authority, observation),
       directory,
       authority,
       toolNames: expectedToolNames,
@@ -823,6 +827,13 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
       let termination;
       let spawned;
       try {
+        const finalContract = authenticateLauncherAgentSessionContract({
+          contract: resolveLauncherAgentSessionContract(authority),
+          expectedFacts: resolveLauncherAgentSessionContractFacts(authority)
+        });
+        const contractBytes = canonicalSerializeLauncherAgentSessionContract(finalContract).toString("utf8");
+        generationEnv.WIKI_MCP_AGENT_SESSION_CONTRACT = contractBytes;
+        generationEnv[WIKI_MCP_AGENT_SESSION_EXPECTED_CONTRACT_ENV_VAR] = contractBytes;
 
         const launcherNoCceAuthorityDeclaration =
           serializeLauncherNoCceAuthorityDeclaration(

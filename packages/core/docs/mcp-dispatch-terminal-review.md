@@ -65,17 +65,25 @@ repository selected.
   malformed record or carrier, a generation `W` holds that the checkout no longer
   selects, a WK ref that moved off the selected candidate's own history, a moved
   ref, or a Git or forge fault. Each keeps its owner's own code and message.
-- **A selected candidate is authenticated from durable state on every call.**
-  Publication reads the fixed current-selection ref, authenticates its exact
-  generation and immutable version, and verifies its prepared checkout. It
-  reconstructs no absent candidate, persists no newer contract content and
-  replaces no candidate selection. Missing preparation or mismatched identity
-  refuses before forge effects, with the original cause at `candidate_resolution`.
-  Cold candidate preparation and explicit advancement are separate actions. An explicit final-integration continuation uses the shared preparation owner. Recovery may reclaim the deterministic absent checkout’s stale Git registration for the same selected candidate, without pruning unrelated worktrees. An extant checkout must still pass all binding and cleanliness checks. A different selected candidate stops recovery; it is never replaced by an integration retry.
-  A thrown configured publication-authorization decision retains its native cause, selected WK, failed operation and known no-publication effect. Reading that diagnostic never retries authorization or publication.
-- **Publication preserves the reviewed candidate.** Contract or candidate
-  changes belong before publication under the applicable review policy.
-  Availability grants no authorization. Direct-to-main work has no forge handoff.
+- **Publication synchronizes canonical authored state first.** Under the existing
+  same-WK authority exclusion, `workspace_publish_work({subject})` captures the
+  complete orchestrator-maintained canonical WK and its required authored
+  sources and persists them above the exact WK tip through the existing
+  persistence owner. Record bytes are compared even when the generation is
+  unchanged. A controlled generation, saved authoring sources without a
+  generation, and a record with neither all use this path. Absence creates no
+  generation, manifest, proof or review credit. Integrated implementation bytes
+  are preserved. The live canonical record is unchanged.
+  Publication then prepares and authenticates the candidate of that resulting
+  exact tip, constructing an absent candidate or replacing an older selection
+  on the same WK history. No separate sync, inspect or advance call is needed.
+  Wrong identity, divergent history, source/ref movement and internal held-version
+  mismatches still refuse. Inspection and historical reads remain read-only.
+  Before the first mutation, the existing handoff observes confirmed landing;
+  landed publication and unavailable landing observations retain their protection.
+  Recovery may reclaim the deterministic absent checkout's stale Git registration
+  without pruning unrelated worktrees. Existing checkouts must pass the normal
+  binding and cleanliness checks. Configured CCE decisions remain controlling.
 - **The fence holds before any external effect.** Repository, WK, fork, tip,
   candidate identity, tree, parent and controlled generation are rechecked under
   the existing exclusion before the branch or the proposal is touched. A moved or
@@ -850,7 +858,7 @@ delivery. The projection admits that value only when it equals the expectation
 its caller established for that slice from the integration authority's producer
 proof (see Producer-authenticated integrated-delivery evidence below), bound to
 `C`'s own record as the historical contract and to the candidate's own recorded
-`W`: the proof's WK tip is that `W`, or, after explicit preparation has synchronized the WK
+`W`: the proof's WK tip is that `W`, or, after publication preparation has synchronized the WK
 branch above it, the exact delivery is literally included in that `W` and that
 `W` is literally included in the proof's WK tip. A delivery only the newer tip
 holds, and a WK history rewound or rewritten away from the recorded `W`,
@@ -873,9 +881,19 @@ chain is not authenticated. The producer proof needs the retained slice delivery
 ref and the canonical record's recorded value; when either is gone the closeout
 refuses rather than accepting the field.
 
-Every integrated slice is authenticated on its own, and publication carries
-each of them without any contract change or record synchronization into the WK
-branch. Any number of implementation slices `C` holds may close by their own
+### Historical closeout projection
+
+The following rules describe the existing projection's authentication of
+retained candidate/closeout differences. They are not a field allowlist for
+ordinary saved canonical content: subject-only publication synchronizes that
+whole record and required sources before preparing its candidate. Standalone
+design review status, task edits, regression lists, titles and requirements
+therefore need no additional closeout exception. No content grants proof,
+test or review credit. Movement during a call retains the existing source,
+identity, delivery and expected-old fences.
+
+Every integrated delivery beyond the historical candidate record is
+authenticated on its own. Any number of implementation slices `C` holds may close by their own
 authenticated integration transition; one slice's expectation never admits
 another slice's value, so swapped, substituted or unauthenticated deliveries
 refuse `integrated_delivery_unauthenticated` with the slice they were claimed
@@ -924,23 +942,13 @@ selection or any other authored field refuse with that field's own reason. The
 notes' text is not read, classified or fed into the frozen worker or reviewer
 assignment.
 
-Task completion is coordination progress, not contract. A task `C` holds, on
-the parent or on a slice `C` already holds, may be marked done after `C`
-through `save_record`'s task action, and publication carries it by itself: for
-a first publication and for a repeat that replaces the same unlanded
-publication, with no reverted task, record edit, candidate inspection or
-candidate advance in between. The projection admits exactly what the canonical
-task planner's `mark_done` writes, by asking that planner rather than reading
-task text: the same task at the same index with only its `status` moved to
-`done`, and on a slice the well-formed `updated` the writer moves with it. `K`
-is the live record with the completion state it actually holds, `D` differs
-from `K` only by the parent `done`, and the live record is not changed. A
-completion alone is never read as a slice closeout. Every other task change
-stays drift, alone or beside a completion: a rewritten, reopened, added,
-removed or reordered task, or a status the writer does not write. A repeat
-handoff keeps every completion the published `K` carries
-(`published_closeout_drift` with the task's `sections.tasks[<index>].status`
-field).
+The historical projection recognizes a completed task through the canonical
+task planner's `mark_done` operation. It requires the same task at the same
+index with only its status moved to `done`, plus the well-formed slice date
+that the writer moves with it. Rewritten, reopened, added, removed or reordered
+tasks remain drift when compared between a historical candidate and closeout.
+Current publication synchronizes these saved changes into the new candidate
+before closeout; it does not depend on this historical exception.
 
 A parent section that differs from `C` in any other way refuses
 `unrelated_sections_drift` and says exactly where. The projection cause carries
@@ -958,12 +966,6 @@ a side holds none). The paths stay in the first answer; when the compared values
 do not fit it, `sections_drift` is the member the bounded answer names and its
 one read returns whole, and that read publishes nothing. The registered response
 keeps the refusal and offers one guidance read, `workspace_read_wiki({subject})`.
-The correction is the coordinator's: each named path is saved back to its
-`candidate_value` through `save_record` at the revision that read returns, and
-publication is requested again. Nothing is restored into the live record by
-publication, a change `save_record` does not offer has no correction established
-there, and inspecting or advancing the candidate does not resolve a mismatch
-between the live record and the candidate's own record.
 
 An ordinary slice that differs from `C` in a way the closeout cannot carry
 refuses `unrelated_slice_drift` with the same exactness. The projection cause
@@ -1021,78 +1023,44 @@ response. A repeat handoff also keeps a policy the published `K` carries
 nothing else: unrelated protected changes beside it refuse with their own
 reason. Neither a review slice nor a policy is required for publication.
 
-Any other protected authored field that differs from `C` refuses
-`unrelated_record_drift` with `fields`: every differing path, descending
-through objects, so appended validation notes are reported as exactly
-`acceptance.validation` and a changed criterion as `acceptance.criteria`. When
-the parent's `acceptance.validation` is the only such field, handoff
-preparation adds `acceptance_validation_drift` beside the projection, taken
-from `C` and the record it observed: the `unit`, the `candidate` commit, the
-`field`, the `candidate_value` `C` declares, the `observed_value`, and the
-identity of exactly that observed record (`observed_source_digest`). That
-identity is not a save revision and names no write argument. The registered
-response keeps the refusal and its identity, publishes nothing, and offers one
-guidance read: `workspace_read_wiki({subject})`, which returns the current
-authored WK, its authoring selections and the `revision` a save requires.
-The guidance recovery is conditional and owned by the coordinator. If the
-change was meant to record results or limitations, preserve that text in a new
-entry through `save_record` at the revision that read returned, restore
-`acceptance.validation` to `candidate_value` through `save_record` at the
-revision the entry save returned, and retry publication; a save against a
-revision an intervening save made stale is refused with
-`save_record_revision_stale` and the intervening save survives. If the
-change altered a requirement, this candidate cannot be published: an entry
-records evidence only, satisfies no unmet requirement and does not cure the
-drift. The handoff never classifies the prose, relocates or reverts content, or
-mints a write call, and reading the guidance changes nothing. Drift in any other
-protected field, alone or beside `acceptance.validation`, offers no guidance and
-keeps `no_supported_route`. When the serving registrar cannot offer the read,
-the refusal states the missing capability instead.
+Other authored differences between a historical candidate and its closeout
+refuse `unrelated_record_drift` with the exact paths. An
+`acceptance.validation` difference retains its compared values and observed
+source digest through the existing diagnosis owner. These historical
+constraints authenticate existing chains; they do not require reverting a
+newer canonical save before ordinary publication. Saved-result and guidance
+reads perform no synchronization or publication.
 
-## Publication preserves the reviewed candidate
+## Publication synchronizes the canonical WK
 
-Publication must hand off the selected reviewed candidate unchanged. Any change
-that would alter that candidate, including newer controlled-contract content or
-saved proof-authoring sources, belongs before publication and must follow the
-applicable review policy. A mismatch must refuse rather than select a newer
-candidate. Tool availability, mechanical checks, candidate preparation and an
-unconfigured CCE boundary grant no publication permission. Direct-to-main work
-excludes forge handoff.
+The public `workspace_publish_work({subject})` request publishes current canonical
+state. Under same-WK exclusion it synchronizes the whole canonical record and
+required contract or saved proof-authoring sources through the persistence
+owner's capture, restricted tree construction, verification and expected-tip
+compare-and-swap. The record is compared independently of generation identity.
+A record with no sources persists as a record-only change, with no manufactured
+generation or generation receipt content.
 
-The publication resolver authenticates the existing selection without generation
-synchronization, candidate replacement or absent-candidate construction. A stale
-or mismatched candidate refuses through its owning authentication cause; it is
-never replaced with newer contract content. Candidate preparation and explicit
-advancement remain separate from publication and grant no publication authority.
+The existing candidate owner then prepares the exact resulting WK tip. An older
+selection can advance only along its authenticated WK history with the same
+fork and identity. Valid durable WK/fork inputs can prepare an absent selection.
+Publication needs no preliminary inspect, synchronization or advancement call.
+The subject-only request has no expected reviewed-version argument and cannot
+promise an atomic match to an earlier inspection or grant credit from it.
+Internal expectedVersion fences retain their no-substitution behavior.
 
-An absent selected-candidate ref is not evidence that integrated work or its
-durable WK/fork inputs are missing. The read-only publication path refuses that
-absence before examining reconstruction inputs. The explicit integration path
-can currently finish without preparing the first candidate; publication exposes
-no callable first-preparation repair. This is an integration-to-preparation gap,
-not a reason to replace reviewed work or to introduce an extra review as repair.
-Loss of the selected version ref or private checkout also currently refuses;
-publication does not recreate them. These failures preserve the selected work
-and their distinct owning causes, but have no returned callable recovery route.
+Before the first write, the handoff's existing landing observer protects a
+confirmed landing and refuses an unavailable observation. Source capture and
+expected-tip fences preserve competing writes. Configured CCE decisions still
+apply. Inspection and historical authentication create nothing.
 
-The public `workspace_publish_work({subject})` request resolves the selected
-candidate at call time. It has no expected reviewed-version argument, so it
-cannot promise an atomic match to an earlier inspection. Callers cannot publish
-an arbitrary historical version through that request. Within the selected
-publication, all identity and currentness fences remain mandatory.
-
-Known preparation changes, partial publication and uncertainty remain facts
-when an owning producer reports them. An absent effect account does not prove
-that no effect occurred. A response projection never authorizes changes or
-claims rollback.
-
-Publication preserves the resolved candidate beneath the permitted
-work-record-only closeout commits. That within-call preservation does not prove
-that the resolved candidate is the one selected for an earlier review. Repeats
-must not bypass the reviewed-identity requirement. The hosted proposal's
-tool-owned description can be repaired without rewriting unrelated proposal
-text; a failure after branch publication must preserve that publication effect
-and name the description/proposal uncertainty rather than claim no publication.
+Publication continues through the existing closeout and transport owners:
+`C -> K -> D` carries the synchronized record followed by branch-local `done`.
+The live canonical record is unchanged, and integrated implementation bytes
+are preserved. Synchronization creates no proof, test or review credit.
+Known completed synchronization is reported beside an originating later failure;
+record-only persistence is reported as `record`, never as a generation write.
+A retry converges from those effects without duplicating publication.
 
 ## Repeat handoff refreshes the same publication
 
@@ -1101,36 +1069,20 @@ closeout record stale. Repeating the same `workspace_publish_work` call, with
 the same request, updates that one publication; there is no separate command,
 editor hook or background publication, and normal editing is unchanged.
 
-- **Observe before refreshing.** The repeat resolves the current candidate and
-  generation and the same destination and base identity and authenticates the
-  published head as `C -> K -> D`. A changed candidate requires the applicable
-  review policy before publication. Publication authenticates the existing
-  selection unchanged, as described in [Publication preserves the reviewed candidate](#publication-preserves-the-reviewed-candidate).
-  The bullets below describe a repeat over the same candidate. Landing and
-  proposal state are observed before the live
-  record is read. A landed publication (exact-head
-  ancestry of the local or Git landing base, or a single exact merged proposal)
-  is only observed: when the canonical record is that publication's `D` or its
-  `K` awaiting reconciliation the retry returns the landed head with no effect;
-  any other record refuses `published_handoff_already_landed` with the landed
-  head. A closed-unmerged, ambiguous or head-disagreeing proposal refuses with
-  its existing cause.
-- **Unchanged is a no-op.** When the live record's authored content equals the
-  published `K` (or its `D`), the existing head is returned: no commit, ref
-  update, push or proposal. Unchanged and fresh-process retries report
-  `existing` effects.
-- **Permitted changes rebuild beside, not above.** Otherwise the live record is
-  read once, must be `review`, and is authenticated by the one projection owner
-  against `C` and against the published `K`: every entry `K` carries stays under
-  the same exact-prefix rule, and `K`'s parent closure and its closed
-  implementation slice's status, closure and `integrated_delivery_sha` stay
-  exactly (`published_closeout_drift` names the unit and field otherwise). The
-  same closeout builder then commits `C -> K2 -> D2` directly above the same `C`
-  from that captured record, and the chain authenticator verifies it. The
-  candidate, its version and generation, the integrated delivery, destination and
-  base are unchanged; no proof, review or reviewer runs, and no existing evidence
-  is claimed for changed implementation (a changed requirement refuses; it never
-  manufactures a new candidate).
+- **Observe before refreshing.** Publication authenticates the old publication
+  from its own recorded candidate, synchronizes current canonical state and
+  prepares the resulting candidate. The existing pre-write landing check runs
+  before synchronization or candidate mutation. A landed publication is only
+  observed; changed canonical content refuses `published_handoff_already_landed`.
+  Closed-unmerged, ambiguous or head-disagreeing proposals retain their own causes.
+- **Unchanged is a no-op.** When the canonical snapshot and its sources are
+  unchanged, the same candidate and `C -> K -> D` chain are returned. Warm and
+  fresh-process retries add no commits, ref updates, pushes or proposals.
+- **Refresh uses the same destination.** A newer synchronized candidate uses
+  the existing closeout builder and old-publication authentication. The same
+  unlanded local ref, Git branch or hosted branch/proposal is refreshed under
+  its existing identity and race protections. The canonical record is carried
+  as a whole, without field-specific review-status or task-completion exceptions.
 - **Expected-old replacement.** Local handoff compare-and-swaps the handoff ref
   from `D` to `D2`. Git delivery lease-updates the destination branch through its
   validated URL from `D`, re-observes it at `D2`, then compare-and-swaps the local
@@ -1312,6 +1264,14 @@ admit it. A stale or absent candidate offers no reviewer dispatch. Candidate,
 ref, CAS and authorization identities remain launcher-owned.
 
 ### Review-independent candidate status and advance
+
+Candidate observations preserve the affected work-record path and originating
+read or parse failure. An absent selected record, malformed JSON and a record
+identifying different work remain distinct. A persistent WK ref that is
+confirmed absent differs from a resolution failure with native Git or I/O
+diagnosis. These observations perform no preparation, publication or repair.
+Review incompatibility retains the specific missing or ambiguous authored
+fields; it does not change the candidate's mechanical state.
 
 `workspace_inspect_candidate` decides candidate state only from
 durable candidate facts: the canonical WK identity, the authenticated exact-W
@@ -2242,8 +2202,8 @@ candidate read or an expected version populated by the task.
 
 The existing publisher, production publication-state resolver and coordinator
 own current candidate authentication under the same live WK
-exclusion. The resolver authenticates the already selected candidate without
-synchronizing newer contract content or replacing it. It applies its authentication, closeout,
+exclusion. The resolver first synchronizes the canonical WK and required authored
+sources, then prepares and authenticates the resulting exact candidate. It applies its authentication, closeout,
 expected-old publication and live-record fences. Local, plain Git
 and hosted outcomes, exact candidate and publication identities, destinations,
 proposals, unchanged repeats, permitted notes refresh and partial effects remain
@@ -2298,10 +2258,13 @@ stays private. Repeated
 exception renderings and empty finding populations do not create extra meaning
 or another read. Missing/corrupt/foreign sources refuse through the existing owner.
 
-If retention fails after publication, the result preserves actual known effects
-and names the retention cause and unavailable diagnosis. It does not replay or
-claim rollback, and it does not advertise a nonexistent reader. A complete
-small diagnosis needs no saved-answer read to finish.
+If the detail reader or retention is unavailable, fitting semantic diagnosis
+remains inline and can finish without storage bookkeeping or a saved-answer read.
+When needed diagnosis cannot fit, the result preserves actual known effects and
+names the retention cause or unavailable reader and omitted diagnosis. It does
+not replay, claim rollback or advertise a nonexistent reader. A failure building
+the diagnosis call after retention likewise preserves the publication outcome
+and identifies that navigation failure, separately from adapter or storage failure.
 
 `buildPublishWorkRequest(subject, {requestSchemaAuthority?})` remains subject-only.
 It requires canonical membership and a matching serving registration/schema

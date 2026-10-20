@@ -9,7 +9,9 @@ const RECOVERY_SUBJECT_RE = /^(?:WK-\d{4})(?:#SLICE-\d{3})?$/u;
 const BOUNDED_TOKEN_RE = /^[a-z][a-z0-9_.-]{0,159}$/u;
 const GUIDANCE_ARGUMENT_KEY_RE = /^[a-z][a-z0-9_]{0,63}$/u;
 const GUIDANCE_ARGUMENT_STRING_MAX = 256;
-const GUIDANCE_ARGUMENT_MAX_DEPTH = 2;
+
+const GUIDANCE_ARGUMENT_MAX_DEPTH = 4;
+const GUIDANCE_ARGUMENT_MAX_MEMBERS = 64;
 const GUIDANCE_INFORMATION_MAX = 512;
 
 const DECLARED_CALLABLE_NEXT_ACTION = "start_agent";
@@ -35,7 +37,7 @@ function validateRecoveryRoute(value) {
   return typeof value === "string" && RECOVERY_ROUTE_RE.test(value) ? accept(value) : reject;
 }
 
-function validateRecoveryArgs(value) {
+function validateRecoveryArgs(value, route) {
   if (value === null || value === undefined) return accept(null);
   if (!isPlainObject(value)) return reject;
   const projected = {};
@@ -51,28 +53,38 @@ function validateRecoveryArgs(value) {
       projected.subject = value.subject;
       continue;
     }
+    if (key === "diff_base_sha" || key === "reviewed_sha") {
+      if (typeof value[key] !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(value[key])) return reject;
+      projected[key] = value[key];
+      continue;
+    }
     return reject;
   }
+  if ((value.diff_base_sha !== undefined || value.reviewed_sha !== undefined) &&
+      (route !== "start_agent" || value.subject === undefined ||
+        value.diff_base_sha === undefined || value.reviewed_sha === undefined ||
+        !["reviewer", "redteam"].includes(value.role))) return reject;
   return accept(Object.freeze(projected));
 }
 
 function projectGuidanceArgs(value, depth = 0) {
-  if (!isPlainObject(value) || Object.keys(value).length === 0) return null;
+  if (typeof value === 'string') return value.length > 0 && value.length <= GUIDANCE_ARGUMENT_STRING_MAX ? value : null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'boolean') return value;
+  if (depth > GUIDANCE_ARGUMENT_MAX_DEPTH) return null;
+  if (Array.isArray(value)) {
+    if (value.length === 0 || value.length > GUIDANCE_ARGUMENT_MAX_MEMBERS) return null;
+    const projected = value.map(entry => projectGuidanceArgs(entry, depth + 1));
+    return projected.includes(null) ? null : Object.freeze(projected);
+  }
+  if (!isPlainObject(value) || Object.keys(value).length === 0 ||
+      Object.keys(value).length > GUIDANCE_ARGUMENT_MAX_MEMBERS) return null;
   const projected = {};
   for (const [key, entry] of Object.entries(value)) {
     if (!GUIDANCE_ARGUMENT_KEY_RE.test(key)) return null;
-    if (typeof entry === "string") {
-      if (entry.length === 0 || entry.length > GUIDANCE_ARGUMENT_STRING_MAX) return null;
-    } else if (typeof entry === "number") {
-      if (!Number.isFinite(entry)) return null;
-    } else if (typeof entry !== "boolean") {
-      if (depth >= GUIDANCE_ARGUMENT_MAX_DEPTH) return null;
-      const nested = projectGuidanceArgs(entry, depth + 1);
-      if (nested === null) return null;
-      projected[key] = nested;
-      continue;
-    }
-    projected[key] = entry;
+    const nested = projectGuidanceArgs(entry, depth + 1);
+    if (nested === null) return null;
+    projected[key] = nested;
   }
   return Object.freeze(projected);
 }
@@ -118,7 +130,7 @@ function validateRecoveryProse(value, schemaRejected) {
 function validateDeclaredGuidance(value, route, schemaRejected) {
   const rejectedBefore = schemaRejected.length;
   if (typeof route !== "string") schemaRejected.push("detail.recovery.route");
-  const args = projectGuidanceArgs(value.args);
+  const args = isPlainObject(value.args) ? projectGuidanceArgs(value.args) : null;
   if (args === null) schemaRejected.push("detail.recovery.args");
   const information = value.information;
   if (typeof information !== "string" || information.trim() === "" ||
@@ -149,7 +161,7 @@ function validateDeclaredRecovery(value, schemaRejected) {
   if (state.ok && route.ok && state.value === "guidance") {
     return validateDeclaredGuidance(value, route.value, schemaRejected);
   }
-  const args = validateRecoveryArgs(value.args);
+  const args = validateRecoveryArgs(value.args, route.value);
   if (!args.ok) schemaRejected.push("detail.recovery.args");
   if (!state.ok || !route.ok || !args.ok) return null;
   if (state.value === "callable" && typeof route.value !== "string") {

@@ -43,10 +43,10 @@ const requirementCompiler = ({ pkg, initial, contract, retainedReferenceIds = []
     ...(statementsOfRows ? { statementBound: Number.POSITIVE_INFINITY } : {})
   });
 
-export function prepareProofAuthoringRequirementBatch({ pkg, initial, batch, removeRowIds, retireClaimIds, sourceText }) {
+export function prepareProofAuthoringRequirementBatch({ pkg, initial, batch, removeRowIds, retireClaimIds, sourceText, selectionContext }) {
   const contract = initial.contract?.content ?? null;
   return prepareRequirementBatch({ wkId: initial.wkId, focus: initial.focus, contract, batch, removeRowIds, retireClaimIds,
-    sourceText, compile: requirementCompiler({ pkg, initial, contract }) });
+    sourceText, selectionContext, compile: requirementCompiler({ pkg, initial, contract }) });
 }
 
 export function compileProofAuthoringContractInputs({

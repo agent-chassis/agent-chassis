@@ -147,7 +147,7 @@ export function createControlledContractGenerationTreeOperations({
 
   function resolveBoundManifestArtifacts(binding) {
     const artifacts = [];
-    for (const selected of binding.resolved_generation.manifest_selection ?? []) {
+    for (const selected of binding.resolved_generation?.manifest_selection ?? []) {
       const repositoryPath = canonicalManifestPath(
         binding.record_id, selected.focus ?? null);
       const bytes = readBoundArtifact(binding, repositoryPath,
@@ -176,7 +176,7 @@ export function createControlledContractGenerationTreeOperations({
       [descriptor.basename, descriptor]));
     const artifacts = [];
     const selectedPaths = new Set();
-    for (const selected of binding.resolved_generation.manifest_selection ?? []) {
+    for (const selected of binding.resolved_generation?.manifest_selection ?? []) {
       const visiblePath = canonicalManifestPath(binding.record_id, selected.focus ?? null);
       const visible = manifestsByPath.get(visiblePath);
       if (visible === undefined) {

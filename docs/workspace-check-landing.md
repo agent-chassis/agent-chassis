@@ -25,8 +25,11 @@ observer and authenticated retained bindings keep those facts internally.
   supplies an action target and the serving reader is available, an optional
   `next_calls` entry with `purpose: "landing_action"` reads the retained human
   action through `workspace_read_wiki({reference})`. It adds the exact Git
-  head/base/ref or remote/branch, or the hosted proposal number/base supplied
-  by the observer. Without a composed reader, the action is returned inline.
+  head/base/ref or remote/branch, or the hosted proposal number, destination
+  remote, exact head, base and proposal URL supplied by the observer. The hosted action's
+  head identifies the publication to land; a proposal number alone cannot
+  preserve intent when that proposal later publishes a different head.
+  Without a composed reader, the action is returned inline.
 - An authenticated pending publication offers `observe_later`, an exact
   `workspace_check_landing` call admitted by its serving request schema. This
   is an optional later observation, not a polling instruction. The caller
@@ -36,6 +39,13 @@ observer and authenticated retained bindings keep those facts internally.
   producer-established recovery. Lookup failure does not prove a contradiction
   or that the publication never landed. An unauthenticated explicit selection
   is identified as such and is never replaced with current status.
+  A completed negative ancestry observation survives later loss of current
+  eligibility as `observed_landing: {state: "not_landed"}`, beside the distinct
+  eligibility cause. That fact supplies no current action or recovery authority.
+  Closed unmerged hosted proposals preserve their observed state, merge status
+  and URL consistently in current and exact modes. Pending hosted proposals
+  with an observed merge impediment include `landing_impediment` and its URL;
+  merge readiness remains owned by the forge and landing actor.
   The diagnosis flattens repeated cause wrappers and reports distinct native
   `failures` once, retaining differing codes, messages and implicated refs or
   observed heads. Branch-observation and forge-probe failures retain their
@@ -71,13 +81,7 @@ Observation is never replayed to deliver an answer. Native observation failures 
 raw process output, capture inventories and server authentication metadata are
 not detail content.
 
-Current lower-owner limits remain visible in the task's behavior: hosted
-pending action targets contain proposal number/base but no proposal URL or
-merge-readiness impediment. A closed unmerged hosted proposal may be reported
-as contradictory in current mode and unavailable in explicit mode. Historical
-exact reads can establish landing, but pending still requires current
-applicability. A known not-landed observation can be lost when a subsequent
-current-applicability check fails; preserving that fact requires the shared
-observer to supply it separately. Changed destination configuration is not
+Historical exact reads can establish landing, but pending still requires current
+applicability. Changed destination configuration is not
 permission to select a different provider. These limits do not authorize
 repair, publication or merge.

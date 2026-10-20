@@ -125,18 +125,58 @@ owner with authoring and executes no proof provider. Saved dispositions remain
 advisory input without integration effects.
 
 `save_record` acknowledges success or no change with the resulting same-unit
-write revision. Issued request-key bindings support dependent authoring directly;
-keyed requirement rows appear once in `bindings.requirement`, with unkeyed
-verification identities attached when needed. Unkeyed rows retain their identity
-receipt. New entry/version associations remain available. A successful save
+write revision. Issued request-key bindings preserve newly allocated public
+obligation, case, slice, entry and disposition identities when needed
+for a dependent edit. Requirement, verification, collection and criterion selections reuse
+caller-known authored meaning; compiler identities stay private. New entry/version
+associations remain available. Select existing criteria by exact authored text or
+an actually authored `typed_identity`; criterion amendments use `target`, removals
+use selectors, and obligation associations take selectors or same-request `$key`.
+Selections resolve before edits; explicitly restated associations follow surviving
+criterion movement. Removed or mismatched associations need explicit compatible
+changes. Derived criterion identities and movement maps stay private. A successful save
 requires no current read, assessment or receipt retrieval. Automatic assessments,
 successful checks (including advisory warnings) and source/retention bookkeeping
-stay internal. Refusals retain actual publication effects without routine lists
-of operations the save never performs. Where a save
+stay internal. Nonblocking advisory warnings also stay internal beside a failed
+maintenance verdict. Return the deciding errors and the check owner's scope;
+an undiagnosed failed verdict cannot offer an unchanged execution retry.
+Recovery gives the specific cause and a task-level correction or stopping point;
+internal component names and capability labels remain private, including in
+historical reads. Stable diagnostic codes and issued continuation references
+remain public where they identify the failure or enable its supported correction.
+Partial cleanup retries preserve their actual removals beside the remaining
+affected subjects and specific failures. Refusals retain actual publication
+effects without routine lists of operations the save never performs. Where a save
 issues bindings, an exception consequence or a consequential failure, its optional `saved_outcome` call
 reads the authenticated historical save meaning, not the stored execution carrier.
 That read repeats no mutation or checks and supplies no current write authority.
 An unavailable current reader is a specific limit on stale-write recovery.
+
+Requirement amendments use `target` with an exact semantic requirement or claim
+selection; collection amendments use an exact collection selection. New rows use
+request-local `key`. Collection members use requirement selections;
+`remove.requirements` accepts requirement or claim selections, and
+`remove.collections` accepts collection selections. Obligation
+`claims` accepts requirement, claim and verification selections or existing
+same-request `$key` references; `case.verification` accepts a verification selection
+or verification `$key`. A whole requirement association selects its assertions;
+its verification is a separate explicit association. All selections resolve
+against the same captured pre-save source under the supplied revision. Missing or
+ambiguous targets refuse without guessing. The final publication fence still
+checks the revision. No successful save requires a follow-up read.
+
+Native contract-validation failures retain every distinct deciding constraint
+with its authored subject and correction field when those associations are
+established. Several associations remain explicit choices; unavailable attribution
+states its uncertainty and stopping point. Compiler identities, diagnostic
+projection metadata and duplicate attribution inventories are private. Creation
+uses the same native diagnostic meaning.
+
+When the source owner rejects a path in a submitted repository-path or code-symbol
+identity during save preparation, the refusal identifies the authored field,
+rejected source and native restriction. Nothing was published. Correct a mistaken
+identity without dropping other intended changes; an intentional source at a
+refused path is a stopping condition, not authority to bypass source confinement.
 `save_record({unit,maintenance_observe:{save_result}})` observes the current
 maintenance of that authenticated original. It writes nothing and runs no checks.
 Busy responses offer this observation after progress, rather than another
@@ -177,6 +217,10 @@ maintenance result preserves that cause separately. The returned
 producer receipt and runs only failed, unknown or not-run maintenance. It repeats
 no creation or save. Refusals, no-ops and retries of durably settled successful
 maintenance run no checks.
+Initial authentication failure of a maintenance retry explicitly reports that
+this retry ran no checks. It makes no claim that the original save or creation
+had no effects. Failures after invocation retain the check owner's actual or
+uncertain effects; they are never reclassified as initial nonexecution.
 
 Artifact cleanup that failed after canonical publication is a separate pending
 maintenance member when its retained subjects are known. A retry uses the same
@@ -187,13 +231,24 @@ cleanup is no longer presented as outstanding; its initial partial effects stay
 available in historical meaning.
 
 A completed check verdict can coexist with an executor exception after checks.
-Save responses preserve that exception separately from the completed verdict
-and known generated-view effects, including on inspection of a settled retry.
+Save and creation responses preserve that exception separately from the completed
+verdict and known generated-view effects, including on inspection of a settled retry.
 The current maintenance carrier does not identify the failed post-check phase,
 so the response does not infer it from the exception's text. No supported call
 repairs that post-check failure; rerunning successful checks or replaying the
 save is not its recovery. A retry with no pending checks reports
 `no_retry_needed` without discarding a readable retained post-check failure.
+The native executor releases its in-memory snapshot before the release
+instrumentation callback. A callback exception after that release establishes no
+remaining resource or cleanup action. Preserve its specific cause and completed
+check/generated-view effects; do not manufacture a retry or expose routine release
+bookkeeping. Observation after an entirely lost acknowledgment retains this same
+meaning and never reruns checks.
+
+When creation observes later source movement, it withholds the obsolete revision.
+A dependent edit requires the caller to choose its intended `for_changes` members
+on the returned bulk-read template, then use `contexts[unit].revision`. Creation
+itself is complete; that context read is conditional on further editing.
 
 Maintenance reports execution independently of coordination persistence. Retained
 outcomes and observations can establish completed checks even when a coordination

@@ -1,6 +1,7 @@
 
 
 import { RunnerIntegrationPreconditionError, escapeRegExp } from "./common.mjs";
+import { pythonDependencyPreparation } from "./python-preparation.mjs";
 
 const SELECTOR_CHECK = "import json, re, sys\n" +
   "try:\n    re.compile(sys.argv[1])\n    re.compile(sys.argv[2])\n" +
@@ -24,6 +25,7 @@ function invocation({ runtime, projectDir, filter, workerPython }) {
 
 export default Object.freeze({
   runner_id: "runner.stestr",
+  dependencyPreparation: pythonDependencyPreparation,
   setupProbe: ({ runtime, projectDir }) => ({ ...stestr(runtime, ["--version"]), cwd: projectDir }),
   invocation,
 

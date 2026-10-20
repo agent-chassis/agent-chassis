@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -12,11 +12,14 @@ import {
   roleEffortEnvKey,
   resolveDispatchedRoleModel,
   resolveLauncherOverrideToken,
-  resolveLauncherProfile
+  resolveLauncherProfile,
+  resolveRoleModelSelection
 } from "../../packages/agent-launch-cli/src/lib/agent-launch-profiles.mjs";
 import {
   resolveFamilyRoleModelGate
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-family-policy.mjs";
+
+import { parseAgentLaunchRoleConfigSource } from "../../packages/agent-launch-cli/src/lib/agent-launch-role-config.mjs";
 
 async function withRoleConfig(t, roles) {
   const dir = await mkdtemp(path.join(os.tmpdir(), "agent-launch-profiles-resolver-"));
@@ -298,4 +301,85 @@ test("deprecated ROLE_EFFORT probe reports agreement and errors on config disagr
   assert.equal(disagreed.error.code, "role_effort_deprecated_mismatch");
   assert.match(disagreed.error.message, /WORKER_EFFORT=medium/);
   assert.match(disagreed.error.message, /agent-launch\.toml effort high/);
+});
+
+test("all roles resolve exact native Argon selections and registry effort defaults", async t => {
+  const roles = ["orchestrator", "worker", "reviewer", "redteam"];
+  for (const [model, app, effort] of [
+    ["gemini-4-argon-medium", "agy", "medium"],
+    ["gemini-4-argon-high", "agy", "high"],
+    ["google-vertex/gemini-4-argon", "opencode", "medium"]
+  ]) {
+    const dir = await withRoleConfig(t, Object.fromEntries(roles.map(role => [role, model])));
+    for (const role of roles) {
+      const result = resolveLauncherProfile({ role, dir, env: {}, readWorkspaceEnvValue: () => null });
+      assert.equal(result.ok, true, JSON.stringify(result));
+      assert.equal(result.value.app, app);
+      assert.equal(result.value.backend, app);
+      assert.equal(result.value.model, model);
+      assert.equal(result.value.effort, effort);
+      assert.equal(result.value.effort_source, "model_registry_default");
+      assert.equal(result.value.model_selection.route.kind, "ordinary");
+      for (const supported of app === "agy" ? [effort] : ["low", "medium", "high"]) {
+        const override = resolveLauncherProfile({ role, dir, effort: supported, env: {}, readWorkspaceEnvValue: () => null });
+        assert.equal(override.ok, true, JSON.stringify(override));
+        assert.equal(override.value.effort, supported);
+      }
+    }
+  }
+});
+
+test("opt-in Argon presets parse and resolve every role with high priority guides", async t => {
+  for (const [file, app, model] of [
+    ["agent-launch.agy.argon.medium.toml", "agy", "gemini-4-argon-medium"],
+    ["agent-launch.opencode.argon.vertex.medium.toml", "opencode", "google-vertex/gemini-4-argon"]
+  ]) {
+    const dir = await withRoleConfig(t, {});
+    await writeFile(path.join(dir, "agent-launch.toml"), await readFile(file));
+    for (const role of ["orchestrator", "worker", "reviewer", "redteam"]) {
+      const result = resolveLauncherProfile({ role, dir, env: {}, readWorkspaceEnvValue: () => null });
+      assert.equal(result.ok, true, JSON.stringify(result));
+      assert.equal(result.value.app, app);
+      assert.equal(result.value.model, model);
+      assert.equal(result.value.effort, "medium");
+      assert.equal(result.value.model_selection.high_priority_role_guide, true);
+    }
+  }
+});
+
+test("configured native providers route every role, explicit overrides and resume without registration", () => {
+  const snapshot = parseAgentLaunchRoleConfigSource(`
+[opencode.provider.local.options]
+baseURL = 'http://127.0.0.1:8000/v1'
+[opencode.provider.remote.options]
+baseURL = 'https://fixture.invalid/v1'
+apiKey = 'fixture-private-key'
+${['orchestrator', 'worker', 'reviewer', 'redteam'].map(role => `[roles.${role}]\nmodel = 'local/unregistered'\nhigh_priority_role_guide = true`).join('\n')}
+`);
+  for (const role of ['orchestrator', 'resume', 'worker', 'reviewer', 'redteam']) {
+    for (const model of [undefined, 'remote/another-model']) {
+      let reads = 0;
+      const resolved = resolveLauncherProfile({ role, model, dir: '/unused', env: {},
+        readWorkspaceEnvValue: () => null, readConfigSnapshot: () => { reads++; return snapshot; } });
+      assert.equal(resolved.ok, true, JSON.stringify(resolved));
+      assert.equal(resolved.value.app, 'opencode');
+      assert.equal(resolved.value.model, model ?? 'local/unregistered');
+      assert.equal(resolved.value.effort, null);
+      assert.equal(resolved.value.model_selection.opencode, snapshot.opencode);
+      assert.equal(reads, 1);
+      assert.equal(JSON.stringify(resolved).includes('fixture-private-key'), false);
+      const explicit = resolveRoleModelSelection({ role, model: resolved.value.model, snapshot, effortOverride: 'max' });
+      assert.equal(explicit.value.effort, 'max');
+    }
+  }
+  const undeclared = resolveLauncherProfile({ role: 'worker', model: 'absent/unregistered',
+    readConfigSnapshot: () => snapshot });
+  assert.equal(undeclared.ok, false);
+  for (const [model, app, effort] of [['sonnet', 'claude', 'high'], ['gpt-5.4', 'codex', 'high'],
+    ['google-vertex/gemini-3.8-flash', 'opencode', 'medium']]) {
+    const baseline = resolveRoleModelSelection({ role: 'worker', model, snapshot: parseAgentLaunchRoleConfigSource('') });
+    const resolved = resolveRoleModelSelection({ role: 'worker', model, snapshot });
+    assert.equal(resolved.value.app, app);
+    assert.equal(resolved.value.effort, baseline.value.effort);
+  }
 });

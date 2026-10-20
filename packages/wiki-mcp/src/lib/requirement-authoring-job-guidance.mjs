@@ -8,7 +8,7 @@ export const CASE_FAMILY_TOPIC = "family";
 
 export function caseFamilyGuidanceCall(family) {
   return buildNextCall({ tool: "workspace_read_wiki", recommended: true,
-    arguments: { subject: { requirement_guidance: true, topic: ["case_authoring", CASE_FAMILY_TOPIC, family] } } });
+    arguments: { reads: [{ subject: { requirement_guidance: true, topic: ["case_authoring", CASE_FAMILY_TOPIC, family] } }] } });
 }
 
 export function deriveAuthoringJobVocabulary(vocabularies) {

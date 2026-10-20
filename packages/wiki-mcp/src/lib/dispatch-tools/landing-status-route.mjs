@@ -172,6 +172,7 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
             state: landing.state, transport: landing.transport, landing_authority: landing.landing_authority,
             handoff: landing.handoff ?? null,
             observed_base: landing.observed_base, landed_publication: landing.landed_publication,
+            ...(landing.observed_landing == null ? {} : { observed_landing: landing.observed_landing }),
             effects: landing.effects, cause: landing.cause == null ? null : landingCause(landing.cause),
             observed_facts: { "landing.observation_available": landing.state !== "unavailable" },
             ...(landing.state === "unavailable" || landing.state === "contradictory"

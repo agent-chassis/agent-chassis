@@ -161,12 +161,19 @@ const INDEX_SELECTION_MEANING = 'Choose a listed proof first. Copy select.known_
 export function projectIndex(carrier, locator, currentness) {
   const browse = carrier.mode === 'browse';
   const empty = carrier.proofs.length === 0;
+  const partial = carrier.availability !== undefined;
   return envelope(carrier, locator, currentness, {
+    ...(partial ? { availability: carrier.availability } : {}),
     ...(browse ? { answer: 'catalogue', population: carrier.population,
-      meaning: empty ? 'The catalogue lists no proofs; no proof can be selected from this result.' : CATALOGUE_MEANING,
+      meaning: partial ? 'Every available proof is listed once; the population is incomplete. ' +
+        'Failed definitions cannot be selected and are not evidence of no applicable proof. None is selected or recommended.'
+        : empty ? 'The catalogue lists no proofs; no proof can be selected from this result.' : CATALOGUE_MEANING,
       proofs: carrier.proofs.map(proof => proof.proof_name) }
       : { answer: 'matches', query: carrier.query, population: carrier.population,
-        meaning: empty ? NO_MATCH_MEANING : INDEX_MEANING,
+        meaning: partial ? 'Only available definitions were searched; matches are incomplete. ' +
+          'Unavailable definitions may match or apply; no proof is selected. ' + (empty
+            ? 'No lexical matches were found among the available definitions.' : INDEX_MEANING)
+          : empty ? NO_MATCH_MEANING : INDEX_MEANING,
         matches: MATCH_TIERS.map(tier => ({ tier,
           proofs: carrier.proofs.filter(proof => proof.match_kind === tier).map(proof => proof.proof_name) }))
           .filter(group => group.proofs.length > 0) }),
@@ -184,15 +191,20 @@ export function projectIndex(carrier, locator, currentness) {
 }
 
 export function projectIndexSummary(carrier, locator, currentness) {
+  const availability = carrier.availability === undefined ? {} : { availability: carrier.availability };
   if (carrier.mode === 'browse') return envelope(carrier, locator, currentness, {
-    answer: 'catalogue_summary', population: carrier.population, meaning: CATALOGUE_MEANING,
-    complete_index: 'next_calls.catalogue returns every proof of this result, in order, in one answer'
+    ...availability,
+    answer: 'catalogue_summary', population: carrier.population, meaning: carrier.availability === undefined
+      ? CATALOGUE_MEANING : 'The catalogue is incomplete: only available definitions can be selected. No proof is selected.',
+    complete_index: 'next_calls.catalogue returns every available proof of this result, in order, in one answer'
   }, { catalogue: call({ result: locator }) });
   return envelope(carrier, locator, currentness, {
+    ...availability,
     answer: 'matches_summary',
     query: carrier.query,
     population: carrier.population,
-    meaning: INDEX_MEANING,
+    meaning: carrier.availability === undefined ? INDEX_MEANING
+      : 'Only available definitions were searched; matches are incomplete. Unavailable definitions may match or apply. No proof is selected.',
     matches_by_tier: MATCH_TIERS.map(tier => ({ tier,
       count: carrier.proofs.filter(proof => proof.match_kind === tier).length }))
       .filter(group => group.count > 0),
@@ -241,7 +253,7 @@ function authoringPart(carrier, proof, caseGuidance) {
     `${obligation}.key (a new obligation) or .id (an existing one)`,
     `${obligation}.statement`,
     `${obligation}.criteria: held criterion ids or $key labels of changes.criteria`,
-    `${obligation}.claims: held claim ids or $key labels of changes.requirements.requirements`];
+    `${obligation}.claims: authored semantic selections or $key labels of changes.requirements.requirements`];
   missing.push(...proof.refinements.filter(parameter => parameter.source.policy === 'configurable' &&
     !optionalParameter(parameter)).map(parameter => `${obligation}.proof.parameters.${parameter.name}`));
   const caseInputs = [];
@@ -265,7 +277,7 @@ function authoringPart(carrier, proof, caseGuidance) {
 
     ...(needsCase && carrier.case_choices !== undefined ? { case_choices: carrier.case_choices } : {}),
     ...(needsCase && caseGuidance !== null ? {
-      case_guidance_selection: { guidance: caseGuidance.arguments.subject.topic }
+      case_guidance_selection: { guidance: caseGuidance.arguments.reads[0].subject.topic }
     } : {}),
     ...(needsCase ? { family: { ...familySelection(carrier), ...(family === null
       ? { missing_input: 'target_family', missing_input_of: FIND_PROOFS_TASK,
@@ -356,6 +368,11 @@ export function projectProof(carrier, locator, currentness, proof, part, fits, c
     const comparisons = proof.comparisons.map(comparison => ({
       explanation: comparison.explanation,
       alternatives: comparison.alternatives.map(alternative => {
+        const unavailable = carrier.unavailable_definitions?.find(candidate =>
+          candidate.proof_name === alternative.name && candidate.proof_version === alternative.version);
+        if (unavailable !== undefined) return { proof: alternative, availability: 'unavailable',
+          failures: unavailable.failures,
+          stopping_condition: 'This result has no admitted meaning for this alternative; it cannot establish the compared conclusion.' };
         const retained = carrier.proofs.some(candidate => candidate.proof_name === alternative.name &&
           candidate.profile_version === alternative.version);
         return { proof: alternative, read_scope: retained ? 'retained' : 'current',

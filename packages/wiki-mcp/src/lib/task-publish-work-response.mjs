@@ -5,6 +5,7 @@ import { WK_FORGE_HANDOFF_RESULT_KINDS } from
 import { captureDiagnosticEvidence } from "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import {
   buildDispatchMechanicalRefusal,
+  buildDispatchContinuation,
   buildDispatchToolExceptionDetail,
   distillDispatchFailureDetail,
   mapBackendRefusalToDispatchCode,
@@ -83,18 +84,30 @@ export function publicationCarrier(subject, outcome, env, requestSchemaAuthority
   const driftInput = { refusal, detail, assignedUnit: subject,
     code, decidingFacts, observedFacts, carried, requestSchemaAuthority };
   const drift = acceptanceValidationDriftGuidance(driftInput) ?? sectionsDriftGuidance(driftInput);
-  const recovery = drift?.recovery ?? producerEstablishedRecovery(detail, {
+  const integrationCall = outcome.integration_recovery === undefined ? null : buildDispatchContinuation({
+    tool: outcome.integration_recovery.tool, arguments: outcome.integration_recovery.arguments,
+    successPredicate: { fact: 'integration.preparation_complete', operator: 'is_true' }, requestSchemaAuthority });
+  if (integrationCall !== null) {
+    decidingFacts.push({ field: 'integration.preparation_complete', value: false });
+    observedFacts['integration.preparation_complete'] = false;
+  }
+  const recovery = integrationCall === null ? drift?.recovery ?? producerEstablishedRecovery(detail, {
     unchanged: `the reported publication failure for ${subject} is corrected`,
     retryCondition: "make a new subject-only publication request after that prerequisite holds",
     unestablished: "the producer established no correction owner; an unchanged retry refuses again"
-  });
+  }) : { state: 'callable', prerequisite: 'The selected candidate checkout preparation is unfinished.',
+    operation: integrationCall.tool, success_condition: 'The same selected candidate has a prepared checkout.',
+    success_predicate: integrationCall.success_predicate,
+    message: 'Integration already occurred. Finish only the selected candidate preparation and remaining integration work through this exact call, then request publication. No publication occurred in this call.' };
   return {
     schema_version: PUBLISH_WORK_SCHEMA_VERSION, subject,
     producer: { accepted: false, refusal: { ...refusalIdentity, detail } },
     blocker: { code, reason: refusal.reason, detail: { category: detail?.category ?? refusal.category } },
     observed_facts: { "publication.confirmed": false },
+    ...(integrationCall === null ? {} : { next_calls: [integrationCall] }),
     refusal: drift?.refusal ?? buildDispatchMechanicalRefusal({ code, decidingFacts, observedFacts,
-      noSupportedRoute: true, recovery, route: PUBLISH_WORK_TOOL_NAME,
+      noSupportedRoute: integrationCall === null, recovery, route: PUBLISH_WORK_TOOL_NAME,
+      ...(integrationCall === null ? {} : { nextCalls: [integrationCall], requestSchemaAuthority }),
       carried: { ...carried, ...(drift?.unavailable ? { guidance_unavailable: drift.unavailable } : {}) }
     })
   };
@@ -161,7 +174,7 @@ function memberOrigin(value, member) {
   return Object.keys(stated).length === 0 ? null : stated;
 }
 
-function boundedPublicationAnswer(carrier, frame, limit) {
+function boundedPublicationAnswer(carrier, frame, limit, { detailAvailable = true } = {}) {
   const complete = frame(carrier, []);
   const diagnosis = publicationDiagnosis(carrier);
   if (diagnosis === null) return complete;
@@ -173,7 +186,7 @@ function boundedPublicationAnswer(carrier, frame, limit) {
   };
 
   const members = Object.keys(diagnosis);
-  const kept = new Set(members.filter(member => member !== "findings"));
+  const kept = new Set(members.filter(member => !detailAvailable || member !== "findings"));
   const answer = (messages = new Set()) => frame(
     withPublicationDiagnosis(carrier, Object.fromEntries(Object.entries(diagnosis).filter(([key]) => kept.has(key)))),
     Object.keys(diagnosis).filter((key) => !kept.has(key)).map((key) => omission(key, messages.has(key))));
@@ -209,22 +222,34 @@ export async function deliverPublication({ carrier, binding, env, ownerCall = nu
         stopping_condition: "The omitted publication diagnosis cannot be read through this session. Preserve the stated effects; do not repeat publication to recover detail." } }
         : { read_by: read }) } })
   });
-  if (ownerCall === null) return jsonContent(boundedPublicationAnswer(carrier, disclose(null), limit), { env });
+  if (ownerCall === null) return jsonContent(boundedPublicationAnswer(carrier, disclose(null), limit,
+    { detailAvailable: false }), { env });
   let source;
   try {
     source = retainSelectedResponseSource({ binding, carrier, ownerCall, ownerRequestSchema }, { env });
   } catch (error) {
 
     const failure = publicationRetentionFailure(error, carrier.subject);
-    return jsonContent(boundedPublicationAnswer(carrier, (answer, omitted) => ({ ...answer,
-      delivery: { retained: false, failure, ...(omitted.length === 0 ? {} : {
+    return jsonContent(boundedPublicationAnswer(carrier, (answer, omitted) => omitted.length === 0 ? answer : ({ ...answer,
+      delivery: { retained: false, failure,
         complete_diagnosis_delivered: false,
-        omitted_diagnosis: omitted }) }
-    }), limit), { env });
+        omitted_diagnosis: omitted }
+    }), limit, { detailAvailable: false }), { env });
   }
 
+  let read;
+  try {
+    read = ownerCall({ ref_id: source.ref_id });
+  } catch (error) {
+    const failure = { code: "publication_detail_navigation_failed", failed_operation: "build_publication_diagnosis_call",
+      cause: projectPublicationDiagnosis({ evidence: captureDiagnosticEvidence(error) }, env),
+      stopping_condition: "The omitted publication diagnosis cannot be read through this session. Preserve the stated effects; do not repeat publication to recover detail." };
+    return jsonContent(boundedPublicationAnswer(carrier, (answer, omitted) => omitted.length === 0 ? answer : ({ ...answer,
+      delivery: { complete_diagnosis_delivered: false, omitted_diagnosis: omitted, detail_unavailable: failure }
+    }), limit, { detailAvailable: false }), { env });
+  }
   return jsonContent(boundedPublicationAnswer(carrier,
-    disclose(ownerCall({ ref_id: source.ref_id })), limit), { env });
+    disclose(read), limit), { env });
 }
 
 export function readPublicationOriginal({ subject, source, binding, env }) {

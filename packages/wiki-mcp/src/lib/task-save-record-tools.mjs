@@ -8,11 +8,10 @@ import { RECORD_AUTHORING_LABEL_PATTERN, RECORD_AUTHORING_LABEL_REFERENCE_PATTER
 import { RECORD_AUTHORING_EXCEPTION_SCHEMA, retiredExceptionMemberPaths, validateRecordAuthoringException } from
   "@agent-chassis/wiki-core/src/lib/record-authoring-exception.mjs";
 import { saveRecord } from "@agent-chassis/wiki-core/src/operations/save-record.mjs";
-import { REQUIREMENT_BATCH_CODES } from "@agent-chassis/wiki-core/src/operations/controlled-contract/contract-requirement-projection.mjs";
 import { validateSaveRecordScopes } from "@agent-chassis/agent-launch-cli/src/lib/save-record-scope-validation.mjs";
 
-import { readRetainedGraphImpact } from "./graph-impact-persistence-tools.mjs";
-import { guardToolHandler, jsonContent, measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
+import { readRetainedGraphImpact } from "./retained-graph-impact.mjs";
+import { guardToolHandler, jsonContent, measureMcpInlineResultBytes, selectedFullContent, completeProducedContent } from "./mcp-response.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { resolveContractAssessmentContext } from "./task-assess-contract.mjs";
 import { contractAssessmentAuthorityIdentity } from "./controlled-contract-query-context.mjs";
@@ -116,10 +115,7 @@ export function createSaveRecordInputContract(z, registeredTier = null) {
 
   const advertisedChanges = SAVE_UNIT_VARIANTS.filter(({ advertised }) => advertised !== null).map(({ kind, advertised }) => {
     const declared = changeSchemas[advertised];
-    const converted = requestSchema(z, declared, declared.$defs, { memoize: true });
-    const marked = WORK_ITEM_SLICE_CONTRACT_MEMBERS.filter((member) => declared.properties[member]?.description !== undefined);
-    return converted.extend(Object.fromEntries(marked.map((member) =>
-      [member, converted.shape[member].describe(declared.properties[member].description)])))
+    return requestSchema(z, declared, declared.$defs, { memoize: true })
       .describe(`${advertised} changes, selected by the unit address.`);
   });
   const advertisedInputSchema = z.object({
@@ -285,11 +281,12 @@ export function createSaveRecordSurface({ workspace, z, responseEnv = process.en
 }
 
 export function buildSaveRecordOriginalCall(source) {
-  return buildNextCall({ tool: "workspace_read_wiki", arguments: { reference: source }, recommended: true });
+  return buildNextCall({ tool: "workspace_read_wiki", arguments: { reads: [{ reference: source }] }, recommended: true });
 }
 
-export function buildSaveRecordUnitReadCall(unit) {
-  return buildNextCall({ tool: "workspace_read_wiki", arguments: { subject: unit }, recommended: true });
+export function buildSaveRecordUnitReadCall(unit, members) {
+  return buildNextCall({ tool: "workspace_read_wiki", arguments: { reads: [{ subject: unit,
+    ...(members?.length > 0 ? { for_changes: members } : {}) }] }, recommended: true });
 }
 export function buildSaveRecordRetryCall(unit, source) {
   return buildNextCall({ tool: SAVE_RECORD_TOOL_NAME,
@@ -310,7 +307,7 @@ export function createSaveRecordTask(configuration) {
     if (Object.hasOwn(request?.changes ?? {}, 'refresh_proofs') &&
         /^WK-[0-9]{4,}#SLICE-[0-9]{3,}$/u.test(request?.unit)) {
       const recovery = proofRefreshRecovery(request.unit);
-      const call = buildUnitReadCall(recovery.read.arguments.subject);
+      const call = recovery.read;
       const served = requestContracts === null ||
         await requestContracts.contractFor(call.tool)?.acceptsArguments(call.arguments) === true;
       return { calls: served ? [call] : [], refresh_boundary: 'root_wk_only',
@@ -337,28 +334,29 @@ export function createSaveRecordTask(configuration) {
   buildRetryCall("WK-0001", probe);
   buildUnitReadCall("WK-0001#SLICE-001");
 
-  async function staleRevisionCalls(body) {
+  async function staleRevisionCalls(body, request) {
     if (body.outcome !== "refused" || typeof body.unit !== "string" ||
         !body.diagnostics?.some((entry) => entry.code === STALE_REVISION_CODE)) return null;
-    const read = buildUnitReadCall(body.unit);
+    const read = buildUnitReadCall(body.unit, (request.exception ?? request.recover?.request?.exception)?.kind === 'grammar'
+      ? ['requirements'] : Object.keys(request.changes ?? request.recover?.request?.changes ?? {}));
     const served = requestContracts === null ||
       await requestContracts.contractFor(read.tool)?.acceptsArguments(read.arguments) === true;
     return served ? [read] : [];
   }
 
-  async function ownerCorrectionCalls(body, selectedReads = []) {
+  async function ownerCorrectionCalls(body) {
     if (body.outcome !== "refused") return [];
     const reads = new Map();
     for (const call of (body.diagnostics ?? []).flatMap((entry) => [
       ...(entry.details?.next_calls ?? []), ...(entry.details?.refresh_recovery?.read ? [entry.details.refresh_recovery.read] : [])])) {
-      const subject = call?.arguments?.subject;
-      if (typeof subject !== "string" || Object.keys(call.arguments).length !== 1) continue;
-      const read = buildUnitReadCall(subject);
-      if (call.tool !== read.tool || reads.has(subject)) continue;
+      if (!(call?.tool === 'workspace_read_wiki' && Array.isArray(call.arguments?.reads) ||
+          call?.tool === SAVE_RECORD_TOOL_NAME && call.arguments?.changes && typeof call.arguments?.revision === 'string')) continue;
+      const key = JSON.stringify(call.arguments);
+      if (reads.has(key)) continue;
       if (requestContracts === null ||
-          await requestContracts.contractFor(read.tool)?.acceptsArguments(read.arguments) === true) reads.set(subject, read);
+          await requestContracts.contractFor(call.tool)?.acceptsArguments(call.arguments) === true) reads.set(key, call);
     }
-    return [...selectedReads, ...reads.values(), ...await ownerGuidanceCalls(body)];
+    return [...reads.values(), ...await ownerGuidanceCalls(body)];
   }
 
   async function ownerGuidanceCalls(body) {
@@ -378,15 +376,6 @@ export function createSaveRecordTask(configuration) {
     }
     return served;
   }
-
-  async function requirementIdentityRecovery(body) {
-    const unitRead = buildUnitReadCall(body.unit);
-    if (typeof acquireSavedUnitReference !== 'function') return null;
-    const acquired = await acquireSavedUnitReference(body.unit);
-    const call = buildNextCall({ tool: unitRead.tool, arguments: { reference: acquired.reference,
-      select: { contract: 'requirements', view: 'identities' } } });
-    return await served(call) ? { ...call, purpose: 'requirement_identities', recommended: true } : null;
-  }
   const served = async call => requestContracts === null ||
     await requestContracts.contractFor(call.tool)?.acceptsArguments(call.arguments) === true;
   const surface = createSaveRecordSurface(configuration);
@@ -395,14 +384,13 @@ export function createSaveRecordTask(configuration) {
     if (body.result !== undefined) return body;
     if (body.attempt?.outcome == null) return { ...body,
       cause: { code: 'save_record_maintenance_outcome_unavailable', message: 'The completed maintenance attempt has no readable retained outcome.' },
-      recovery: { missing_capability: 'retained_maintenance_outcome',
+      recovery: {
         correction: 'Stop this outcome inspection. Do not repeat the canonical save or rerun checks to discover the completed result.' } };
     try {
       const retained = await surface.original(body.attempt.outcome);
       return { ...body, result: retained.carrier };
     } catch (error) {
       return { ...body, cause: { code: error.code, message: error.message }, recovery: {
-        missing_capability: 'retained_maintenance_outcome',
         correction: 'The completed maintenance outcome cannot be read. Do not repeat the canonical save or rerun checks to discover that outcome.' } };
     }
   }
@@ -432,7 +420,7 @@ export function createSaveRecordTask(configuration) {
     const retained = await surface.original(source);
     const body = await hydrateMaintenanceOutcome(retained.carrier);
     const projection = projectSaveRecordResponse(body);
-    projection.next_calls = await retryCalls(body);
+    projection.next_calls = [...await ownerCorrectionCalls(body), ...await retryCalls(body)];
     return selectedFullContent({ source, retained, projection });
   }
   async function handle(request) {
@@ -450,9 +438,9 @@ export function createSaveRecordTask(configuration) {
             Object.fromEntries(Object.entries(error.details).filter(([key]) => !['actor', 'action'].includes(key)))) }) },
         effects: { canonical_mutation_repeated: false,
           checks_ran: request.maintenance_observe !== undefined || reason !== undefined || error.execution_not_started === true ? false : 'unknown' },
-        recovery: reason === undefined ? { missing_capability: 'maintenance_outcome_reconciliation',
+        recovery: reason === undefined ? {
           correction: 'The maintenance owner could not establish this retry outcome. Do not repeat the canonical save or retry unchanged to discover the outcome.' }
-          : { missing_capability: 'authenticated_maintenance_original',
+          : {
             correction: 'Use only the issued original save reference for this unit, if held. Otherwise stop this maintenance recovery; do not substitute a foreign reference or repeat the canonical save.' },
         next_calls: [] }, { env: responseEnv }), isError: true };
     }
@@ -461,21 +449,19 @@ export function createSaveRecordTask(configuration) {
     const calls = [...(body.next_calls ?? [])];
 
     try {
-      const refresh = await staleRevisionCalls(body);
+      const refresh = await staleRevisionCalls(body, request);
       if (refresh !== null) {
         calls.push(...refresh);
         if (refresh.length === 0) response.recovery = {
-          missing_capability: 'same_unit_current_read',
           correction: 'No granted current read of this unit is served. Stop the dependent write; do not replay using the refusal revision.' };
       } else if (body.outcome === 'refused') {
 
-        const unknownRow = body.diagnostics?.some(diagnostic => diagnostic.code === REQUIREMENT_BATCH_CODES.ROW_UNKNOWN);
-        const identities = unknownRow ? await requirementIdentityRecovery(body) : null;
-        calls.push(...await ownerCorrectionCalls(body, identities === null ? [] : [identities]));
+        calls.push(...await ownerCorrectionCalls(body));
       }
       calls.push(...await retryCalls(body, prepared.continuations));
       if (body.outcome === 'failed' && body.effects?.published !== false && typeof body.unit === 'string') {
-        const read = buildUnitReadCall(body.unit);
+        const read = buildUnitReadCall(body.unit, (request.exception ?? request.recover?.request?.exception)?.kind === 'grammar'
+          ? ['requirements'] : Object.keys(request.changes ?? request.recover?.request?.changes ?? {}));
         if (await served(read)) calls.push(read);
       }
 
@@ -491,7 +477,6 @@ export function createSaveRecordTask(configuration) {
     }
     if (response.maintenance !== undefined && !calls.some(call => call.tool === SAVE_RECORD_TOOL_NAME) &&
         body.original?.available === false) response.recovery = {
-      missing_capability: 'authenticated_maintenance_original',
       correction: 'The save stands, but its original receipt is unavailable. Maintenance-only retry cannot address this save; do not repeat the mutation.' };
     if (body.outcome === 'maintenance_attempt_in_progress' || body.maintenance?.state === 'maintenance_attempt_in_progress') {
       response.recovery = { correction: 'Completion is not yet recorded. Follow maintenance_observe after progress; do not repeat the save or rerun checks to discover the outcome.' };
@@ -512,15 +497,8 @@ export function createSaveRecordTask(configuration) {
       }
     }
 
-    return jsonContent({ outcome: response.outcome, unit: response.unit, revision: response.revision,
-      effects: response.effects ?? { published: body.effects?.published ?? 'unknown' },
-      ...(response.diagnostics === undefined ? {} : { diagnostics: response.diagnostics.map(({ code, path, message, correction }) => ({ code, path, message, correction })) }),
-      ...(response.cause === undefined ? {} : { cause: response.cause }),
-      ...(response.maintenance === undefined ? {} : { maintenance: response.maintenance }),
-      recovery: { missing_capability: 'authenticated_complete_save_delivery',
-        correction: 'The reported save outcome and diagnostics stand, but complete identities or diagnostic detail could not be retained or delivered. Stop work that needs the unavailable detail; do not repeat the mutation or reconstruct mappings.' },
-      ...(response.delivery_failure === undefined ? {} : { delivery_failure: response.delivery_failure }),
-      next_calls: calls.filter(call => call.arguments.subject !== undefined) }, { env: responseEnv });
+    delete response.delivery_failure;
+    return completeProducedContent(response);
   }
   return Object.freeze({ inputContract: surface.inputContract, handle, readOriginal, schemaGuidance });
 }

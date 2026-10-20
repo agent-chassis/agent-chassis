@@ -12,7 +12,6 @@ const definitionGrammar = registeredTier => [["required_object_shapes"], [AUTHOR
 const schemaRead = (registeredTier, definition) => requirementGuidanceRecoveryCall(
   ["requirement_schema", "existing", ...(definition === undefined ? [] : [definition])], registeredTier);
 function definitionCorrection(subject, registeredTier) {
-  const ids = [...new Set((subject.uses ?? []).map(use => use.entity_id))];
   const identity = subject.authored_identity_correction === true;
   const meanings = subject.required_uses ?? [];
   const population = meanings.some(use => use.required_meaning === "population");
@@ -21,8 +20,19 @@ function definitionCorrection(subject, registeredTier) {
   const multipleRoots = !identity && (meanings.some(use => !['value', 'condition', 'population'].includes(use.required_meaning)) ||
     population && meanings.some(use => use.required_meaning !== 'population'));
   const schema = () => schemaRead(registeredTier, multipleRoots ? undefined : rowSchema);
-  const correction = { executable: false, entity: subject.object?.entity,
-    entity_ids: ids, required_uses: meanings, uses: subject.uses ?? [],
+  const entity = subject.object?.entity;
+  if (entity === undefined) return { executable: false, required_uses: meanings,
+    limitation: { cause: 'The selected diagnosis establishes no exact entity for this definition correction.',
+      stop: 'No replacement identity or authored definition was selected.' } };
+  if (identity && (!(subject.requirements?.length > 0) || subject.requirements.some(row => row.target === undefined))) {
+    const unresolved = (subject.requirements ?? []).flatMap(row => row.targeting === undefined ? [] : [row.targeting]);
+    return { executable: false, limitation: { code: 'definition_target_unresolved',
+      cause: 'The diagnosed identity has no unique, available authored correction target.',
+      ...(unresolved.length ? { targeting: unresolved } : {}),
+      stop: 'No identity replacement is offered. Narrow the target with established authored meaning only; do not select by storage identity or position.' } };
+  }
+  const name = entity?.identity?.kind === 'profile_term' ? entity.identity.term : 'definition_subject';
+  const correction = { executable: false,
     accepted_schema: [schema()],
     schema_definition: rowSchema,
     ...(!identity ? { construction_read: requirementGuidanceRecoveryCall(
@@ -30,17 +40,16 @@ function definitionCorrection(subject, registeredTier) {
         : ['compact_record_comparison', meanings.every(use => use.required_meaning === 'condition')
           ? 'conditional_boundary' : 'planned_operation'], registeredTier) } : {}),
 
-    shape: { changes: { requirements: { requirements: identity
-      ? subject.requirement_claim_ids.length === 1 ? [{ id: subject.requirement_claim_ids[0] }]
-        : subject.requirement_row_ids.map(row_id => ({ row_id }))
-      : ids.map(subject => ({ subject, ...(!population ? { definition: true } : {}) })) } } },
+    ...(!identity ? { shape: { changes: { requirements: { entities: {
+      [name]: entity.identity.kind === 'profile_term' ? entity.type_term : entity },
+      requirements: [{ subject: name, ...(!population ? { definition: true } : {}) }] } } } } : {}),
     missing_authored_input: identity ? ["caller intent", "new entity id and exact identity", "affected row corrections preserving intended behavior"]
       : [population ? "membership clauses and applicability" : "behavior relation and operands defining the required typed meaning",
         "applicable observation/type or value inputs; condition definitions must yield bool"],
-    ...(!identity ? { append_instruction: "Append the missing definition rows in a subsequent save_record using current_read response.revision; do not resend or replace existing operative rows." } : {}),
+    ...(!identity ? { append_instruction: "Append the missing definition rows in a subsequent save_record using the current_read response.contexts entry for the write unit's revision; do not resend or replace existing operative rows." } : {}),
     constraints: "KEEP operative behavior, applicability, source links and intended verification/case associations at the listed rows and uses. CHANGE identity only for a diagnosed identity mistake; specification-owned entities keep their identity. SUPPLY the typed meaning in required_uses through applicable definitions and required relationships. The author chooses capture boundaries and meaning; types, existence and unrelated symbol equality supply no missing behavior." };
   if (identity) correction.alternatives = [
-    { intent: "correct_existing_source_reference", claimed_identity: subject.object.entity.identity,
+    { intent: "correct_existing_source_reference",
       candidates: subject.finding.source.candidates ?? [],
       accepted_schema_from: "correction.accepted_schema",
       missing_authored_input: ["the exact intended existing declaration"],
@@ -51,10 +60,10 @@ function definitionCorrection(subject, registeredTier) {
       missing_authored_input: ["new specification-owned entity id", "applicable typed inputs, results and conditions"],
       instruction: "If the intended functionality is new, declare its specification-owned identity by type under a new entity id and author its behavior; no implementation symbol is required." }];
   if (identity) correction.row_correction = {
-    rows: subject.requirement_row_ids, claims: subject.requirement_claim_ids,
+    targets_from: "affected subject.requirements[].target; restate its declaration and preserve its listed uses",
     guidance: [requirementGuidanceRecoveryCall(["save_record_inputs", "requirement_batch", "row_addressing"], registeredTier),
       requirementGuidanceRecoveryCall(["required_object_shapes", "requirement_rebinding"], registeredTier)],
-    instruction: "KEEP behavior, conditions, source links and intended evidence associations on these rows/claims. CHANGE only the diagnosed entity's mistaken existing-code identity at its listed uses, under a new entity id. SUPPLY typed definitions for the required meanings and applicability in required_uses; the author supplies meaning, never inferred values. Use id and rebind_case_ids for a single claim; use row_id and obligation amendments for a multi-claim row. Row restatement alone does not rebind retired members. Never mutate an immutable binding or replace return/refinement rules with existence." };
+    instruction: "KEEP behavior, conditions, source links and intended evidence associations. CHANGE only the diagnosed identity at its listed uses. SUPPLY typed definitions for required_uses. When changing a whole declaration's assertions, use its whole target with replacement_key: claims may select $key for the complete submitted population or an explicit claim selector with requirement:$key for each intended subset member. Use the separate verification.key for explicit check links and case.verification. Translate returned claims explicitly; preserve unrelated selections and shared case IDs. Saved selectors still select saved assertions. Do not clear required links, infer cross-unit mappings, mutate immutable identities or replace returned values with existence." };
   return correction;
 }
 
@@ -62,8 +71,9 @@ export function assessmentDefinitionIdentityRecovery(carrier, diagnosis, registe
   if (!writable(carrier) || !recordAuthoringAvailability(registeredTier).compile_requirements) return null;
   const subject = diagnosis.subjects.find(row => row.authored_identity_correction === true);
   if (subject === undefined) return null;
-  return { purpose: "definition_identity_intent", alternatives: definitionCorrection(subject, registeredTier)
-    .alternatives.map(({ intent, instruction }) => ({ intent, instruction })) };
+  const correction = definitionCorrection(subject, registeredTier);
+  return correction.alternatives === undefined ? null : { purpose: "definition_identity_intent",
+    alternatives: correction.alternatives.map(({ intent, instruction }) => ({ intent, instruction })) };
 }
 
 const selects = subject => typeof subject.discovery_input === "string";
@@ -112,18 +122,17 @@ export function assessmentSaveGuidance(carrier, purpose, registeredTier, detaile
   const members = meaning ? ['requirements'] : purpose === 'applicability' ? ['controlled_acceptance']
     : missingRequirements ? ['requirements', 'obligations'] : ['obligations'];
   return { required_arguments: ["unit", "revision", "changes"],
-    revision_from: "current_read response.revision; never historical assessment evidence",
+    revision_from: `current_read response.contexts[${JSON.stringify(unit)}].revision; never historical assessment evidence`,
     changes_schema_from: status !== 'awaiting_authored_values' ? null : {
-      current_read: { tool: 'workspace_read_wiki', arguments: { subject: unit,
-        ...(purpose === 'applicability' ? { select: { context: true, for_changes: members } } : {}) } },
-      reference_from: "current_read response.reference",
+      current_read: { tool: 'workspace_read_wiki', arguments: { reads: [{ subject: unit, for_changes: members }] } },
+      calls_from: `current_read response.contexts[${JSON.stringify(unit)}].next_calls`,
       select: { input_contract: { tool: 'save_record', members } } },
     ...(missingChain && status === 'awaiting_authored_values' && !detailed ? {
       requirement_chain: "Requirements are absent. Select the missing-case diagnosis for the requirement/verification-to-case recovery sequence."
     } : {}),
     ...(missingChain && status === 'awaiting_authored_values' && detailed ? { recovery_sequence: {
       requirements_unit: carrier.unit.split('#')[0],
-      requirements_current_read: { tool: 'workspace_read_wiki', arguments: { subject: carrier.unit.split('#')[0] } },
+      requirements_current_read: { tool: 'workspace_read_wiki', arguments: { reads: [{ subject: carrier.unit.split('#')[0], for_changes: ['requirements'] }] } },
       requirements_select: { input_contract: { tool: 'save_record', members: ['requirements'] } },
       guidance: [['save_record_inputs', 'requirement_batch'], ['case_authoring']]
         .map(topic => requirementGuidanceRecoveryCall(topic, registeredTier)),
@@ -137,7 +146,7 @@ export function assessmentSaveGuidance(carrier, purpose, registeredTier, detaile
     instruction: meaning
       ? "Author the diagnosed requirements; assessment supplies no replacement meaning."
       : purpose === 'applicability'
-        ? "Author controlled_acceptance.disposition using the selected schema and current_read response.revision. The caller chooses; assessment neither chooses nor saves the declaration."
+        ? "Author controlled_acceptance.disposition using the selected schema and the current_read response.contexts entry for the write unit's revision. The caller chooses; assessment neither chooses nor saves the declaration."
       : "Author the diagnosed changes. Existing obligations use id; new ones key. case edits the obligation's own case without key/id; case.id selects a different/shared case. case.verification selects an eligible candidate, including an unbound competitor. Use criteria, claims and proof.name/proof.parameters; never edit derived bindings.",
     ...(status === "authoring_not_authorized" ? { limitation: "Frozen assessment authority grants no authoring permission or live write revision." }
       : status === "focused_save_unsupported" ? { limitation: "save_record accepts root and slice units, but has no focus argument and cannot change this named focused contract. workspace_read_wiki unit context does not supply focused-contract write authority. Do not redirect this correction to the root." }
@@ -163,12 +172,12 @@ export function assessmentAuthoringGuidance(carrier, { purpose, subjects = [], c
     const supported = status === 'awaiting_authored_values';
     return { status, executable: false, unit, purpose, scope: 'whole_unit',
       required_authored_input: ['requirements: author the intended typed behavior and restate only the meanings that remain unfinished'],
-      subjects: subjects.map(subject => ({ id: subject.id, location: subject.location, text: subject.text,
+      subjects: subjects.map(subject => ({ subject: subject.subject, text: subject.text,
         ...(subject.reason === undefined ? {} : { reason: subject.reason }),
         ...(subject.grammar_exception === undefined ? {} : { grammar_exception: subject.grammar_exception }) })),
       constraints: ['Resolve the intended meaning before removing its unresolved entry. Preserve source passages, existing definitions, other unfinished meaning, cases and obligation/proof associations. Recording an exception supplies no definition or enforcement.'],
       ...(supported ? { grammar_guidance: definitionGrammar(registeredTier) } : {}),
-      current_read: supported ? { tool: 'workspace_read_wiki', arguments: { subject: unit } } : null,
+      current_read: supported ? { tool: 'workspace_read_wiki', arguments: { reads: [{ subject: unit, for_changes: ['requirements'] }] } } : null,
       save: { supported, tool: 'save_record', executable: false, authored_members: compilation ? ['requirements'] : [] } };
   }
   const status = purpose === "definition" && !compilation ? "authoring_operation_unavailable" : saveStatus(carrier);
@@ -202,11 +211,11 @@ export function assessmentAuthoringGuidance(carrier, { purpose, subjects = [], c
     ...(purpose === "definition" && !compilation ? { limitation: "Requirement compilation is unavailable in this session. Required meaning and applicability remain unchanged; assessment changes nothing and supplies no executable correction." } : {}),
     required_authored_input: required,
     ...(associations.length === 0 || !competition ? {} : { competition: { ...recovery,
-      competitions: [...new Map(competing.flatMap(association => association.competitions)
-        .map(facts => [facts.verification_id, facts])).values()] } }),
+      competitions: competing.flatMap(association => association.competitions).filter((facts, index, all) =>
+        !all.slice(0, index).some(previous => isDeepStrictEqual(previous, facts))) } }),
     ...(competition ? { requirements_unit: carrier.unit.split('#')[0],
       requirements_current_read: supported && compilation ? { tool: 'workspace_read_wiki',
-        arguments: { subject: carrier.unit.split('#')[0] } } : null,
+        arguments: { reads: [{ subject: carrier.unit.split('#')[0], for_changes: ['requirements'] }] } } : null,
       ...(supported && compilation ? { grammar_guidance: [
         requirementGuidanceRecoveryCall(['case_authoring', 'verification_association'], registeredTier),
         schemaRead(registeredTier)] } : {}) } : {}),
@@ -216,7 +225,7 @@ export function assessmentAuthoringGuidance(carrier, { purpose, subjects = [], c
       ...(typeof subject.obligation_id === "string" ? { obligation_id: subject.obligation_id } : {}),
       ...(typeof subject.case_id === "string" ? { case_id: subject.case_id } : {}),
       ...(purpose !== "definition" ? {} : { finding: subject.finding, object: subject.object,
-        requirement_claim_ids: subject.requirement_claim_ids, requirement_row_ids: subject.requirement_row_ids,
+        requirements: subject.requirements,
         uses: subject.uses, required_uses: subject.required_uses,
         ...(compilation && writable(carrier) ? { correction: definitionCorrection(subject, registeredTier) } : {}) }),
       ...(subject.row_id === undefined ? {} : { row_id: subject.row_id,
@@ -228,7 +237,7 @@ export function assessmentAuthoringGuidance(carrier, { purpose, subjects = [], c
         ...(typeof clause.when === "string" ? { when: clause.when } : {}) })) }) })),
     ...(constraints.length === 0 ? {} : { constraints }),
     ...(discovery.length === 0 ? {} : { discovery }),
-    current_read: supported ? { tool: "workspace_read_wiki", arguments: { subject: unit } } : null,
+    current_read: supported ? { tool: "workspace_read_wiki", arguments: { reads: [{ subject: unit, for_changes: purpose === "definition" ? ["requirements"] : purpose === "applicability" ? ["controlled_acceptance"] : ["obligations"] }] } } : null,
     save: { supported, tool: "save_record", executable: false,
       authored_members: purpose === "applicability" ? ["controlled_acceptance"]
         : purpose === "definition" ? compilation ? ["requirements"] : []
@@ -283,7 +292,7 @@ export function projectAssessmentDiagnosis(carrier, diagnosis, clauses = {}, reg
     : { actor_recovery: recovery?.actor_recovery ?? "none", explanation: recovery?.explanation ?? null,
       instructions: "This diagnosis establishes no supported authored correction. Preserve its owner cause; a current reassessment does not execute proofs or grant credit." }, correction_call: null,
     ...(['definition', 'specification_meaning'].includes(diagnosis.family) ? { inspection: { tool: "workspace_read_wiki",
-      arguments: { subject: carrier.unit.split("#")[0] } } } : {}),
+      arguments: { reads: [{ subject: carrier.unit.split("#")[0] }] } } } : {}),
     ...(authored ? { requires_authored_values: true } : {}) };
 }
 
@@ -312,10 +321,9 @@ export function projectSelectedDiagnosisGuidance(carrier, diagnosis, corrections
   if (guidance.save_guidance?.changes_schema_from && projected.recovery.authoring?.save.authored_members.includes("obligations") && obligations.length > 0) {
     guidance.save_guidance.readback = {
       current_read_from: "changes_schema_from.current_read",
-      after_save: "After save, repeat current_read to obtain the saved unit's current revision and reference; never use an assessment original or a pre-save reference.",
-      reference_from: "current_read response.reference",
-      selections: obligations.map(obligation => ({ obligation, view: "row" })),
-      verifies: "Compare row.obligation_id and the authored fields with your saved changes, and revision/content_digest with the successful save revision. A row read establishes no complete-contract verdict." };
+      when: "Only when saved-content inspection is requested; successful correction may finish after save.",
+      call: { tool: "workspace_read_wiki", arguments: { reads: obligations.map(id => ({ subject: carrier.unit, select: { contract: "obligations", where: { kind: "obligation", id } } })) } },
+      verifies: "Compare the selected obligation identities and authored meaning with the intended changes. Reading establishes no complete-contract verdict." };
   }
   return { diagnosis: projected, corrections: projectAssessmentCorrections(linkClauses(diagnosis.subjects, corrections)), ...guidance };
 }
@@ -332,7 +340,7 @@ function exceptionAccountingRecovery(carrier, accounting, registeredTier) {
     parent_unit: accounting.parent_unit, source_field: accounting.source_field, status,
     ...(status !== 'awaiting_authored_values' ? {} : {
       kinds,
-      discovery: { current_read: accounting.correction, reference_from: 'current_read response.reference',
+      discovery: { current_read: accounting.correction, calls_from: `current_read response.contexts[${JSON.stringify(accounting.parent_unit)}].next_calls`,
         select: { input_contract: { tool: 'save_record', operation: 'exception',
           ...(kinds.length === 1 ? { kind: kinds[0] } : {}) } } },
       instruction: 'Read the parent context and exception operation. Reapply with its current revision and caller-selected exact source_passages, preserving saved rationale, scope and intended bindings. Choose repeated occurrences explicitly. Do not expand to residual text by default; formal authoring remains available.' })
@@ -399,13 +407,11 @@ export function projectAssessmentGuidance(carrier, assessment, registeredTier, {
             : { limitation: assessmentSaveGuidance(carrier).limitation })
       } }) } }),
     ...(assessment.specification?.findings > 0 || unfinished ? { specification: { ...assessment.specification,
-      inspection: { tool: "workspace_read_wiki", arguments: { subject: carrier.unit.split("#")[0] } } } } : {}),
+      inspection: { tool: "workspace_read_wiki", arguments: { reads: [{ subject: carrier.unit.split("#")[0] }] } } } } : {}),
     ...(comparison === undefined ? {} : { user_requirements_comparison: comparison.read_call === null
       ? comparison : { ...comparison,
-        read_call: { tool: "workspace_read_wiki", arguments: { subject: carrier.unit } },
-        read_selection: { field: "sections.user_requirements" },
-        read_reference_from: "read_call response.reference",
-        read_purpose: "current authored requirements; follow the context's emitted field selection for the complete value" } }),
+        read_call: { tool: "workspace_read_wiki", arguments: { reads: [{ subject: carrier.unit, select: { field: "sections.user_requirements" } }] } },
+        read_purpose: "Complete current authored requirements for the selected unit." } }),
     ...(dispatch === undefined ? {} : { dispatch: { status: dispatch.status } }),
     ...(coverage === undefined ? {} : { acceptance_coverage: { ...coverage,
       correction: coverage.correction == null ? null : assessmentAuthoringGuidance(carrier,

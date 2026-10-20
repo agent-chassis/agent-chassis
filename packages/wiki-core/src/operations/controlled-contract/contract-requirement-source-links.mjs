@@ -44,7 +44,8 @@ export function resolveRequirementSourceLink({ wkId, text, passage, occurrence, 
   if (typeof text !== "string" || text.length === 0) fail(REQUIREMENT_SOURCE_CODES.SOURCE_TEXT_ABSENT,
     `${at("user_requirement")} names a passage, and ${wkId} has no saved ${REQUIREMENT_SOURCE_FIELD} text to find it in`,
     { field: at("user_requirement"), source: { wk_id: wkId, field: REQUIREMENT_SOURCE_FIELD },
-      read_call: { tool: "workspace_read_wiki", arguments: { subject: wkId } },
+      read_call: { tool: "workspace_read_wiki", arguments: { reads: [{ subject: wkId,
+        select: { field: 'sections.user_requirements' }, for_changes: ['user_requirements', 'requirements'] }] } },
       correction: (exceptionPassage
         ? `save changes.user_requirements on ${wkId} in an ordinary save first, read its current revision, then resubmit the exception`
         : `save the source text in the same request as changes.user_requirements on ${wkId}`) +
@@ -52,8 +53,10 @@ export function resolveRequirementSourceLink({ wkId, text, passage, occurrence, 
   const starts = requirementSourceMatches(text, passage);
   const source = { wk_id: wkId, field: REQUIREMENT_SOURCE_FIELD, digest: requirementSourceDigest(text) };
   const located = starts.slice(0, LISTED_MATCHES).map((start, index) => ({ occurrence: index + 1, start, end: start + passage.length }));
-  const matches = { match_count: starts.length, matches: located, location_unit: REQUIREMENT_SOURCE_LOCATION_UNIT, source,
-    read_call: { tool: "workspace_read_wiki", arguments: { subject: wkId } } };
+  const matches = { match_count: starts.length, matches: located, location_unit: REQUIREMENT_SOURCE_LOCATION_UNIT,
+    source: { wk_id: source.wk_id, field: source.field },
+    read_call: { tool: "workspace_read_wiki", arguments: { reads: [{ subject: wkId,
+      select: { field: 'sections.user_requirements' }, for_changes: ['user_requirements', 'requirements'] }] } } };
   if (starts.length === 0) fail(REQUIREMENT_SOURCE_CODES.PASSAGE_NOT_FOUND,
     `${at("user_requirement")} is not a passage of ${wkId} ${REQUIREMENT_SOURCE_FIELD}; the text is compared exactly, with no trimming, case folding or normalization`,
     { field: at("user_requirement"), ...matches,
@@ -192,14 +195,15 @@ export function compactRequirementSourceAccounting(facts) {
     formal_length: facts.formal?.length ?? 0, excepted_length: facts.excepted?.length ?? 0,
     accounted_length: facts.linked?.length ?? 0, remaining_length: facts.unmapped?.length ?? null,
     remaining_prose_segments: facts.unmapped?.segments.filter(row => !row.whitespace_only).length ?? null,
-    correction: { tool: 'workspace_read_wiki', arguments: { subject: facts.parent_unit } },
+    correction: { tool: 'workspace_read_wiki', arguments: { reads: [{ subject: facts.parent_unit,
+      select: { field: 'sections.user_requirements' }, for_changes: ['requirements'] }] } },
     ...(facts.accounting_status !== 'incomplete' ? {} : { recovery: {
       ...(facts.exception_binding_gaps === undefined ? {} : { saved_exception_binding_gaps: facts.exception_binding_gaps }),
       missing: 'Current exact associations between original source passages and caller-authored requirements are missing for remaining prose.',
       instruction: 'Read the current parent revision, then author faithful requirements or restate saved rows with the exact passages each represents. Preserve the original prose and choose occurrences explicitly where passages repeat. Declaring acceptance required does not repair source accounting; historical assessment retrieval supplies no write revision.',
       guidance: [['save_record_inputs', 'requirement_batch', 'source_link'],
         ['save_record_inputs', 'requirement_batch', 'row_addressing'], ['requirement_schema', 'existing', 'requirement']]
-        .map(topic => ({ tool: 'workspace_read_wiki', arguments: { subject: { requirement_guidance: true, topic } } }))
+        .map(topic => ({ tool: 'workspace_read_wiki', arguments: { reads: [{ subject: { requirement_guidance: true, topic } }] } }))
     } }),
     ...(facts.measurement_performed ? { link_meaning: 'Association only; semantic completeness, criterion coverage, execution capability, CEL enforcement and proof credit remain separate.' } : {}) };
 }

@@ -321,7 +321,7 @@ export const LAUNCH_ASSIGNMENT_DELIVERY_MODES = Object.freeze({
 
 export const MANAGED_ASSIGNMENT_RETRIEVAL_INSTRUCTION =
   "Your assignment is not included in this startup text. First call workspace_read_wiki with arguments " +
-  "{\"assignment\":true} and follow every returned next_calls continuation until the guidance is complete " +
+  "{\"reads\":[{\"assignment\":true}]} and follow the selected result's guidance call until the guidance is complete " +
   "before doing any assigned work. If that read is refused, stop and report its refusal code and recovery " +
   "action as a blocker; do not substitute any other source for the assignment.";
 

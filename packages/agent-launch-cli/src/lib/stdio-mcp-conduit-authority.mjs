@@ -23,6 +23,7 @@ import {
 } from "./frozen-review-contract-snapshot.mjs";
 import { assertManagedWorkerAssignment } from "./worker-assignment-authority.mjs";
 import { createManagedAssignmentReadSnapshot } from "./managed-assignment-read-artifact.mjs";
+import { resolveObservedExecutionBackend } from "./workspace-agent-dispatch-provenance.mjs";
 import {
   consumeAdvisoryReviewInput,
   resolveAdvisoryReviewInputRun
@@ -37,7 +38,7 @@ export const LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION =
 export const LAUNCHER_AGENT_SESSION_CONTRACT_FIELDS = Object.freeze([
   "schema_version", "role", "assigned_unit", "repository", "read_scope",
   "repo_paths", "write_scope", "lifecycle", "capabilities",
-  "completion_transport", "minting_provenance", "contract_digest"
+  "completion_transport", "execution_backend", "minting_provenance", "contract_digest"
 ]);
 
 export const LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES = Object.freeze({
@@ -65,6 +66,9 @@ const SESSION_ROLE_SET = new Set(SESSION_ROLES);
 const SESSION_REVIEW_PURPOSES = new Set(["standalone", "terminal_whole_wk"]);
 const SESSION_TRANSPORT_SET = new Set(Object.values(LAUNCHER_AGENT_SESSION_COMPLETION_TRANSPORTS));
 const SESSION_CONTRACTS = new WeakSet();
+const AUTHENTICATED_SESSION_CONTRACTS = new WeakSet();
+const BOUND_EXECUTION_BACKENDS = new WeakMap();
+const BACKEND_OBSERVATION_BINDINGS = new WeakMap();
 const SESSION_CONTRACT_CAPTURE = new AsyncLocalStorage();
 const SESSION_TOP_LEVEL_SET = new Set(LAUNCHER_AGENT_SESSION_CONTRACT_FIELDS);
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/u;
@@ -351,6 +355,7 @@ export function mintLauncherAgentSessionContract({
     lifecycle: Object.freeze({ position: lifecyclePosition, review_purpose: reviewPurpose }),
     capabilities: normalizedCapabilities,
     completion_transport: Object.freeze({ transport_id: completionTransport }),
+    execution_backend: BOUND_EXECUTION_BACKENDS.get(authority) ?? null,
     minting_provenance: Object.freeze({
       issuer,
       authority_schema_version: authority.schemaVersion,
@@ -365,10 +370,15 @@ export function mintLauncherAgentSessionContract({
     contract_digest: digestLauncherAgentSessionContract(carrier)
   });
   SESSION_CONTRACTS.add(contract);
+  return captureFinalSessionContract(contract, authority);
+}
+
+function captureFinalSessionContract(contract, authority) {
   const capture = SESSION_CONTRACT_CAPTURE.getStore();
-  if (capture !== undefined) {
+  if (capture !== undefined && contract.execution_backend !== null) {
     if (capture.contract === null) {
       capture.contract = contract;
+      capture.workerTask = resolveTrustedStdioMcpWorkerAssignmentSnapshot(authority)?.task ?? null;
     } else if (!canonicalSerializeLauncherAgentSessionContract(capture.contract)
       .equals(canonicalSerializeLauncherAgentSessionContract(contract))) {
       refuse("one launcher execution minted contradictory session contracts", {
@@ -383,9 +393,9 @@ export async function captureLauncherAgentSessionContract(operation) {
   if (typeof operation !== "function") {
     throw new TypeError("session contract capture requires an operation");
   }
-  const capture = { contract: null };
+  const capture = { contract: null, workerTask: null };
   const result = await SESSION_CONTRACT_CAPTURE.run(capture, operation);
-  return Object.freeze({ result, sessionContract: capture.contract });
+  return Object.freeze({ result, sessionContract: capture.contract, workerTask: capture.workerTask });
 }
 
 export function isLauncherMintedAgentSessionContract(value) {
@@ -416,7 +426,8 @@ export function authenticateLauncherAgentSessionContract({
   contract,
   expectedFacts = null,
   expectedContract = null,
-  consumerVersion = LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION
+  consumerVersion = LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION,
+  preparation = false
 } = {}) {
   if (consumerVersion !== LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION) {
     sessionContractRefusal(
@@ -459,6 +470,14 @@ export function authenticateLauncherAgentSessionContract({
       "launcher agent session contract digest does not match canonical bytes"
     );
   }
+  const backend = contract.execution_backend;
+  if (!(preparation && backend === null) &&
+      (!exactKeys(backend, ["enforcement", "identity"]) ||
+        !(backend.enforcement === "inactive" && backend.identity === "none" ||
+          backend.enforcement === "active" && ["bwrap", "seatbelt"].includes(backend.identity)))) {
+    sessionContractRefusal(LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.FACT_MISMATCH,
+      "session execution backend is unbound or contradictory");
+  }
   if ((expectedFacts === null || expectedFacts === undefined) && expectedContract !== null) {
     if (!isPlainObject(expectedContract) ||
         expectedContract.schema_version !== LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION ||
@@ -494,7 +513,7 @@ export function authenticateLauncherAgentSessionContract({
         "session contract facts do not match launcher-expected facts"
       );
     }
-    return Object.freeze(structuredClone(contract));
+    return authenticatedSessionContract(contract);
   }
   if (!isPlainObject(expectedFacts) || !expectedFacts.authority) {
     sessionContractRefusal(
@@ -545,7 +564,44 @@ export function authenticateLauncherAgentSessionContract({
       "session contract facts do not match launcher-resolved facts"
     );
   }
-  return Object.freeze(structuredClone(contract));
+  return authenticatedSessionContract(contract);
+}
+
+function authenticatedSessionContract(contract) {
+  const authenticated = freezeIdentityValue(structuredClone(contract), "authenticated session contract");
+  if (authenticated.execution_backend !== null) AUTHENTICATED_SESSION_CONTRACTS.add(authenticated);
+  return authenticated;
+}
+
+export function assertAuthenticatedLauncherAgentSessionContract(contract) {
+  if (!AUTHENTICATED_SESSION_CONTRACTS.has(contract)) {
+    sessionContractRefusal(LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.AUTHORITY_UNTRUSTED,
+      "execution requires the authenticator's original session value");
+  }
+  return contract;
+}
+
+export function bindLauncherAgentSessionExecutionBackend(authority, observation) {
+  assertTrustedStdioMcpConduitAuthority(authority);
+  const backend = resolveObservedExecutionBackend(observation);
+  const observedAuthority = BACKEND_OBSERVATION_BINDINGS.get(observation);
+  if (observedAuthority !== undefined && observedAuthority !== authority) {
+    sessionContractRefusal(LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.FACT_MISMATCH,
+      "backend observation belongs to another session authority");
+  }
+  const bound = BOUND_EXECUTION_BACKENDS.get(authority);
+  if (bound !== undefined && !sameCanonicalBytes(bound, backend)) {
+    sessionContractRefusal(LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES.FACT_MISMATCH,
+      "session execution backend cannot be rebound");
+  }
+  BACKEND_OBSERVATION_BINDINGS.set(observation, authority);
+  if (bound === undefined) {
+    BOUND_EXECUTION_BACKENDS.set(authority, backend);
+    const facts = TRUSTED_SESSION_CONTRACT_FACTS.get(authority) ?? defaultSessionContractFacts(authority);
+    TRUSTED_SESSION_CONTRACT_FACTS.set(authority, facts);
+    TRUSTED_SESSION_CONTRACTS.set(authority, mintLauncherAgentSessionContract(facts));
+  }
+  return resolveLauncherAgentSessionContract(authority);
 }
 
 export const STDIO_MCP_FROZEN_REVIEW_CONTRACT_PATH_CLASS =
@@ -1123,7 +1179,7 @@ function defaultSessionContractFacts(authority) {
 export function resolveLauncherAgentSessionContract(authority) {
   assertTrustedStdioMcpConduitAuthority(authority);
   let contract = TRUSTED_SESSION_CONTRACTS.get(authority);
-  if (contract) return contract;
+  if (contract) return captureFinalSessionContract(contract, authority);
   const facts = defaultSessionContractFacts(authority);
   contract = mintLauncherAgentSessionContract(facts);
   TRUSTED_SESSION_CONTRACT_FACTS.set(authority, facts);

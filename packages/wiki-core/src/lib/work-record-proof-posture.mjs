@@ -299,7 +299,7 @@ const READINESS_OWNER = "ordinaryAuthoringReadiness";
 const OBLIGATION_DEFINITIONS_INCOMPLETE = "obligation_definitions_incomplete";
 
 function correctionSentence({ arguments: args }) {
-  return `workspace_read_wiki(${JSON.stringify({ subject: args.unit })}), then save_record ` +
+  return `workspace_read_wiki(${JSON.stringify({ reads: [{ subject: args.unit, for_changes: ['obligations'] }] })}), then save_record ` +
     "on that unit using the context's fresh revision and caller-authored changes.obligations " +
     "with criteria associations. Authored verification meaning is required; this is an " +
     "authoring template, not a complete executable save call.";
@@ -462,7 +462,7 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
   const internalFailure = (terminalGaps?.counts?.tooling_or_internal_invariant ?? 0) > 0;
   const specificationRecovery = ordinaryReadiness?.specification_recovery ?? null;
   const authoredCorrection = sourceGapDecides ? sourceAccounting?.correction ??
-    { tool: "workspace_read_wiki", arguments: { subject: wkId } } : definitionCorrection ??
+    { tool: "workspace_read_wiki", arguments: { reads: [{ subject: wkId, for_changes: ["requirements"] }] } } : definitionCorrection ??
     (specificationRecovery?.actor_recovery === "agent" ? specificationRecovery : null) ??
     (state === "absent"
       ? controlledAcceptancePrepareDesignCall(wkId, selectedUnit) : null);
@@ -714,7 +714,7 @@ export function deriveControlledAcceptanceStateProjection({ wkId,
     definition_readiness: required ? definitionReadinessProjection(workbench) : null,
     recovery: sourceRefresh ?? (state !== "absent" && (semantic.admission.specification_completeness_enforced ||
       workbench?.evaluated_snapshot?.ordinary_authoring_readiness?.status === "complete") && semantic.parent_source_accounting?.accounting_status !== "complete"
-      ? semantic.parent_source_accounting?.correction ?? { tool: "workspace_read_wiki", arguments: { subject: wkId } }
+      ? semantic.parent_source_accounting?.correction ?? { tool: "workspace_read_wiki", arguments: { reads: [{ subject: wkId, for_changes: ["requirements"] }] } }
       : ["absent", "incomplete"].includes(state)
       ? workbench?.evaluated_snapshot?.obligation_design?.recovery ??
         controlledAcceptancePrepareDesignCall(wkId, selectedUnit) : null),
@@ -758,7 +758,7 @@ export function assertControlledAcceptanceStateProjection(value, expectedWkId,
   const sourceRecovery = sourceIncomplete && value?.state !== "absent" && (value?.semantic?.admission?.specification_completeness_enforced ||
     value?.semantic?.ordinary_authoring_readiness?.status === "complete");
   const expectedRecovery = sourceRecovery
-    ? value?.parent_source_accounting?.correction ?? { tool: "workspace_read_wiki", arguments: { subject: expectedWkId } }
+    ? value?.parent_source_accounting?.correction ?? { tool: "workspace_read_wiki", arguments: { reads: [{ subject: expectedWkId, for_changes: ["requirements"] }] } }
     : value?.semantic?.saved_applications?.recovery ??
     controlledAcceptancePrepareDesignCall(expectedWkId, expectedSelectedUnit);
 

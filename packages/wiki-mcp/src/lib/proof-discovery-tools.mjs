@@ -556,8 +556,14 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
       });
     };
     const parameters = [];
+    const candidates = [];
+    const unavailable = structuredClone(result.availability?.definitions ?? []);
     for (const candidate of result.candidates) {
-      try { parameters.push(await parametersFor(candidate)); }
+      try {
+        const values = await parametersFor(candidate);
+        parameters.push(values);
+        candidates.push(candidate);
+      }
       catch (error) {
         const failure = discoveryRefusal(error, request);
         failure.details = { ...failure.details,
@@ -568,14 +574,29 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
             stopping_condition: 'The required parameter definition cannot be supplied. This acquisition returns no ' +
               'proof choices; discovery has no call to repair the definition. Do not treat this failure as no matches.'
           }) };
-        throw createControlledContractRefusal(failure, { operation: FIND_PROOFS_TASK,
-          stage: 'parameter_definition' });
+        if (!browsing && !queried || error.code === 'proof_discovery_source_changed') {
+          throw createControlledContractRefusal(failure, { operation: FIND_PROOFS_TASK,
+            stage: 'parameter_definition' });
+        }
+        unavailable.push({ proof_name: candidate.proof_name, proof_version: candidate.profile_version,
+          failures: [{ code: error.code ?? null, message: error.message,
+            details: error.details ?? {} }] });
       }
     }
+    const availableCount = result.candidate_count - (unavailable.length - (result.availability?.unavailable ?? 0));
+    if (unavailable.length > 0 && availableCount === 0) throw new ControlledContractToolError(
+      'proof_discovery_definitions_unavailable', 'No definition in this proof catalogue is available.',
+      { availability: { status: 'unavailable', definitions: unavailable },
+        effects: 'none: no result retained and no canonical source written',
+        stopping_condition: 'No proof can be selected; discovery has no call that restores these definitions.' });
     const carrier = {
       request, mode: queried ? 'search' : browsing ? 'browse' : 'detail', query: result.query ?? null,
-      population: queried ? { matches: result.candidates.length, catalogue: result.candidate_count }
-        : browsing ? { catalogue: result.candidates.length } : { matches: 1 },
+      population: queried ? { matches: candidates.length, catalogue: result.candidate_count +
+        (result.availability?.unavailable ?? 0) }
+        : browsing ? { catalogue: candidates.length + unavailable.length } : { matches: 1 },
+      ...((browsing || queried) && unavailable.length > 0 ? { availability: { status: 'partial',
+        available: availableCount, unavailable: unavailable.length, definitions: unavailable } } : {}),
+      ...(unavailable.length > 0 ? { unavailable_definitions: unavailable } : {}),
       recognition, family,
 
       ...(family === null ? { family_choices: familyChoiceFacts(authoring) } : {}),
@@ -584,7 +605,7 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
       case_choices: { identity: authoring.case_identity,
         association: authoring.verification_association.authoring },
       source: observedSources(result.source_identity.discovery),
-      proofs: result.candidates.map((candidate, index) => ({
+      proofs: candidates.map((candidate, index) => ({
         proof_name: candidate.proof_name, profile_version: candidate.profile_version,
         ...(queried ? { match_kind: candidate.ranking.match_kind } : {}),
         short_description: candidate.short_description, usage: candidate.usage,
@@ -675,6 +696,14 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
   async function answer({ carrier, locator, currentness }, selection, admits) {
     const indexCall = { result: locator };
     const named = selection.proof_name ?? null;
+    const unavailable = carrier.availability?.definitions.find(entry => entry.proof_name === named);
+    if (unavailable !== undefined) throw new ControlledContractToolError('proof_discovery_definition_unavailable',
+      'The selected definition was unavailable in this original result.', {
+        subject: { proof_name: unavailable.proof_name, proof_version: unavailable.proof_version },
+        failures: unavailable.failures, effects: 'none: no selection, execution or canonical write',
+        stopping_condition: 'This result has no admitted meaning for the failed definition; choose an available proof explicitly or stop.',
+        recovery: { next_calls: { index: { tool: FIND_PROOFS_TASK, arguments: indexCall } } }
+      });
     if (named === null && carrier.mode !== 'detail') {
       if (selection.part !== undefined) throw correctable('part_requires_proof_name',
         { part: selection.part, population: carrier.population }, indexCall,
@@ -690,8 +719,8 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
       'the call returns this original result without the selection; it does not return the requested proof');
     const part = selection.part ?? null;
 
-    const offered = proof.verification_capability !== null && carrier.request.target_family !== undefined
-      ? caseFamilyGuidanceCall(carrier.request.target_family) : null;
+    const offered = proof.verification_capability !== null && carrier.family !== null
+      ? caseFamilyGuidanceCall(carrier.family.family_id) : null;
     const reader = requestContracts?.contractFor('workspace_read_wiki') ?? null;
     const caseGuidance = offered !== null && reader !== null && await reader.acceptsArguments(offered.arguments)
       ? offered : null;

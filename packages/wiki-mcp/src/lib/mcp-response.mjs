@@ -978,6 +978,13 @@ export function jsonContent(data, { env = process.env, forceSpill = false, selec
 const selectedFullResults = new WeakSet();
 const selectedFullValues = new WeakMap();
 
+function completeContentResult(canonical, options) {
+  const result = structuredToolResult(canonical.value, options);
+  selectedFullResults.add(result);
+  selectedFullValues.set(result.structuredContent, canonical.jsonText);
+  return result;
+}
+
 export function selectedFullContent({ source, retained, serializedBytes, member, projection }) {
   const native = serializedBytes !== undefined;
   const verified = native
@@ -998,10 +1005,16 @@ export function selectedFullContent({ source, retained, serializedBytes, member,
       ? "selected-full delivery requires an object member of the verified retained value"
       : "selected-full delivery requires an object projection of the verified retained value");
   }
-  const result = structuredToolResult(canonical.value);
-  selectedFullResults.add(result);
-  selectedFullValues.set(result.structuredContent, canonical.jsonText);
-  return result;
+  return completeContentResult(canonical);
+}
+
+export function completeProducedContent(projection, { isError = false } = {}) {
+  const canonical = canonicalizeStructuredPayload(projection);
+  if (canonical === null || canonical.value === null || typeof canonical.value !== "object" ||
+      Array.isArray(canonical.value)) {
+    throw new TypeError("complete task delivery requires the task's object projection");
+  }
+  return completeContentResult(canonical, { isError });
 }
 
 export function normalizeMcpToolResult(result, { env = process.env } = {}) {

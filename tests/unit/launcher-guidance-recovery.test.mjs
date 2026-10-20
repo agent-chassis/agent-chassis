@@ -11,10 +11,9 @@ import { BACKEND_REFUSAL_CODES } from
 
 const GUIDANCE = Object.freeze({
   state: "guidance",
-  route: "workspace_tools_describe",
-  args: { tool_name: "workspace_work_record_edit",
-    input_contract: { kind: "field", field: "base_branch", scope: "record" } },
-  information: "The ordinary editor's record-level base_branch field contract.",
+  route: "workspace_read_wiki",
+  args: { reads: [{ subject: 'WK-0001', for_changes: ['base_branch'] }] },
+  information: "The root's current base_branch authoring context.",
   responsible_actor: "operator",
   prerequisite: "the canonical WK record must explicitly select base_branch",
   operator_action: "choose an existing branch and author it through the ordinary editor",
@@ -80,6 +79,21 @@ test("guidance changes neither cause, authority nor any other classification fie
   assert.equal(guided.blocker_code, "agent_launch.launch_failed_before_start.v1");
 });
 
+test('bulk guidance preserves ordered selections and does not grant execution', () => {
+  const recovery = { ...GUIDANCE, args: { reads: [
+    { subject: 'WK-0001', select: { inventory: 'slices' } },
+    { subject: 'WK-0001#SLICE-001', for_changes: ['depends_on'] }
+  ] } };
+  const classification = classifyLauncherTransitionBackendRefusal(refusal(recovery));
+  assert.deepEqual(classification.schema_rejected, []);
+  assert.deepEqual(classification.recovery, recovery);
+  assert.equal(classification.next_action, null);
+  assert.equal(Object.isFrozen(classification.recovery.args.reads), true);
+  assert.equal(Object.isFrozen(classification.recovery.args.reads[1]), true);
+  const reordered = { ...recovery, args: { reads: [...recovery.args.reads].reverse() } };
+  assert.deepEqual(classifyLauncherTransitionBackendRefusal(refusal(reordered)).recovery.args, reordered.args);
+});
+
 test("malformed guidance is rejected as authority and stays visible as diagnostics", () => {
   const cases = [
     [omit(GUIDANCE, "information"), "detail.recovery.information"],
@@ -87,8 +101,11 @@ test("malformed guidance is rejected as authority and stays visible as diagnosti
     [{ ...GUIDANCE, args: null }, "detail.recovery.args"],
     [{ ...GUIDANCE, args: ["tool_name"] }, "detail.recovery.args"],
     [{ ...GUIDANCE, args: { tool_name: "x".repeat(257) } }, "detail.recovery.args"],
-    [{ ...GUIDANCE, args: { Tool: "workspace_work_record_edit" } }, "detail.recovery.args"],
-    [{ ...GUIDANCE, args: { a: { b: { c: { d: "deep" } } } } }, "detail.recovery.args"],
+    [{ ...GUIDANCE, args: { Tool: "save_record" } }, "detail.recovery.args"],
+    [{ ...GUIDANCE, args: { a: { b: { c: { d: { e: { f: "deep" } } } } } } }, "detail.recovery.args"],
+    [{ ...GUIDANCE, args: { reads: [] } }, "detail.recovery.args"],
+    [{ ...GUIDANCE, args: { reads: Array(65).fill({ subject: 'WK-0001' }) } }, "detail.recovery.args"],
+    [{ ...GUIDANCE, args: { reads: [null] } }, "detail.recovery.args"],
     [{ ...GUIDANCE, route: null }, "detail.recovery.route"],
     [{ ...GUIDANCE, route: "Not A Route" }, "detail.recovery.route"],
     [omit(GUIDANCE, "responsible_actor"), "detail.recovery.responsible_actor"],
@@ -110,14 +127,14 @@ test("malformed guidance is rejected as authority and stays visible as diagnosti
 test("malformed guidance never falls back to a declared dispatch triple", () => {
   const classification = classifyLauncherTransitionBackendRefusal(refusal(
     omit(GUIDANCE, "information"),
-    { actor_recovery: "coordinator", next_action: "workspace_agent_dispatch",
+    { actor_recovery: "coordinator", next_action: "start_agent",
       next_action_args: { role: "worker", subject: "WK-0001#SLICE-001" } }
   ));
   assert.equal(classification.recovery.state, "callable",
     "only a VALID declared recovery takes precedence; the declared triple still applies");
-  assert.equal(classification.next_action, "workspace_agent_dispatch");
+  assert.equal(classification.next_action, "start_agent");
   const guided = classifyLauncherTransitionBackendRefusal(refusal(GUIDANCE,
-    { actor_recovery: "coordinator", next_action: "workspace_agent_dispatch",
+    { actor_recovery: "coordinator", next_action: "start_agent",
       next_action_args: { role: "worker", subject: "WK-0001#SLICE-001" } }));
   assert.equal(guided.recovery.state, "guidance", "a valid declared guidance takes precedence");
   assert.equal(guided.next_action, null);
@@ -125,12 +142,12 @@ test("malformed guidance never falls back to a declared dispatch triple", () => 
 
 test("unrelated declared recoveries keep their current classification", () => {
   const callable = classifyLauncherTransitionBackendRefusal(refusal({
-    state: "callable", route: "workspace_agent_dispatch",
+    state: "callable", route: "start_agent",
     args: { role: "reviewer", subject: "WK-0001#SLICE-001" }
   }));
-  assert.deepEqual(callable.recovery, { state: "callable", route: "workspace_agent_dispatch",
+  assert.deepEqual(callable.recovery, { state: "callable", route: "start_agent",
     args: { role: "reviewer", subject: "WK-0001#SLICE-001" } });
-  assert.equal(callable.next_action, "workspace_agent_dispatch");
+  assert.equal(callable.next_action, "start_agent");
   const none = classifyLauncherTransitionBackendRefusal(refusal({
     state: "no_supported_route", route: null, responsible_actor: "operator",
     prerequisite: "p", operator_action: "a", retry_condition: "r", explanation: "e"

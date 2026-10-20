@@ -19,8 +19,8 @@ function compactKey(name, declared) {
   return typeof declared.description === "string" ? { description: declared.description } : {};
 }
 
-function selectAlternatives(converted) {
-  const select = converted?.properties?.select;
+function selectAlternatives(converted, root = converted) {
+  const select = converted?.properties?.reads?.items?.properties?.select ?? converted?.properties?.select;
   if (!isObject(select)) return null;
   const resolve = (node, seen = new Set()) => {
     if (Array.isArray(node)) return node.map((item) => resolve(item, seen));
@@ -30,7 +30,7 @@ function selectAlternatives(converted) {
         throw new TypeError(`workspace_read_wiki publication: unsupported reference ${node.$ref}`);
       }
       const target = node.$ref.slice(2).split("/").reduce((value, part) =>
-        value?.[part.replaceAll("~1", "/").replaceAll("~0", "~")], converted);
+        value?.[part.replaceAll("~1", "/").replaceAll("~0", "~")], root);
       if (target === undefined) throw new TypeError(`workspace_read_wiki publication: ${node.$ref} names no declaration`);
       return resolve(target, new Set([...seen, node.$ref]));
     }
@@ -50,14 +50,17 @@ function stringMap(node) {
 }
 
 export function publishedReadWikiInputSchema(converted) {
-  return compactSelect(converted);
+  const item = converted?.properties?.reads?.items;
+  if (!isObject(item)) return converted;
+  return { ...converted, properties: { ...converted.properties, reads: { ...converted.properties.reads,
+    items: compactSelect(item, converted) } } };
 }
 
-function compactSelect(source) {
+function compactSelect(source, root = source) {
   const search = source?.properties?.search;
   const converted = !isObject(search?.properties?.where) ? source : { ...source, properties: { ...source.properties,
     search: { ...search, properties: { ...search.properties, where: stringMap(search.properties.where) } } } };
-  const selected = selectAlternatives(converted);
+  const selected = selectAlternatives(converted, root);
   if (selected === null) return converted;
   const properties = {};
   for (const alternative of selected.alternatives) {

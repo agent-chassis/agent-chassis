@@ -363,7 +363,14 @@ export function createSaveRecordMaintenance({ workspace, responseEnv = process.e
   }
 
   async function retry({ unit, saveResult: source }) {
-    const { binding, carrier } = authenticated(source, unit, true);
+    let retained;
+    try { retained = authenticated(source, unit, true); }
+    catch (error) {
+
+      error.execution_not_started = true;
+      throw error;
+    }
+    const { binding, carrier } = retained;
     const original = { ...(binding.route === CREATE_RECORD_ROUTE
       ? { ...binding.query_identity.subject, ...(carrier.revision === undefined ? {} : { revision: carrier.revision }), producer: "create" }
       : { ...saveMaintenanceSubject(carrier), producer: "save" }), cleanup: cleanupCheckpoint(carrier), deferInitial: carrier.outcome === 'failed', carrier };

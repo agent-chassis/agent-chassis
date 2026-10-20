@@ -56,17 +56,17 @@ export function assignmentChangeCompletionRefusal({ decision, subject, retained,
 }
 
 const FAILURES = Object.freeze({
-  authentication: { actor: "launcher session provisioning owner", missing_capability: "authenticated_worker_assignment",
+  authentication: {
     action: "No callable session repair exists here. An authenticated current worker assignment is required; request fields cannot supply it." },
-  input_validation: { actor: "request schema owner", missing_capability: "assignment_change_validation_repair",
+  input_validation: {
     action: "No callable repair exists for the reported request-validation failure. Stop this request; no completion authority was established." },
-  binding_resolution: { actor: "launcher worktree identity-store owner", missing_capability: "worker_attempt_binding_repair",
+  binding_resolution: {
     action: "No callable repair exists for the failed attempt binding or completion read. Stop this request; completion authority is not established." },
-  frozen_assignment: { actor: "launcher immutable assignment artifact owner", missing_capability: "frozen_assignment_repair",
+  frozen_assignment: {
     action: "No callable frozen-assignment repair exists here. Stop this request; do not substitute live assignment data or bypass access boundaries." },
-  terminal_capability: { actor: "launcher process-stop owner", missing_capability: "worker_attempt_termination",
+  terminal_capability: {
     action: "No callable repair exists for this attempt's unavailable termination capability. Stop this request; no assignment revision or new access was granted." },
-  original_retention: { actor: "wiki-mcp retained-original owner", missing_capability: "assignment_change_retention_repair",
+  original_retention: {
     action: "No callable repair exists for failed handoff retention. Stop this request; retained bytes alone cannot establish acceptance." },
   journal_acceptance: { actor: "worker",
     action: "Observe the exact assigned attempt through the returned call. Do not resume implementation, deliver or retry the request while acceptance is unresolved. If observation cannot establish acceptance, no callable acceptance reconciliation exists here." }
@@ -92,7 +92,7 @@ export function assignmentChangeOwnerFailure({ error, stage, subject = null, ret
       : uncertain ? "request retained; acceptance unresolved"
       : retained ? "request retained; no new acceptance" : "no new acceptance; completion authority not established",
     recovery: acceptedBefore ? { actor: "coordinator", action: stopAccepted }
-      : deliveryBefore && stage === "journal_acceptance" ? { actor: "delivery transaction owner", missing_capability: "delivery_receipt_reconciliation",
+      : deliveryBefore && stage === "journal_acceptance" ? {
         action: "No callable reconciliation exists for the reported receipt-read failure. Do not retry delivery or assignment change; existing delivery effects may stand." }
       : FAILURES[stage],
     next_calls: uncertain && subject !== null ? [observeAssigned()] : [] };

@@ -1,6 +1,7 @@
 
 
 import {
+  controlledContractStructuralDiffPaths,
   isControlledContractGenerationNotPersisted,
   persistControlledContractGeneration,
   resolveControlledContractGenerationBinding
@@ -23,19 +24,35 @@ import {
 
 export const isControlledGenerationNotPersisted = isControlledContractGenerationNotPersisted;
 
-export async function synchronizeControlledContractGeneration({ mainRepo, wkId, deps = {} }) {
+export async function synchronizeControlledContractGeneration({
+  mainRepo, wkId, deps = {}, beforePersistence = null, beforeFirstWrite = null
+}) {
   const generation = await resolveControlledContractAttachmentGeneration({ repoRoot: mainRepo, wkId });
   const population = generation ??
     await resolveControlledContractSavedAuthoringSources({ repoRoot: mainRepo, wkId });
-  if (population === null) return null;
   const binding = await resolveControlledContractGenerationBinding({
     repoRoot: mainRepo, wkId, generation: population, lifecycleBinding: null, deps
   });
-  const receipt = await persistControlledContractGeneration({ binding, deps });
+  if (beforePersistence !== null) await beforePersistence();
+  const receipt = await persistControlledContractGeneration({ binding, deps, beforeFirstWrite });
 
   const effect = receipt.invocation.ref_write_succeeded === true ? "persisted" : "existing";
   const tips = { wk_ref: receipt.ref, previous_wk_tip: receipt.bound_tip, wk_tip: receipt.final_tip };
-  return Object.freeze(generation === null
+  let recordOnly;
+  try {
+    recordOnly = population === null || (effect === "persisted" &&
+      controlledContractStructuralDiffPaths({ binding, before: receipt.bound_tip, after: receipt.final_tip, deps })
+        .every(changed => changed === `wiki/work-records/${wkId}.json`));
+  } catch (error) {
+
+    const account = createTerminalCandidatePublicationAccount();
+    account.recordGeneration({ record: effect, ...tips });
+    account.attach(error);
+    throw error;
+  }
+  return Object.freeze(recordOnly
+    ? { record: effect, ...tips }
+    : generation === null
     ? { authoring_sources: effect, ...tips, authoring_sources_digest: receipt.generation.digest }
     : { generation: effect, ...tips, generation_digest: receipt.generation.digest });
 }
@@ -72,16 +89,7 @@ export function createTerminalCandidatePublicationAccount({ beforeFirstWrite = n
   let admitted = false;
 
   const project = () => facts.generation === null && facts.candidate === null ? null : Object.freeze({
-    ...(facts.generation?.authoring_sources === "persisted" ? { authoring_sources: "persisted" }
-      : { generation: facts.generation?.generation ?? "existing" }),
-    ...(facts.generation === null ? {} : {
-      wk_ref: facts.generation.wk_ref,
-      previous_wk_tip: facts.generation.previous_wk_tip,
-      wk_tip: facts.generation.wk_tip,
-      ...(facts.generation.authoring_sources === "persisted"
-        ? { authoring_sources_digest: facts.generation.authoring_sources_digest }
-        : { generation_digest: facts.generation.generation_digest })
-    }),
+    ...(facts.generation === null ? {} : facts.generation),
 
     ...(facts.candidate === null ? {} : {
       terminal_candidate: "replaced",
@@ -97,7 +105,8 @@ export function createTerminalCandidatePublicationAccount({ beforeFirstWrite = n
     },
 
     recordGeneration: (synchronized) => {
-      if (synchronized?.generation === "persisted" || synchronized?.authoring_sources === "persisted") {
+      if (synchronized?.generation === "persisted" || synchronized?.authoring_sources === "persisted" ||
+          synchronized?.record === "persisted") {
         facts.generation = synchronized;
       }
     },

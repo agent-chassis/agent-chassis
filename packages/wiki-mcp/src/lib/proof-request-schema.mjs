@@ -16,6 +16,8 @@ function referenceTarget(schema, defs) {
 }
 
 function convertRequestSchema(z, schema, defs, context) {
+  if (schema === true) return z.unknown();
+  if (schema === false) return z.never();
   if (context.defs !== defs) {
     throw new Error('Authored request-schema conversion cannot cross definition environments');
   }
@@ -39,7 +41,11 @@ function convertRequestSchema(z, schema, defs, context) {
     return wrapper;
   };
   let result;
-  if (schema.$ref) {
+  if (Array.isArray(schema.type)) {
+    const alternatives = schema.type.map(type => convert({ ...schema, type }));
+    result = alternatives.length === 1 ? alternatives[0] : z.union(alternatives);
+  }
+  else if (schema.$ref) {
     const target = referenceTarget(schema, defs);
     result = convert(target);
   }
@@ -80,7 +86,7 @@ function convertRequestSchema(z, schema, defs, context) {
           [{ constraint: 'array_length', min_items: minimum, ...(Number.isFinite(maximum) ? { max_items: maximum } : {}) }]);
       }
     } else {
-      result = z.array(convert(schema.items));
+      result = z.array(schema.items === undefined ? z.unknown() : convert(schema.items));
       if (schema.minItems !== undefined) result = result.min(schema.minItems);
       if (schema.maxItems !== undefined) result = result.max(schema.maxItems);
     }
@@ -89,7 +95,7 @@ function convertRequestSchema(z, schema, defs, context) {
     if (schema.description) result = result.describe(schema.description);
   }
   else if (schema.type === 'object') {
-    if (!schema.properties && schema.additionalProperties === true) result = z.record(z.unknown());
+    if (!schema.properties && (schema.additionalProperties === undefined || schema.additionalProperties === true)) result = z.record(z.unknown());
 
     else if (!schema.properties && schema.additionalProperties !== null && typeof schema.additionalProperties === 'object') {
       const value = convert(schema.additionalProperties);
@@ -104,8 +110,17 @@ function convertRequestSchema(z, schema, defs, context) {
 
       result = schema.additionalProperties === true ? declared.passthrough() : declared.strict();
     }
+    if (schema.minProperties !== undefined || schema.maxProperties !== undefined) {
+      const minimum = schema.minProperties ?? 0, maximum = schema.maxProperties ?? Infinity;
+      result = declareRequestConstraints(result.refine(value => {
+        const count = Object.keys(value).length;
+        return count >= minimum && count <= maximum;
+      }, 'Wrong number of authored object properties'), [{ constraint: 'object_property_count',
+        min_properties: minimum, ...(Number.isFinite(maximum) ? { max_properties: maximum } : {}) }]);
+    }
   }
   else throw new Error('Unsupported authored request-schema declaration');
+  if (schema.description) result = result.describe(schema.description);
   context.active.delete(schema);
   context.completed.set(schema, result);
   return result;

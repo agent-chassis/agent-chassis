@@ -13,6 +13,21 @@ const result = { ref_id: "readAAAA" };
 const detail = result_ => ({ tool: "get_run_result", arguments: { result: result_, detail: { member: "final_result" } } });
 const present = (facts, request = { subject, attempt_id }) => presentRunObservation({ accepted: true,
   subject, run_id: attempt_id, role: "worker", ...facts }, detail, {}, subject, request);
+
+test('known assignment-change acceptance ends worker navigation while the coordinator receives its handoff', () => {
+  for (const terminal of [false, true]) {
+    const observation = { status: terminal ? 'succeeded' : 'running', terminal,
+      assignment_change: { original: result }, producer_pending: !terminal };
+    const worker = present(observation, { assigned: true });
+    assert.equal(worker.assignment_change.accepted, true);
+    assert.equal(worker.assignment_change.pending_termination, !terminal);
+    assert.match(worker.assignment_change.action, /Stop this worker/u);
+    assert.equal(worker.assignment_change.result, undefined);
+    assert.deepEqual(worker.next_calls, []);
+    const coordinator = present(observation);
+    assert.deepEqual(coordinator.next_calls, [{ tool: 'get_run_result', arguments: { result } }]);
+  }
+});
 function contracts() {
   const store = createRegisteredToolRequestContractStore();
   const schema = GET_RUN_RESULT_RETAINED_INPUT_SCHEMA;
@@ -78,6 +93,45 @@ test("public final result preserves distinct authored meaning, failures and expl
   const routine = presentRunObservation({ ok: true, final_result: { kind: "no_findings",
     no_findings: { reason: "No findings." }, writeback: { kind: "no_writeback_expected", detail: null } } }, detail, {}, "WK-2776");
   assert.equal(routine.final_result.writeback, undefined);
+});
+
+test('missing report is separate from execution success, publication pending and confirmed delivery', () => {
+  const missing = { code: 'report_not_captured', reason: 'The final report file was not captured.',
+    detail: { operation: 'read_final_report', path: 'report.md', stderr: 'private process output' } };
+  const final = { kind: 'missing_result', missing_result: missing,
+    result_mode: { mode: 'missing_output', authority: 'launcher_observation_only' } };
+  const delivered = { ref_id: 'delivAAA' };
+  const input = { status: 'succeeded', terminal: true, final_result: final, original_result: result,
+    delivery: { available: true, references: [delivered] } };
+  const before = structuredClone(input), observed = present(input);
+  assert.equal(observed.status, 'succeeded');
+  assert.equal(observed.result_outcome, 'unavailable');
+  assert.equal(observed.result_failure.detail.operation, 'read_final_report');
+  assert.equal(observed.result_failure.detail.path, 'report.md');
+  assert.equal(observed.result_failure.retained_evidence, undefined);
+  assert.equal(observed.final_result, undefined);
+  assert.equal(observed.original, undefined);
+  assert.deepEqual(observed.next_calls, [
+    { tool: 'get_run_result', arguments: { result: delivered } },
+    { tool: 'integrate_work', arguments: { delivery: delivered } }
+  ], 'missing prose cannot erase the independently authenticated delivery or grant integration authority');
+  assert.doesNotMatch(JSON.stringify(observed), /private process output|result_mode|launcher_observation_only/);
+  assert.deepEqual(input, before);
+  const pending = present({ status: 'succeeded', terminal: true, producer_pending: true, final_result: final });
+  assert.deepEqual(pending.next_calls, [], 'publication pending cannot turn a known missing report into a useful wait');
+});
+
+test('a missing-result diagnosis cannot discard captured text or known writeback effects', () => {
+  const final = { kind: 'missing_result', missing_result: { code: 'report_section_missing' },
+    full_response: { text: 'The captured partial report remains usable.' },
+    writeback: { kind: 'writeback_failed', detail: { updated: true, code: 'late_acknowledgment_failed' } } };
+  const inline = present({ status: 'failed', terminal: true, final_result: final });
+  assert.equal(inline.result_outcome, 'partial');
+  assert.equal(inline.final_result.full_response.text, final.full_response.text);
+  assert.equal(inline.final_result.writeback.detail.updated, true);
+  const retained = present({ status: 'failed', terminal: true, final_result: final, original_result: result });
+  assert.equal(retained.result_outcome, 'partial');
+  assert.deepEqual(retained.next_calls, [detail(result)], 'a read with additional meaning remains useful');
 });
 
 test("run receipt choices with any failed population never approve a successful subset", () => {

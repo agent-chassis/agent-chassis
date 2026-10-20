@@ -10,9 +10,9 @@ const QUERY_TOOL = 'workspace_controlled_contract_obligation_coverage_query';
 const UPSERT_TOOL = 'workspace_controlled_contract_obligation_coverage_upsert';
 
 const UNIT_READ_TOOL = 'workspace_read_wiki';
-const UNKNOWN_CRITERION_CORRECTION = `Read the unit with ${UNIT_READ_TOOL}, then pass the returned reference with ` +
-  'select {"contract":"criteria"} for the current criterion identities of this unit, and name only those ' +
-  'identities in the obligation. A parent\'s criteria are not a slice\'s.';
+const UNKNOWN_CRITERION_CORRECTION = `Read the selected unit's criteria with ${UNIT_READ_TOOL} using reads ` +
+  'and select {"contract":"criteria"}, then use the returned semantic selectors in the obligation. ' +
+  'A parent\'s criteria are not a slice\'s.';
 
 const unitAddress = ({ wkId, selectedUnit }) =>
   selectedUnit === null || selectedUnit === undefined ? wkId : `${wkId}#${selectedUnit}`;
@@ -33,7 +33,8 @@ export function acceptanceCriterionAssociationOwner(inventory, { wkId, selectedU
         changed: false, phase: 'request', unit: unitAddress({ wkId, selectedUnit }),
         obligation_id: obligationId, unknown_criterion_identities: unknown,
         correction: UNKNOWN_CRITERION_CORRECTION,
-        next_calls: [{ tool: UNIT_READ_TOOL, arguments: { subject: unitAddress({ wkId, selectedUnit }) } }]
+        next_calls: [{ tool: UNIT_READ_TOOL, arguments: { reads: [{ subject: unitAddress({ wkId, selectedUnit }),
+          select: { contract: 'criteria' }, for_changes: ['obligations'] }] } }]
       });
     return identities.map(identity => ({ identity,
       text_sha256: byIdentity.get(identity).text_sha256 }));

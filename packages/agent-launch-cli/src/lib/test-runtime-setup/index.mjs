@@ -22,7 +22,8 @@ import { TOOLCHAIN_NAMES, TOOLCHAIN_RECIPES, currentPlatformKey } from "./recipe
 import { TestRuntimeSetupError, findOnPath, resolveToolchain } from "./toolchains.mjs";
 import { resolveInstalledRunnerIntegration } from "../test-execution/runner-integrations.mjs";
 import { ensureNativeCompilerCacheExcluded } from "../test-execution/runtime-inputs.mjs";
-import { verifyCandidateReadiness } from "../test-execution/setup-verification.mjs";
+import { describeEnvironmentDependencyPreparations, verifyCandidateReadiness } from
+  "../test-execution/setup-verification.mjs";
 
 export { TestRuntimeSetupError, findOnPath };
 export const TEST_RUNTIME_SETUP_RESULT_SCHEMA_VERSION = "agent-launch-test-runtime-setup-result.v1";
@@ -178,7 +179,7 @@ function resolveEnvironments({ repositoryRoot, environments }) {
 }
 
 async function detectDependencies({ root, ecosystemName, project, projectDir, members, toolchains, env,
-  selection, measure, complete = true }) {
+  selection, measure, complete = true, onLocated = () => {} }) {
   const ecosystem = DEPENDENCY_ECOSYSTEMS[ecosystemName];
   const base = { kind: "dependencies", ecosystem: ecosystemName, project,
     environment: testRuntimeEnvironmentId({ ecosystem: ecosystemName, project }) };
@@ -209,7 +210,7 @@ async function detectDependencies({ root, ecosystemName, project, projectDir, me
   let detected;
   try {
     detected = await ecosystem.detect({ repositoryRoot: root, projectDir, project, members,
-      inputs: { ...inputs, files: inputs.files ?? {} }, toolchains, env, selection, complete });
+      inputs: { ...inputs, files: inputs.files ?? {} }, toolchains, env, selection, complete, onLocated });
   } catch (error) {
     return componentFromError(base, error);
   }
@@ -391,7 +392,9 @@ async function detectAndVerify({ root, planned, facts, environmentFacts, selecti
   }
 
   const detections = [];
-  for (const { id, ecosystem: ecosystemName, project, projectDir, members } of planned) {
+  const dependencyPreparations = [];
+  for (const environment of planned) {
+    const { id, ecosystem: ecosystemName, project, projectDir, members } = environment;
     const needed = DEPENDENCY_ECOSYSTEMS[ecosystemName].toolchains;
     const base = { kind: "dependencies", ecosystem: ecosystemName, project, environment: id };
     if (needed.some((name) => !toolchains[name])) {
@@ -401,22 +404,29 @@ async function detectAndVerify({ root, planned, facts, environmentFacts, selecti
     }
     progress({ phase: "dependencies", environment: id });
     const detected = await detectDependencies({ root, ecosystemName, project, projectDir, members, toolchains,
-      env, selection: environmentSelections[id] ?? null, measure: !dryRun });
+      env, selection: environmentSelections[id] ?? null, measure: !dryRun,
+      onLocated: ({ env: nativeEnv, executables = {}, requirementFiles }) =>
+        dependencyPreparations.push(...describeEnvironmentDependencyPreparations({
+          environment, requirementFiles, runtime: { env: nativeEnv,
+            executables: Object.assign({}, ...needed.map((name) => toolchains[name].executables), executables) }
+        })) });
     const { record, ...fact } = detected;
     components.push(fact);
     if (record) detections.push(record);
   }
 
+  const report = { ...facts, components, dependency_preparations: dependencyPreparations };
+
   const failed = components.filter(({ status }) => status === "failed" || status === "blocked");
   if (failed.length > 0) {
-    return result("failed", { ...facts, components, verification: [],
+    return result("failed", { ...report, verification: [],
       failure: setupFailure("test_runtime_setup_incomplete",
         `${failed.length} requested component(s) are not ready; this detection failed`,
         { failed_components: failed.map(({ kind, name, ecosystem, project, environment, code }) =>
           ({ kind, name: name ?? ecosystem, project: project ?? null, environment: environment ?? null,
             code })) }) });
   }
-  if (dryRun) return result("detected", { ...facts, components });
+  if (dryRun) return result("detected", report);
   const candidateRecord = {
     status: "ready",
     repository_root: root,
@@ -435,7 +445,7 @@ async function detectAndVerify({ root, planned, facts, environmentFacts, selecti
     environments: planned, progress });
   const unverified = verification.filter(({ ok }) => !ok);
   if (unverified.length > 0) {
-    return result("failed", { ...facts, components, verification,
+    return result("failed", { ...report, verification,
       failure: setupFailure("test_runtime_sandbox_verification_failed",
         `${unverified.length} sandbox verification check(s) failed; this detection failed`,
         { failed_checks: unverified.map(({ environment, provider_id: id, project, check, code }) =>
@@ -446,5 +456,5 @@ async function detectAndVerify({ root, planned, facts, environmentFacts, selecti
     verification: verification.map(({ environment, provider_id: id, project, check }) =>
       ({ environment, provider_id: id, project, check, status: "passed" })),
     created_at: new Date().toISOString() },
-  report: { ...facts, components, verification } };
+  report: { ...report, verification } };
 }

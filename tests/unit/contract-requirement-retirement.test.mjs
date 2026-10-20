@@ -152,3 +152,17 @@ test('retained rows carry correction provenance independently of unrelated expli
   assert.deepEqual(result.retiredUses, []);
   assert.deepEqual(result.conflicts.map(row => row.condition), Array(3).fill('row_correction_requires_amendment'));
 });
+
+test('retained dependency diagnosis includes every distinct deciding dependency beyond a display prefix', () => {
+  const relations = Array.from({ length: 40 }, (_, index) => ({ ...relation('r-kept', 'r-old', 'depends_on'),
+    relation_id: `relation-${index}` }));
+  const content = stored({ relations });
+  const before = structuredClone(content);
+  assert.throws(() => retire(content, ['claim-r-old']), error => {
+    assert.equal(error.code, 'controlled_contract_requirement_retirement_dependency_conflict');
+    assert.equal(error.details.dependency_count, relations.length);
+    assert.deepEqual(error.details.dependencies.map(row => row.relation_id), relations.map(row => row.relation_id));
+    return true;
+  });
+  assert.deepEqual(content, before);
+});

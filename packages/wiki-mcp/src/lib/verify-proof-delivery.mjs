@@ -33,7 +33,7 @@ export async function projectVerifyProofRecoveryForRegisteredTools(evidence, {
       unit: boundUnit,
       focus: binding.focus ?? null
     });
-    const unit = source?.unit ?? call.arguments.subject;
+    const unit = source?.unit ?? call.arguments.reads[0].subject;
     return { unit, ...(source === null ? { focus_status: "unknown" } : { focus: source.focus ?? null }),
       ...(binding?.source === undefined ? {} : unit === boundUnit
         ? { identity: structuredClone(binding.source) }
@@ -42,6 +42,9 @@ export async function projectVerifyProofRecoveryForRegisteredTools(evidence, {
   };
   const project = (recovery, call, proof = null) => projectProofAuthoringAcquisition({
     call, recovery, requestContracts, receivingRole, resolveAuthoringSource: resolveSource,
+    ambiguities: (proof?.relationship_results ?? []).flatMap(row => row.diagnostics
+      .filter(diagnostic => diagnostic.reason_code === 'verify_proof.qualifying_verification_ambiguous.v1')
+      .map(diagnostic => ({ obligationId: row.obligation_id, verificationIds: diagnostic.details?.verification_ids }))),
     intent: { requested_subject: evidence.subject.requested,
       source: sourceOf(recovery, call),
       obligation_ids: [...new Set((proof?.relationship_results ?? []).map(row => row.obligation_id))] }
@@ -102,6 +105,7 @@ export const shippedVerifyProofCalls = Object.freeze({
   retentionFailure: describeRetentionFailure,
   evidence: (evidence) => evidence,
   refusal: (evidence) => evidence,
+  presentEvidence: (evidence) => evidence,
   presentRefusal: publicSourceRefusal,
   settledFailure: ({ error, errorContent }) => errorContent(error),
   unmodeledFailure: ({ error, errorContent }) => errorContent(error),
@@ -219,8 +223,9 @@ export function preparedVerifyProofCalls(executionCall, projectRecovery = eviden
       })),
     unmodeledFailure: unmodeledExecutionFailure,
     retentionFailure: preparedRetentionFailure,
-    refusal: projectRecovery,
-    evidence: (evidence, request, role) => projectRecovery({ ...evidence,
+    refusal: evidence => evidence,
+    presentEvidence: projectRecovery,
+    evidence: (evidence, request, role) => ({ ...evidence,
       ...(evidence.recovery === undefined ? {} : {
         recovery: executionRecovery(evidence.recovery, executionCall, request, evidence.execution_source_binding, role) }),
       proof_results: evidence.proof_results.map((proof) => ({ ...proof,
@@ -253,10 +258,12 @@ export function preparedVerifyProofCalls(executionCall, projectRecovery = eviden
 export async function validatedVerifyProofEvidence(result, calls, request, role) {
   const evidence = await calls.evidence(projectPublicVerifyProofAggregate(result), request, role);
   assertNoControlledContractRawResponse(evidence, { toolName: VERIFY_PROOF_TOOL_NAME });
-  return evidence;
+  const presentation = await calls.presentEvidence(evidence);
+  assertNoControlledContractRawResponse(presentation, { toolName: VERIFY_PROOF_TOOL_NAME });
+  return { evidence, presentation };
 }
 
-export function deliverStandaloneVerification({ evidence, args, repository, jsonContent, responseEnv,
+export function deliverStandaloneVerification({ evidence, presentation, args, repository, jsonContent, responseEnv,
   requestSchema, calls, run }) {
   let locator;
   try {
@@ -278,12 +285,12 @@ export function deliverStandaloneVerification({ evidence, args, repository, json
       meaning: "this settled result could not be retained, so it cannot be read back by result; " +
         "its outcome above stands"
     };
-    const summary = calls.summary(evidence, {
+    const summary = calls.summary(presentation, {
       ...answerAdmission(responseEnv, { result_retention: retention }), selectedSubject: args.subject });
     return jsonContent({ ...summary, result_retention: retention });
   }
   run.original = { result: locator };
-  const summary = calls.summary(evidence, {
+  const summary = calls.summary(presentation, {
     ...answerAdmission(responseEnv, { result: locator }),
     detailCall: (_subject, options) => calls.retained(repository, locator, _subject, options),
     selectedSubject: args.subject

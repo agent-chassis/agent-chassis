@@ -1,8 +1,8 @@
 # MCP conduit lifecycle
 
 This page describes the launcher-owned stdio-MCP conduit between a confined
-Claude or Codex role and its host wiki-MCP server: transport, readiness,
-teardown and failure reporting. Confinement and the session contract are in
+Codex, Claude, Agy, or OpenCode role and its host wiki-MCP server: transport,
+readiness, teardown and failure reporting. Confinement and the session contract are in
 [Agent-launch confinement and MCP conduit](agent-launch-confinement-mcp-conduit.md);
 what the conduit is authorized to carry is in
 [Conduit authority and review sources](agent-launch-conduit-authority-and-review-sources.md).
@@ -29,8 +29,8 @@ request behaves identically. See [environment reference](env-reference.md) and
 ## Transport and admission
 
 The wiki tool surface is not a filesystem backend and does not widen repository
-visibility. For confined Claude and Codex roles, the launcher establishes a
-private Unix-domain socket admission service. Each authenticated MCP command
+visibility. For confined Codex, Claude, Agy, and OpenCode roles, the launcher
+establishes a private Unix-domain socket admission service. Each authenticated MCP command
 invocation receives its own connection and host wiki-MCP process, as specified
 by `decision` (repository-only: `wiki/decisions/decision.md`) and
 [MCP integration](mcp-integration.md#standalone-client-configuration). The sandbox receives the pinned
@@ -378,8 +378,8 @@ is no daemon, periodic reaper, broker, or cleanup service.
 
 ## Client registrations
 
-Claude and Codex receive only launcher-generated client registrations. Claude
-uses `--mcp-config`, `--strict-mcp-config`, and the role-specific tool allowlist.
+Codex, Claude, Agy, and OpenCode receive only launcher-generated client
+registrations. Claude uses `--mcp-config`, `--strict-mcp-config`, and the role-specific tool allowlist.
 Codex receives one exact top-level `mcp_servers` override containing only the
 `wiki` stdio connector, with three launcher-owned settings:
 
@@ -426,7 +426,11 @@ to fit.
 
 Repository settings, user settings, prompt text, ambient environment, and caller
 configuration cannot add, replace, retarget, or shorten the server registration.
-Agy has no supported confined registration adapter and fails closed.
+Agy projects the authenticated channel into its private native configuration;
+OpenCode projects the same pinned command and argv into its read-only native
+configuration. Both use the shared closed conduit. Their configuration-source
+masks and qualification limits are owned by [Agy confinement](agent-launch-confinement-mcp-conduit.md#agy-confinement-and-native-qualification)
+and the [OpenCode native configuration boundary](agent-launch-confinement-mcp-conduit.md#opencode-native-configuration-boundary).
 
 For the local-socket transport, that shared client-registration projection runs
 the pinned connector with the Node executable already running the launcher. The

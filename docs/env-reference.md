@@ -357,13 +357,17 @@ Limits:
 
 ## 5. Third-party agent-CLI credentials (intentionally not configured here)
 
-The supported underlying agent CLIs (Claude and Codex) read their **own**
-credentials and configuration from their own config/home locations (for example
+The supported underlying agent CLIs (Claude, Codex, Agy, and OpenCode) read their
+**own** credentials and configuration from their own config/home locations (for example
 `CODEX_HOME` and each CLI's vendor credential mechanism). AgentChassis neither
 sets, proxies, nor documents those credentials as its own keys. The launcher
 references only the narrow approved locations needed to isolate each launch and
-never treats them as wiki-MCP authority. Agy is unsupported and receives no
-credential or runtime-state projection.
+never treats them as wiki-MCP authority. Agy receives a private native home and
+conversation state with an exact read-only OAuth credential leaf. OpenCode
+receives private HOME/XDG state and a read-only service-account credential leaf
+selected through native provider configuration. See [family runtime
+state](agent-launch-family-runtime-state.md#family-runtime-state) for each
+family's credential, configuration, and resume boundaries.
 
 ## Secret vs non-secret summary
 

@@ -83,7 +83,8 @@ function packAssociations(catalog) {
   return associations;
 }
 
-export function discoverySourceIdentity(catalog, admittedCatalog, { read = readFileSync } = {}) {
+export function discoverySourceIdentity(catalog, admittedCatalog, { read = readFileSync,
+  isolateDefinitions = false } = {}) {
   const sourcePaths = ['proof-intents/catalog.json', 'profiles/catalog.json',
     'vocabulary/controlled-contract-vocabulary.v1.mjs'];
   for (const { identity } of packAssociations(catalog).values()) {
@@ -94,7 +95,15 @@ export function discoverySourceIdentity(catalog, admittedCatalog, { read = readF
   const urls = sourcePaths.map(path => new URL(`../${path}`, import.meta.url));
   let previous = null;
   return () => {
-    const bytes = urls.map(url => read(url));
+    const bytes = urls.map((url, index) => {
+      try { return read(url); }
+      catch (error) {
+
+        if (!isolateDefinitions || index < 3) throw error;
+        return Buffer.from(JSON.stringify({ path: sourcePaths[index],
+          code: error.code ?? null, message: error.message }));
+      }
+    });
     if (previous === null || !bytes.every((file, index) => file.equals(previous.bytes[index]))) {
       previous = { bytes, discovery: canonicalDigest(bytes.map(file => file.toString('base64'))) };
     }

@@ -13,6 +13,16 @@ import { selectWorkingCopySource } from "./source-selection.mjs";
 
 const PROBE_TIMEOUT_MS = 120000;
 
+export function describeEnvironmentDependencyPreparations({ environment, runtime, requirementFiles }) {
+  return environment.descriptors.flatMap((descriptor) => {
+    const integration = resolveInstalledRunnerIntegration(descriptor);
+    const invocation = integration.dependencyPreparation?.({ runtime, projectDir: environment.projectDir,
+      requirementFiles });
+    return invocation == null ? [] : [{ environment: environment.id, provider_id: descriptor.runner_id,
+      project: environment.project, invocation }];
+  });
+}
+
 function tail(text, limit = 2000) {
   return text.length <= limit ? text : `...${text.slice(-limit)}`;
 }

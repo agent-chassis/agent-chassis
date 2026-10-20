@@ -483,7 +483,7 @@ export function registerCandidateAdvanceTool({
   const definition = {
     writeSemantics: MCP_WRITE_SEMANTICS.NONE,
     description: "Advance an explicitly selected stale WK candidate to the current accumulated WK state. " +
-      "Use the exact version_identity returned by workspace_inspect_candidate as version. " +
+      "Use the exact version in the workspace_inspect_candidate advancement call. " +
       "Updates the candidate version and current selection. Finish on success or continue the intended task; " +
       "the returned exact-version inspection is optional. Advance performs no review, external publication or completion.",
     inputSchema: ADVANCE_CANDIDATE_INPUT_SCHEMA,

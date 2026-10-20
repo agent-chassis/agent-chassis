@@ -10,6 +10,7 @@ export function isAgyConversationId(id) {
 }
 
 export function readAgySessionFacts({ stateRoot, repo, nativeSessionId = null, afterStepIndex = -1 }) {
+  if (!Number.isSafeInteger(afterStepIndex) || afterStepIndex < -1) throw new Error("agy_native_step_boundary_invalid");
   const file = path.join(stateRoot, "conversation_summaries.db");
   const root = realpathSync(stateRoot);
   if (!realpathSync(file).startsWith(`${root}${path.sep}`)) throw new Error("agy_native_state_mismatched");
@@ -34,9 +35,15 @@ export function readAgySessionFacts({ stateRoot, repo, nativeSessionId = null, a
     if (identity.length !== 1 || identity[0].cascade_id !== id) throw new Error("agy_native_conversation_identity_conflict");
     const rows = steps.prepare("SELECT idx, step_type, status, length(error_details) AS error_bytes FROM steps WHERE idx > ? ORDER BY idx LIMIT 2049").all(afterStepIndex);
     if (rows.length > 2048) throw new Error("agy_native_session_capture_limit");
+    if (rows.some((row, index) => !Number.isSafeInteger(row.idx) || row.idx < 0 ||
+        (index > 0 && row.idx === rows[index - 1].idx))) throw new Error("agy_native_step_identity_invalid");
+    const terminal = rows.at(-1);
+    const terminalOk = rows.length > 0 && sessions[0].status === "CASCADE_RUN_STATUS_IDLE" &&
+      terminal.step_type === 15 && terminal.status === 3 && !terminal.error_bytes;
     return { nativeSessionId: id, lastStepIndex: rows.at(-1)?.idx ?? afterStepIndex,
-      completion: { ok: rows.length > 0 && sessions[0].status === "CASCADE_RUN_STATUS_IDLE" &&
-        rows.at(-1)?.step_type === 15 && rows.every(row => row.status === 3 && !row.error_bytes),
+
+      steps: rows, afterStepIndex,
+      completion: { ok: terminalOk && rows.every(row => row.status === 3 && !row.error_bytes), terminalOk,
         reason: "agy_native_state_incomplete_or_error" } };
   } finally { steps.close(); }
 }

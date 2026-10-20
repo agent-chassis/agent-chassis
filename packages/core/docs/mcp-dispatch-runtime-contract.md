@@ -1631,12 +1631,13 @@ families](mcp-dispatch-launch-and-admission.md#supported-families).
 ## Assignment first read
 
 Managed workers, reviewers, and redteams start with bounded startup text.
-A worker calls `workspace_read_wiki` with `{assignment:true}` to read
+A worker calls `workspace_read_wiki` with `{reads:[{assignment:true}]}` to read
 its launcher-published assignment. A reviewer or redteam calls
-`workspace_read_wiki` with `{subject:<assigned unit>}` against its frozen review
-source; for a slice, also read the parent unit named in that context. Angle-bracket
+`workspace_read_wiki` with `{reads:[{subject:<assigned unit>}]}` against its frozen review
+source; a slice review combines its known parent unit in the same `reads` request. Angle-bracket
 values are incomplete templates: use the assigned or returned unit identity.
-Follow the returned selected-detail calls. If a read refuses, use its stated
+Consume `results` in request order and use selected-detail calls only for needed
+content. A complete read can finish. If a read refuses, use its stated
 correction; do not switch to a different source to bypass the refusal. See
 [MCP dispatch launch and admission](mcp-dispatch-launch-and-admission.md#assignment-retrieval).
 
@@ -2737,9 +2738,20 @@ owned by implementation and integration consumers remains unchanged.
 ### Deterministic worker-start witness support
 
 The fixed assignment consumer follows the returned guidance call with its source
-binding unchanged. A complete guidance read needs no public identity or revision
+binding unchanged. It consumes the ordered result only when its status is `ok`;
+partial or refused delivery cannot supply the assignment. A complete guidance
+read needs no public identity or revision
 bookkeeping. Test observers independently bind the consumed guidance bytes to the
 launcher-published worker/unit/attempt and retain the physical confinement checks.
+
+Launch correction calls use the same bulk interface. Each `for_changes` list is
+on its current-unit read; the write revision appears once in `contexts[unit]`.
+A dependency-identity correction combines the parent's distinguishable saved
+slice choices and the original assignment's `depends_on` write context in one
+call. The caller chooses the intended dependency; no recovery changes the
+requested role or assignment. Launcher guidance transports bounded ordered
+arrays as structural data, while the receiving registrar's complete request
+contract remains the authority for whether each call is supported.
 
 Registered integration tests may pass a closed, branded direct-code composition
 to the in-process dispatch runtime. Its fixed worker probe is selected only by

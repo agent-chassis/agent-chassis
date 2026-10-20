@@ -288,7 +288,7 @@ export function requestContractErrors(tool, callArguments, schema) {
   if (!validate(supplied)) {
     for (const detail of validate.errors ?? []) {
 
-      if (detail.keyword === "required" || detail.keyword === "additionalProperties") continue;
+      if (detail.instancePath === "" && (detail.keyword === "required" || detail.keyword === "additionalProperties")) continue;
       errors.push(`${detail.instancePath || "/"} ${detail.message}`.trim());
     }
   }

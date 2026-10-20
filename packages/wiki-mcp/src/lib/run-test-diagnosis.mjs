@@ -1,26 +1,14 @@
 
-import { stripVTControlCharacters } from 'node:util';
 import { ordinaryRunDiagnostic, ordinaryFailedResultDiagnostic } from '../../../agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs';
+import { distillCorrection } from '../../../agent-launch-cli/src/lib/test-execution/ordinary-test-diagnosis.mjs';
 import { capturedCause, selectedFailureDiagnostic } from './run-test-carrier.mjs';
-
-export function distillCorrection(text) {
-  if (typeof text !== 'string') return text;
-  const lines = text.split(/\r?\n/u);
-  const cause = lines.find(line => stripVTControlCharacters(line).trim().length > 0);
-  const corrections = lines.filter(line => /^\s*(?:Correction|Required correction|Fix|Remedy|Action|Expected(?: string| pattern| substring)?|Actual|Received(?: string| pattern| substring)?|Caused by):\s*\S/iu
-    .test(stripVTControlCharacters(line)));
-  const startup = lines.filter(line => /Missing X server or \$DISPLAY|without (?:having )?an? XServer|Executable doesn't exist at|error while loading shared libraries|No usable sandbox/u
-    .test(stripVTControlCharacters(line)))
-    .map(line => line.replace(/^\s*\[pid=\d+\]\[(?:err|out)\]\s*/u, ''));
-  if (corrections.length === 0 && startup.length === 0) return text;
-  const subjects = lines.filter(line => /^\s*(?:location|error|source|locator):\s*\S/iu.test(stripVTControlCharacters(line)));
-  return [...new Set([cause, ...subjects, ...corrections, ...startup])].join('\n') + (text.endsWith('\n') ? '\n' : '');
-}
+export { distillCorrection };
 
 export function taskCapturedCause(result, carrier) {
   const original = capturedCause(result);
 
   const selected = carrier === undefined ? null : taskFailureDiagnostic(carrier, null);
+  if (selected?.semantic !== undefined) return { semantic: selected.semantic, failures: selected.failures };
   if (selected?.identified === true && selected.failures > 0 && (original == null ||
       original.source !== selected.view.replace('candidate_', '') || original.offset < selected.offset)) return {
     phase: result.run?.phase ?? 'run', source: selected.view.replace('candidate_', ''),
@@ -41,9 +29,28 @@ export function taskCapturedCause(result, carrier) {
 }
 
 export function taskFailureDiagnostic(carrier, failure) {
+  const diagnosis = carrier.failure.semantic_diagnosis;
+
+  if (diagnosis != null && (diagnosis.failures?.length > 0 || diagnosis.reason?.startsWith('go_') ||
+      ['native_failure_capture_incomplete', 'execution_interrupted'].includes(diagnosis.reason))) {
+    const rows = diagnosis.failures ?? [];
+    const index = failure ?? 1;
+    const { failures: _failures, ...limits } = diagnosis;
+
+    if (diagnosis.state === 'unavailable' && rows.length === 0) return { semantic: limits };
+    if (failure !== null && index > rows.length) return { identified: false, failure, failures: rows.length,
+      semantic: { ...(diagnosis.state === 'captured' ? {} : limits), identified: false, failures: rows.length } };
+    const row = rows[index - 1];
+    return { identified: true, ...(row === undefined ? {} : { failure: index }), failures: rows.length,
+      semantic: { ...(diagnosis.state === 'captured' ? {} : limits), ...row } };
+  }
   const retained = carrier.failure.diagnostic;
   const original = failure === null && !(retained?.failures > 0)
     ? retained : selectedFailureDiagnostic(carrier, failure ?? 1);
+  if (diagnosis?.state === 'unavailable' && original?.identified !== true && !(original?.failures > 0)) {
+    const { failures: _failures, ...limits } = diagnosis;
+    return { semantic: limits };
+  }
   if (original?.identified !== true) return original;
   const stream = carrier[original.view];
   if (typeof stream !== 'string') return original;

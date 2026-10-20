@@ -163,8 +163,7 @@ function renderFindingsSnapshotAcceptanceInstruction(subject) {
   const sliceMatch = assignedUnit.match(/^(WK-\d{4})#SLICE-\d{3}$/u);
   const subjectPath = normalizeSubjectPath(subject);
   const subjects = sliceMatch ? [assignedUnit, sliceMatch[1]] : [assignedUnit || subjectPath];
-  return `Snapshot acceptance: workspace_read_wiki arguments ${subjects.map(subject =>
-    JSON.stringify({ subject })).join(" and parent ")}. Follow the returned reference and operative field selections ` +
+  return `Snapshot acceptance: workspace_read_wiki arguments ${JSON.stringify({ reads: subjects.map(subject => ({ subject })) })}. Follow the returned reference and operative field selections ` +
     "for criteria and validation. No live-main reads or inline mutable-record bytes.";
 }
 

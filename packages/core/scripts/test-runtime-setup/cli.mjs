@@ -1,6 +1,8 @@
 
 
-import path from "node:path";
+import { optionValue, readSetupParameterOption, parseSetupParameterInputs, reportIgnoredSetupParameters } from './parameter-inputs.mjs';
+import { SETUP_PARAMETER_HELP } from './parameter-adapters.mjs';
+import { testRuntimeEnvironmentId } from '@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs';
 
 import { loadTestRuntimeConfig } from
   "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/config.mjs";
@@ -31,6 +33,7 @@ never download or install anything either; they route each saved test to its
 environment, or to one named with their optional environment parameter.
 
 Options:
+${SETUP_PARAMETER_HELP}
   --runner <name>[@<project>]   detect exactly this runner's environment
                                 instead of the repository inventory
                                 (repeatable); names: <runners>
@@ -38,7 +41,8 @@ Options:
   --runtime-config <file>       read an explicit runner selection and/or
                                 toolchain executable locations from one JSON
                                 file (resolved against this directory); not
-                                combinable with --runner or --toolchain, and
+                                combinable with --runner, --toolchain, --executable
+                                or --python-environment, and
                                 never saved
   --dry-run                     detect and validate without the sandbox proof
                                 or publishing
@@ -53,31 +57,17 @@ export function parseRunnerSelector(value) {
   return { runner, project: project ?? "." };
 }
 
-export function parseExecutableSelector(value) {
-  const separator = value.indexOf("=");
-  const name = separator === -1 ? "" : value.slice(0, separator);
-  const executable = separator === -1 ? "" : value.slice(separator + 1);
-  if (!/^[a-z]+$/u.test(name) || !path.isAbsolute(executable)) {
-    throw new Error(`invalid --executable value (expected <toolchain>=<absolute path>): ${value}`);
-  }
-  return { name, executable };
-}
-
-function optionValue(argv, index, name) {
-  const arg = argv[index];
-  if (arg.startsWith(`${name}=`)) return { value: arg.slice(name.length + 1), next: index };
-  if (index + 1 >= argv.length) throw new Error(`${name} requires a value`);
-  return { value: argv[index + 1], next: index + 1 };
-}
-
-export function parseTestRuntimesArgs(argv) {
+export function parseTestRuntimesArgs(argv, env = process.env) {
   const options = { runners: [], toolchainVersions: {}, runtimeConfig: null,
-    dryRun: false, json: false, help: false };
+    parameterInputs: [], nonInteractive: true, dryRun: false, json: false, help: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     const name = arg.split("=")[0];
     if (arg === "--test-runtimes") continue;
-    if (arg === "--dry-run") options.dryRun = true;
+    const parameterNext = readSetupParameterOption(argv, index, options.parameterInputs);
+    if (parameterNext !== null) index = parameterNext;
+    else if (arg === "--non-interactive") options.nonInteractive = true;
+    else if (arg === "--dry-run") options.dryRun = true;
     else if (arg === "--json") options.json = true;
     else if (arg === "--help" || arg === "-h") options.help = true;
     else if (name === "--runner") {
@@ -99,13 +89,9 @@ export function parseTestRuntimesArgs(argv) {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
-
-  if (options.runtimeConfig !== null && !options.help) {
-    for (const [flag, supplied] of [["--runner", options.runners.length > 0],
-      ["--toolchain", Object.keys(options.toolchainVersions).length > 0]]) {
-      if (supplied) throw new Error(`--runtime-config cannot be combined with ${flag}`);
-    }
-  }
+  options.parameters = parseSetupParameterInputs({ inputs: options.parameterInputs, env,
+    runtimeConfig: options.runtimeConfig, runners: options.runners,
+    toolchainVersions: options.toolchainVersions, help: options.help, testRuntimeEnvironmentId });
   return options;
 }
 
@@ -146,7 +132,7 @@ function collectedOutput() {
 
 export async function runTestRuntimesSetup({ argv, cwd = process.cwd(),
   input = process.stdin, output = process.stdout, errorOutput = process.stderr, env = process.env } = {}) {
-  const options = parseTestRuntimesArgs(argv);
+  const options = parseTestRuntimesArgs(argv, env);
   if (options.help) {
     const setup = await import("@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/index.mjs");
     output.write(`${TEST_RUNTIMES_USAGE.replace("<runners>",
@@ -158,16 +144,18 @@ export async function runTestRuntimesSetup({ argv, cwd = process.cwd(),
     : loadTestRuntimeConfig(options.runtimeConfig, { cwd });
   const { prepareRepositoryTestRuntimes } = await import("./prepare.mjs");
   const collected = options.json ? collectedOutput() : null;
+  reportIgnoredSetupParameters(options.parameters, collected === null ? output : collected.sink);
   const prepared = await prepareRepositoryTestRuntimes({
     repositoryRoot: cwd,
     runners: options.runners,
+    parameters: options.parameters,
     toolchainVersions: options.toolchainVersions,
     runtimeConfig: config,
 
     locatePathToolchains: false,
     command: { invocation: "setup --test-runtimes" },
 
-    ...(options.json ? { interactive: false } : {}),
+    interactive: false,
     dryRun: options.dryRun,
     input,
     output: collected === null ? output : collected.sink,

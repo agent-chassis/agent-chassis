@@ -71,8 +71,11 @@ async function settleSliceCheckoutReap(reap, retirement) {
   try {
     const result = await reap();
     if (result?.reaped !== true) {
-      return Object.freeze({ state: "pending", reaped: false, code: "slice_checkout_reap_unconfirmed",
-        message: "the slice checkout reaper did not report a completed removal" });
+      return Object.freeze({ state: "pending", reaped: false,
+        code: result?.code ?? "slice_checkout_reap_unconfirmed",
+        message: result?.message ?? "Removal of the integrated slice checkout is unconfirmed.",
+        ...(result == null ? {} : { evidence: captureLifecycleFailureEvidence(result,
+          { operation: "delivery_finalization:slice_checkout_reap" }) }) });
     }
     return Object.freeze({ state: "complete", reaped: true, code: null, reap: result });
   } catch (error) {
@@ -94,8 +97,9 @@ export async function settleCheckoutFinalization(synchronize, { operation, subje
         checkout });
     }
     if (checkout?.clean !== true) {
-      return Object.freeze({ state: "pending", code: `${subject.toLowerCase()}_checkout_not_clean`,
-        message: `the ${subject} checkout owner did not report a clean exact checkout`, checkout });
+      return Object.freeze({ state: "pending", code: checkout?.code ?? `${subject.toLowerCase()}_checkout_not_clean`,
+        message: checkout?.message ?? `A clean exact ${subject} checkout is unconfirmed.`, checkout,
+        ...(checkout == null ? {} : { evidence: captureLifecycleFailureEvidence(checkout, { operation }) }) });
     }
     return Object.freeze({ state: "complete", code: null, checkout });
   } catch (error) {

@@ -45,6 +45,7 @@ const SUBJECT_PROJECTIONS = Object.freeze({
     ...(value.call_edge ? { path: value.call_edge.document_path, lines: value.call_edge.lines } : {}) }),
   context_regions: value => pick(value, ['region_id', 'path', 'kind', 'start_line', 'end_line', 'source_text', 'selected_lines', 'relationship_kind']),
   complete_files: codeSource,
+  reviewed_files: codeSource,
   affected_files: affected,
   semantic_relationships: value => pick(value, RELATION_FIELDS),
   semantic_resolution: value => ({ ...pick(value, RELATION_FIELDS),

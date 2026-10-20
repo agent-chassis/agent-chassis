@@ -4,6 +4,7 @@ import { ControlledContractToolError, assertControlledContractOperationInput } f
   '../../lib/controlled-contract-tools.mjs';
 import { loadControlledContractProofAuthoring } from './package-runtime.mjs';
 import { resolveProofAuthoringSource } from './proof-authoring-source.mjs';
+import { resolveDerivedProofContract } from './saved-proof-source.mjs';
 import { bindProofAuthoringRevision } from './proof-authoring-revision.mjs';
 import { obligationCoverageResolutionInput } from './proof-authoring-persistence.mjs';
 import { projectProofAuthoringCase } from './proof-authoring-case.mjs';
@@ -120,12 +121,21 @@ export async function queryControlledContractObligationCoverageOperation(input) 
     assertControlledContractOperationInput(input, ['repoRoot', 'wkId', 'focus', 'selectedUnit',
       'obligationId', 'parameterDetail', 'inventory', 'view', 'population']);
     assertQuerySelection(input);
-    const population = input.population ?? 'all';
-    const resolved = await bindProofAuthoringRevision(await resolveProofAuthoringSource(
-      obligationCoverageResolutionInput(input)));
+    const resolved = await captureObligationCoverageSource(obligationCoverageResolutionInput(input));
+    return projectObligationCoverageFromSource(resolved, input);
+  });
+}
+
+export async function captureObligationCoverageSource(input) {
+  const captured = await bindProofAuthoringRevision(await resolveProofAuthoringSource(input));
+  return { ...captured, contract: await resolveDerivedProofContract(captured) };
+}
+
+export async function projectObligationCoverageFromSource(resolved, input = {}) {
+  const population = input.population ?? 'all';
     const inventory = input.inventory === true;
     const present = resolved.source !== null;
-    const pkg = present ? await loadControlledContractProofAuthoring() : null;
+    const pkg = present || resolved.cases.length > 0 ? await loadControlledContractProofAuthoring() : null;
     let rows = present ? [...resolved.rows].sort(byObligationId) : [];
     if (input.obligationId !== undefined) {
       const row = rows.find(entry => entry.obligation_id === input.obligationId);
@@ -152,6 +162,11 @@ export async function queryControlledContractObligationCoverageOperation(input) 
       obligations.push(inventory ? inventoryRow(row) : {
         ...structuredClone(row),
         ...(input.parameterDetail === true ? await parameterDetail(pkg, row) : {}) });
+    }
+
+    if (mode === 'all') for (const definition of resolved.cases) {
+      if (!cases.some(entry => entry.case_id === definition.case_id))
+        cases.push(...projectProofAuthoringCase(pkg, resolved, { case_id: definition.case_id }));
     }
     cases.sort((left, right) => left.case_id.localeCompare(right.case_id));
     const descriptionPreparation = await prepareProofAuthoringDescriptionRead(resolved, { controlledContractNodeIds: nodeIds,
@@ -185,8 +200,8 @@ export async function queryControlledContractObligationCoverageOperation(input) 
         case_definitions: resolved.cases.length } }),
       ...(assigned && !present ? { assignment_mapping: 'absent',
         recovery: { actor: 'coordinator', action: 'Author the assigned unit’s obligations through save_record after reading its current authoring context and input contract; choose the obligation statements, requirement claims and criterion associations before saving.',
-          next_call: { tool: 'workspace_read_wiki', arguments: { subject: unitAddress(resolved),
-            select: { context: true, for_changes: ['obligations'] } } },
+          next_call: { tool: 'workspace_read_wiki', arguments: { reads: [{ subject: unitAddress(resolved),
+            for_changes: ['obligations'] }] } },
           missing_choices: ['obligation statements', 'requirement claims', 'criterion associations'],
           authority: 'Coordinator authoring only; this recovery grants the receiving role no mutation authority.' } }
         : {}),
@@ -236,7 +251,6 @@ export async function queryControlledContractObligationCoverageOperation(input) 
       notes: requirements.notes,
       residue: requirements.residue,
       next_calls: [] };
-  });
 }
 
 export async function resolveObligationCoverageQueryRevision(input) {

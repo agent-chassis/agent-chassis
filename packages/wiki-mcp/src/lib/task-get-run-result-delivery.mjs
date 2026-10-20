@@ -1,11 +1,12 @@
 
 
 import { z } from "zod";
+import { isDeepStrictEqual } from 'node:util';
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { selectedResponseDetailSchema, selectedResponseDeliveryBound,
   selectedResponseRequestSchema } from "./selected-response-snapshot.mjs";
 import { readDeliveryOriginalForSession, DELIVERY_ORIGINAL_PRODUCER } from "./task-deliver-work-result.mjs";
-import { ASSIGNMENT_CHANGE_TOOL } from "./task-request-assignment-change-result.mjs";
+import { ASSIGNMENT_CHANGE_TOOL, assignmentChangeAssignmentMeaning } from "./task-request-assignment-change-result.mjs";
 import { INTEGRATION_ORIGINAL_PRODUCER } from "./task-integrate-work-result.mjs";
 import { deliveryReadOutcome, integrationReadOutcome } from "./get-run-result-outcome-projection.mjs";
 import { retainSelectedResponseEvidence, readSelectedResponseSource, selectedResponseLocator,
@@ -17,6 +18,7 @@ import { distillDispatchFailureDetail } from "./dispatch-tool-helpers.mjs";
 import { measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
 import { RUN_WAIT_TIMEOUT_MS_BOUNDS } from "./dispatch-monitor-call-deadline.mjs";
 import { managedObservationFailureFacts } from "../../../agent-launch-core/src/lib/managed-run-observation.mjs";
+import { publicFinalResult, runResultMeaning } from './get-run-result-final-result.mjs';
 import { readDeliveryChanges, readDeliveryReviews } from './get-run-result-delivery-inspection.mjs';
 
 export const OBSERVATION_ORIGINAL_PRODUCER = "workspace_agent_run_status";
@@ -26,43 +28,6 @@ const route = "get_run_result";
 export const GET_RUN_RESULT_DETAIL_INPUT_SCHEMA = z.object({ member: z.string().min(1).max(128) }).strict();
 const request = z.object({ result: selectedResponseDetailSchema(z).shape.source,
   detail: GET_RUN_RESULT_DETAIL_INPUT_SCHEMA.optional() }).strict();
-
-function publicFinalResult(result) {
-  const projected = projectPublicFinalResult(result);
-  if (projected == null || typeof projected !== "object") return projected;
-  const { schema_version: _schema, structured_role_result: _parser, text_projection: _projection,
-    advisory_review: advisory, ...meaning } = projected;
-  for (const field of ["findings", "no_findings", "missing_result", "full_response", "writeback"]) {
-    if (meaning[field] == null) delete meaning[field];
-  }
-  if (meaning.writeback?.kind === "no_writeback_expected") delete meaning.writeback;
-  if (meaning.full_response != null) {
-    const { source: _source, ...response } = meaning.full_response;
-    if (response.format == null) delete response.format;
-    meaning.full_response = response;
-  }
-  for (const field of ["findings", "no_findings"]) {
-    if (meaning[field] == null || typeof meaning[field] !== "object" || Array.isArray(meaning[field])) continue;
-    const value = { ...meaning[field] };
-    if (field === "no_findings") {
-      delete value.source;
-      for (const key of ["reason", "format", "text"]) if (value[key] == null) delete value[key];
-    }
-    if (value.text_reference?.reason === "duplicate_text") delete value.text_reference;
-    if (Object.keys(value).length === 0) delete meaning[field];
-    else meaning[field] = value;
-  }
-  const review = {};
-  if (typeof advisory?.advisory_output?.text === "string") {
-    review.advisory_output = { text: advisory.advisory_output.text };
-  }
-  if (advisory?.formal_attestation?.requested === true) {
-    const { requested: _requested, ...formal } = advisory.formal_attestation;
-    review.formal_attestation = formal;
-  }
-  if (Object.keys(review).length > 0) meaning.advisory_review = review;
-  return meaning;
-}
 
 export function createDeliveryResultPresentation({ workspace, sessionEnv, responseEnv, requestContracts }) {
   const call = (source, member) => buildNextCall({ tool: route, arguments: { result: source, detail: { member } } });
@@ -99,9 +64,11 @@ export function createDeliveryResultPresentation({ workspace, sessionEnv, respon
     const inspection = binding.route === DELIVERY_ORIGINAL_PRODUCER && member !== 'outcome';
     const value = inspection ? member === 'changes' ? await readDeliveryChanges(context)
       : await readDeliveryReviews({ ...context, readOriginal: createObservationOriginals(context).read,
-        taskChoice: reviewTaskChoice, detailCall: source => call(source, 'final_result') })
+        taskChoice: attemptTaskChoice, detailCall: source => call(source, 'final_result') })
       : binding.route === DELIVERY_ORIGINAL_PRODUCER ? outcome
       : binding.route === INTEGRATION_ORIGINAL_PRODUCER ? await integrationReadOutcome(context)
+        : binding.route === ASSIGNMENT_CHANGE_TOOL && member === 'assignment'
+          ? assignmentChangeAssignmentMeaning(retained.carrier.assignment)
         : distillDispatchFailureDetail(binding.route === OBSERVATION_ORIGINAL_PRODUCER && member === "final_result"
           ? publicFinalResult(retained.carrier[member]) : retained.carrier[member], { nested: true }).detail;
     return selectedFullContent({ source: input.result, retained, projection: {
@@ -139,6 +106,7 @@ export function createObservationOriginals({ workspace, sessionEnv, responseEnv 
           status: observation.status, terminal: observation.terminal, exit: observation.exit,
           final_result: projectPublicFinalResult(observation.final_result),
           ...(observation.review_task === undefined ? {} : { review_task: observation.review_task }),
+          ...(observation.worker_task === undefined ? {} : { worker_task: observation.worker_task }),
           ...Object.fromEntries(["completion_failure", "completion_settlement_failure", "result_publication",
             "final_result_publication_failure"].filter(field => observation[field] !== undefined)
             .map(field => [field, observation[field]])) },
@@ -150,10 +118,29 @@ export function createObservationOriginals({ workspace, sessionEnv, responseEnv 
   };
 }
 
-function reviewTaskChoice(item, attempts) {
-  if (item.result_unavailable !== undefined) return { selection_limitation: { code: "review_result_unavailable",
+function attemptTaskChoice(item, attempts) {
+  if (item.result_unavailable !== undefined) return { selection_limitation: { code: item.role === 'worker'
+      ? 'worker_result_unavailable' : "review_result_unavailable",
     cause: item.result_unavailable,
-    message: "This retained review cannot be read. There is no supported recovery for this result." } };
+    message: "This attempt's retained original cannot be read. There is no supported recovery for this result." } };
+  if (item.role === 'worker') {
+    const source = item.worker_task;
+    if (source == null) return { selection_limitation: { code: 'worker_task_unavailable',
+      message: 'This attempt has no readable original assignment meaning. Its task cannot be identified from current instructions.' } };
+    const peers = attempts.filter(other => other !== item && other.role === 'worker');
+    const task = typeof source.title === 'string' && source.title.trim() !== '' ? { title: source.title } : {};
+    let same = peers.filter(other => other.worker_task?.title === source.title);
+    for (const field of ['summary', 'instructions', 'notes', 'criteria']) {
+      if (same.length === 0) break;
+      if (same.some(other => !isDeepStrictEqual(other.worker_task?.[field], source[field]))) {
+        task[field] = source[field];
+        same = same.filter(other => isDeepStrictEqual(other.worker_task?.[field], source[field]));
+      }
+    }
+    return { task, ...(same.length > 0 || Object.keys(task).length === 0 ? {
+      selection_limitation: { code: 'worker_attempts_indistinguishable',
+        message: 'These original task facts do not distinguish the attempts. Select only with an already-issued exact attempt tied to the intended task.' } } : {}) };
+  }
   if (!["reviewer", "redteam"].includes(item.role)) return {};
   const peers = attempts.filter(other => other.role === item.role);
   if (peers.length < 2) return {};
@@ -195,6 +182,7 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
   const attemptId = observation.run_id ?? selected?.dispatch_tuple?.run_id ?? request.attempt_id;
   const result = observation.original_result == null ? undefined : selectedResponseLocator(observation.original_result);
   const final = observation.final_result ?? selected?.result;
+  const meaning = runResultMeaning(final);
   const change = observation.assignment_change ?? selected?.assignment_change;
   const publication = observation.original_publication;
   const worker = observation.role === "worker" || selected?.dispatch_tuple != null;
@@ -209,8 +197,8 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
     next_calls: [] };
   const failure = value => distillDispatchFailureDetail(value, { nested: true }).detail;
   if (observation.accepted === false || observation.ok === false) summary.accepted = false;
-  if (observation.code !== undefined) summary.code = observation.code;
-  if (observation.refusal !== undefined) {
+  if (observation.code !== undefined && observation.observation_failure === undefined) summary.code = observation.code;
+  if (observation.refusal !== undefined && observation.observation_failure === undefined) {
 
     const { attempts: _attempts, ...detail } = observation.refusal.detail ?? {};
     summary.refusal = { ...observation.refusal,
@@ -219,9 +207,9 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
   if (observation.exit != null && (observation.status !== "succeeded" || observation.exit.code > 0 || observation.exit.signal != null)) {
     summary.exit = failure(observation.exit);
   }
-  if (final?.missing_result != null && change == null) summary.result_failure = failure(final.missing_result);
-  if (result === undefined && final != null && change == null) summary.final_result = publicFinalResult(final);
-  for (const key of ["completion_failure", "completion_settlement_failure", "final_result_publication_failure"]) {
+  if (change == null) Object.assign(summary, meaning.facts);
+  if (result === undefined && final != null && change == null && !meaning.unavailable) summary.final_result = meaning.value;
+  for (const key of ["observation_failure", "completion_failure", "completion_settlement_failure", "final_result_publication_failure"]) {
     if (observation[key] !== undefined) summary[key] = failure(observation[key]);
   }
   if (publication?.state === "failed") summary.original_publication = { state: publication.state, stage: publication.stage };
@@ -237,10 +225,10 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
       ...(observed == null ? {} : { diagnostic: failure(observed) }) };
   }
 
-  if (change == null && result !== undefined) {
+  if (change == null && result !== undefined && !meaning.unavailable) {
     summary.original = { available: true, result };
     summary.next_calls.push(detailCall(result));
-  } else if (change == null) {
+  } else if (change == null && !meaning.unavailable && observation.observation_failure === undefined) {
     summary.original = { available: false, reason: observation.producer_pending === true ? "producer_original_pending"
       : publication?.state === "failed" ? publication.stage === "original_capture"
         ? "producer_original_capture_failed" : "producer_completion_failed"
@@ -250,7 +238,7 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
       : observation.accepted === false || observation.ok === false ? "observation_unavailable"
       : selected !== undefined && observation.accepted !== true ? "durable_result_unavailable" : "producer_not_terminal" };
   }
-  if (result === undefined && publication?.state !== "failed" &&
+  if (change == null && observation.observation_failure === undefined && !meaning.unavailable && result === undefined && publication?.state !== "failed" &&
       observation.final_result_publication_failure?.repair_required?.retryable !== false &&
       observation.timed_out !== true && observation.accepted === true &&
       (terminal === false || observation.producer_pending === true)) {
@@ -270,8 +258,9 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
         ...(item.terminal === undefined ? {} : { terminal: item.terminal }),
         ...(Object.hasOwn(item, "result") ? { result_available: item.result != null } : {}),
         ...(item.result_available === undefined ? {} : { result_available: item.result_available }),
-        ...reviewTaskChoice(item, attempts),
-        ...(item.result_unavailable === undefined ? { call } : {}) };
+        ...attemptTaskChoice(item, attempts),
+        ...(item.result_meaning ?? {}),
+        ...(item.result_unavailable === undefined && item.result_meaning?.result_outcome !== 'unavailable' ? { call } : {}) };
     });
   }
   const proofs = observation.proof_verification;
@@ -280,6 +269,13 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
   else if (proofs?.recorded_count > 0) summary.proof_verification = {
     state: "recorded", recorded_count: proofs.recorded_count, detail_call: proofs.detail_call };
   if (change != null) {
+    if (request.assigned === true) {
+      summary.assignment_change = { accepted: true, pending_termination: terminal !== true,
+        action: 'Stop this worker; the coordinator owns any assignment correction and separately authorized continuation.' };
+      delete summary.proof_verification;
+      summary.next_calls = [];
+      return summary;
+    }
     summary.assignment_change = { accepted: true, pending_termination: terminal !== true,
       result: { ref_id: change.original.ref_id } };
     summary.next_calls.push(buildNextCall({ tool: route, arguments: { result: summary.assignment_change.result } }));

@@ -159,7 +159,7 @@ function selectFromSubject({ route, collections, subject, detail }) {
       { collection: detail.collection, selection: ["input_path"],
         required: "one affected file selected by path or selector.id" });
   }
-  if (selection.lines !== undefined && (!new Set(["source", "context_regions", "complete_files"])
+  if (selection.lines !== undefined && (!new Set(["source", "context_regions", "complete_files", "reviewed_files"])
     .has(detail.collection) || (detail.collection !== "source" && selection.path === undefined && selection.selector === undefined))) {
     throw selectedResponseQueryInvalidError(route, "selection_not_applicable",
       { collection: detail.collection, selection: ["lines"],

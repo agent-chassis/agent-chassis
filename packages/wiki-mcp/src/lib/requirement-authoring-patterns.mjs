@@ -17,8 +17,8 @@ const captured = (subject, operation, root, path, type, snapshot) => ({ subject,
     path: path.map(field => ({ field })), type, ...(snapshot ? { snapshot: { subject: snapshot, boundary: 'call' } } : {}) } }] } });
 const analysis = (subjects, fails_when) => ({ method: 'analysis', verifier: 'comparison-check',
   observes: { relation: 'reference:covers', objects: subjects.map(referent => ({ referent })) }, fails_when });
-const exampleRead = name => ({ tool: 'workspace_read_wiki', arguments: {
-  subject: { requirement_guidance: true, topic: ['compact_record_comparison', name] } } });
+const exampleRead = name => ({ tool: 'workspace_read_wiki', arguments: { reads: [{
+  subject: { requirement_guidance: true, topic: ['compact_record_comparison', name] } }] } });
 export const COMPACT_RECORD_PATTERN = Object.freeze({
   applicability: 'Group only fields with identical applicability, observation boundary and comparison semantics. The capture projects exactly label, owner and address from the same record at the same edit call; other fields are outside this invariant. Author separate rows where these conditions differ.',
   batch: { entities: { 'edit-record': 'cc:operation', call: 'cc:event', 'protected-fields': 'cc:state',
@@ -89,7 +89,7 @@ export const PLANNED_OPERATION_PATTERN = Object.freeze({
         verification: analysis(['actual', 'expected'], { relation: 'value:not_equals', objects: [value('expected')] }),
         user_requirement: 'The operation returns the requested payload.' }] },
   meaning: 'completion captures the actual returned object; arguments.requested captures the independently supplied request. Both typed captures define values; MUST equals requires their relationship. A type declaration or existence assertion alone supplies no behavioral rule. Source-symbol equality establishes only equality, not mutation, ordering, preservation or subscription behavior. No implementation symbol is required. Preserve existing return/refinement rules, conditions, source links and intended evidence associations; add applicable definitions and relationships without replacing those rules.',
-  preservation_read: { tool: 'workspace_read_wiki', arguments: {
-    subject: { requirement_guidance: true, topic: ['compact_record_comparison'] } } },
+  preservation_read: { tool: 'workspace_read_wiki', arguments: { reads: [{
+    subject: { requirement_guidance: true, topic: ['compact_record_comparison'] } }] } },
   preservation: 'Select separately only when before/after preservation is intended; use the protected-field projection and its observation boundary, never equality of an entire larger object. Keep undecided meaning unresolved. Reading, saving and predicate controls execute no verification and grant zero implementation proof credit.'
 });

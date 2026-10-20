@@ -51,6 +51,14 @@ const REDACTED_TRANSPORT_SECRET = "[redacted-transport-secret]";
 const LAUNCHER_OWNED_DISPATCH_ENFORCEMENT_SOURCE = Symbol(
   "launcher-owned-dispatch-enforcement-source"
 );
+const OBSERVED_EXECUTION_BACKENDS = new WeakMap();
+
+export function resolveObservedExecutionBackend(source) {
+  const backend = source && OBSERVED_EXECUTION_BACKENDS.get(source);
+  if (!backend) throw Object.assign(new Error("backend binding requires an admitted launcher observation"),
+    { code: "session_execution_backend_untrusted" });
+  return backend;
+}
 
 export const DISPATCH_ENFORCEMENT_PROVENANCE_SCHEMA_VERSION =
   "structured-dispatch-enforcement-provenance.v1";
@@ -256,7 +264,7 @@ export function createDispatchProvenanceEnforcementFromSandboxDecision(
     sandboxDecision,
     { launcherObservedConfirmation }
   );
-  return Object.freeze({
+  const source = Object.freeze({
     [LAUNCHER_OWNED_DISPATCH_ENFORCEMENT_SOURCE]: true,
     observed_by: "launcher",
     authority: "launcher_owned",
@@ -269,6 +277,11 @@ export function createDispatchProvenanceEnforcementFromSandboxDecision(
     backend_availability: sandboxDecisionBackendAvailability(sandboxDecision),
     refusal: sandboxDecision.refusal ?? null
   });
+  if (sandboxDecision.outcome === "unenforced_plain_launch" && sandboxDecision.refusal == null &&
+      runEnforcement.enforced === false && runEnforcement.isolation_backend === "none") {
+    OBSERVED_EXECUTION_BACKENDS.set(source, Object.freeze({ enforcement: "inactive", identity: "none" }));
+  }
+  return source;
 }
 
 export const LAUNCHER_OBSERVED_CONFIRMED_ISOLATED_SPAWN_SOURCE =
@@ -292,7 +305,7 @@ export function createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpa
   ) {
     return null;
   }
-  return Object.freeze({
+  const source = Object.freeze({
     [LAUNCHER_OWNED_DISPATCH_ENFORCEMENT_SOURCE]: true,
     observed_by: "launcher",
     authority: "launcher_owned",
@@ -308,6 +321,9 @@ export function createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpa
     ),
     refusal: null
   });
+  OBSERVED_EXECUTION_BACKENDS.set(source, Object.freeze({ enforcement: "active",
+    identity: runEnforcement.isolation_backend }));
+  return source;
 }
 
 function confirmedIsolatedSpawnBackendAvailability(isolationBackend) {

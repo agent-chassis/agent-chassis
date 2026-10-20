@@ -30,8 +30,9 @@ function proofDecisions(resolved, obligationId) {
 
 export function unresolvedSpecificationMeanings(resolved) {
   return (resolved.contract?.content?.authored_requirements?.unresolved ?? [])
-    .map((entry, index) => ({ id: `u${index + 1}`, location: `/authored_requirements/unresolved/${index}`,
-      ...(typeof entry === 'string' ? { text: entry } : structuredClone(entry)) }));
+    .map(entry => { const meaning = typeof entry === 'string' ? { text: entry } : structuredClone(entry);
+      const match = Object.fromEntries(['text', 'reason', 'candidate_concept'].filter(key => meaning[key] !== undefined).map(key => [key, meaning[key]]));
+      return { subject: { kind: 'unresolved', match }, ...meaning }; });
 }
 
 function grammarResidue(resolved) {
@@ -42,7 +43,7 @@ function grammarResidue(resolved) {
     ...(unresolved.length === 0 ? {} : { specification: "incomplete" }),
     ...(excepted.length === 0 ? {} : { enforcement: GRAMMAR_EXCEPTION_ENFORCEMENT,
       consequence: RECORD_AUTHORING_EXCEPTION_CONSEQUENCES.grammar,
-      excepted_meanings: excepted.map(({ id, ...entry }) => ({ id, text: entry.text,
+      excepted_meanings: excepted.map(entry => ({ subject: entry.subject, text: entry.text,
         ...(entry.reason === undefined ? {} : { reason: entry.reason }), ...rationaleOf(entry.grammar_exception.rationale) })) }) };
 }
 

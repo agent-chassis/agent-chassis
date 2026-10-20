@@ -613,9 +613,12 @@ free-tier substrate.
 
 ### Current per-executor boundary
 
-The supported implementation families are **Codex** and **Claude**. Agy is
-unsupported and fails closed before any model, repository-write, runtime-state,
-or wiki-MCP transport setup.
+The supported managed implementation families are **Codex**, **Claude**, **Agy**,
+and **OpenCode**. Each composes the shared assignment, scope, conduit, and
+isolation owners. Family-specific native prerequisites and qualification limits
+are documented in [family runtime state](agent-launch-family-runtime-state.md#family-runtime-state)
+and the [confinement contract](agent-launch-confinement-mcp-conduit.md).
+Unsupported family capabilities fail closed rather than widening the boundary.
 
 All non-orchestrator worker-family bwrap launches mask repo-local launcher
 secrets before the child starts: when `<workspace>/.env` exists it is shadowed by
@@ -633,7 +636,8 @@ network behavior remains `shareNet: true` as described above.
 | --- | --- | --- | --- | --- | --- |
 | Codex | The assigned implementation `write_scope` for workers; reviewer/redteam subjects must have `write_scope: []`. | The outer bubblewrap plan mounts the repo read-only, then emits exact `--bind <file> <file>` entries for the declared scope's individual files; a declared scope never yields a writable directory bind. Launcher-owned `runtime_roots` are bound separately and are not declared scope. Paths are realpath-normalized and must remain inside the repo; repo root and `.git` writable roots fail closed. Codex CLI `-s workspace-write` / `--add-dir` records directory-level intent only, so the bwrap file bind is the file-level boundary. Worker launches keep the Codex `exec_command` tool inside that boundary. | The dispatched child runs under bwrap with system/read-only roots, env filtered through the launcher policy, and write binds derived from canonical record state. Workers receive no Git administration or object-store mounts; reviewer/redteam launches receive the required read-only Git projection. | The Codex CLI sandbox itself is not the file-level guarantee; do not read `--add-dir` as per-file enforcement. | Worker launch shares network (`shareNet: true`) for model API access; this is the accepted worker-egress risk above. |
 | Claude | The assigned implementation `write_scope` for managed workers; reviewer/redteam are read-only and receive `Bash` with native edit tools denied so they can run read-only Git inspection. | Managed workers receive exact `W` writable mounts over a sparse `R union W` namespace. `Bash` is present in `permissions.allow` and `--allowedTools`, and absent from both deny layers. Native WebFetch/WebSearch and delegation/spawn tools remain denied. | The settings root is read-only, repository content visibility is exactly `R union W`, and workers receive no Git administration or object-store mounts; reviewer/redteam launches receive the required read-only Git projection. The real host OAuth credential leaf is writable for normal implementation workers so Claude can persist token refresh; exact findings roles bind it read-only. | Non-managed native-edit composition has a distinct directory-granular physical boundary; managed-worker shell authority comes from bwrap, not command parsing or native edit permissions. Post-run changed-path containment remains a backstop. | `shareNet: true`; shell-visible network binaries may use the shared network. Native WebFetch/WebSearch denial is not network confinement. |
-| Agy | Unsupported; no repository writes. | No executor or write-scope projection is created. | No role sandbox is spawned. | No Gemini state, credential, config, or wiki-MCP transport is mounted. | No launch; fails closed. |
+| Agy | Frozen worker `write_scope`; reviewer/redteam repository access is read-only. | The shared kernel planner enforces sparse worker reads and exact writable membership. Native noninteractive permission flags do not widen the kernel plan. | Private read-only native home/configuration and guide, separate writable native conversation/cache root, and one read-only OAuth credential leaf; the shared closed wiki-MCP conduit owns transport. | Explicit high-priority guide delivery is required; host-token refresh requiring credential writes and compaction/clear guide retention remain unqualified. See the family runtime contract for demonstrated fixtures. | `shareNet: true` for model access; no family-local network confinement. |
+| OpenCode | Frozen worker `write_scope`; reviewer/redteam repository access is read-only. | The shared kernel planner enforces sparse worker reads and exact writable membership. Native read/edit permissions project the same launcher authority. | Private HOME/XDG state, read-only native configuration and exact service-account credential leaf, shared closed wiki-MCP conduit, and masks for competing native configuration. | Explicit high-priority guide delivery is required. Native prerequisites and result-mode limits are owned by the family runtime contract. | `shareNet: true` for model access; no family-local network confinement. |
 
 #### Managed Claude editing and native-editor limits
 

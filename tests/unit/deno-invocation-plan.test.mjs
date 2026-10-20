@@ -40,6 +40,30 @@ const probe = (projectDir) => deno.setupProbe({ runtime: { executables: { deno: 
 const CONFORMANCE_LOCK = readFileSync(path.join(import.meta.dirname, "../fixtures/provider-conformance/deno/deno.lock"),
   "utf8");
 
+test("Deno preparation shares native discovery with offline verification and preserves resolved inputs", (t) => {
+  const host = mkdtempSync(path.join(tmpdir(), "deno-preparation-"));
+  t.after(() => rmSync(host, { recursive: true, force: true }));
+  const runtime = { executables: { deno: DENO }, env: { DENO_DIR: "/nondefault/deno-cache", SECRET: "excluded" } };
+  const describe = (overrides = {}) => deno.dependencyPreparation({ runtime, projectDir: host, ...overrides });
+  writeFileSync(path.join(host, "deno.jsonc"), JSON.stringify({ lock: false,
+    test: { include: ["command/"], exclude: ["command/ignored/"] } }));
+  const preparation = describe();
+  assert.deepEqual(preparation, { command: DENO, cwd: host,
+    args: probe(host).args.filter((arg) => arg !== "--cached-only"),
+    env: { DENO_DIR: "/nondefault/deno-cache", DENO_NO_UPDATE_CHECK: "1", NO_COLOR: "1" } });
+  for (const lock of [true, "locks/selected.lock", { path: "locks/selected.lock", frozen: false }]) {
+    writeFileSync(path.join(host, "deno.jsonc"), JSON.stringify({ lock }));
+    assert.deepEqual(describe().args, ["test", "--no-run", "--no-check", "--frozen", "--no-prompt",
+      "--permit-no-files", "--config", path.join(host, "deno.jsonc")]);
+  }
+  for (const unresolved of [{ executables: {}, env: runtime.env },
+    { executables: runtime.executables, env: {} },
+    { executables: runtime.executables, env: { DENO_DIR: "relative" } }]) {
+    assert.equal(describe({ runtime: unresolved }), null);
+  }
+  assert.equal(describe({ projectDir: null }), null);
+});
+
 test("the Deno setup probe checks every locked dependency and only a dependency-free lock selects info", (t) => {
   const host = mkdtempSync(path.join(tmpdir(), "deno-probe-"));
   t.after(() => rmSync(host, { recursive: true, force: true }));

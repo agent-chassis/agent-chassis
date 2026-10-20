@@ -5,7 +5,7 @@ export function projectControlledAcceptanceDispatchFailure(state, requestedUnit)
   if (admission?.admits !== false) return null;
   const recovery = typeof state.recovery?.tool === 'string' ? state.recovery
     : admission.supported_next_call;
-  const correctionUnit = recovery?.arguments?.subject ?? recovery?.arguments?.unit ??
+  const correctionUnit = recovery?.arguments?.reads?.[0]?.subject ?? recovery?.arguments?.unit ??
     state.semantic.selected_unit.address;
 
   const ownerCall = ['workspace_read_wiki', 'workspace_assess_contract'].includes(recovery?.tool)
@@ -21,7 +21,7 @@ export function projectControlledAcceptanceDispatchFailure(state, requestedUnit)
       const target = addressing?.unit ?? cause.unit ?? correctionUnit;
       return { ...cause, correction: { ...facts, unit: target,
         ...(addressing?.focus ? { focus: addressing.focus } : {}),
-        next_calls: [{ tool: 'workspace_read_wiki', arguments: { subject: target } },
+        next_calls: [{ tool: 'workspace_read_wiki', arguments: { reads: [{ subject: target }] } },
           { tool: 'workspace_assess_contract', arguments: { unit: target,
             ...(addressing?.focus ? { focus: addressing.focus } : {}) } }],
         instruction: 'Inspect this unit and its assessment correction. Acquire its current revision and save_record input contract before authoring obligations; assessment supplies no replacement meaning.' } };

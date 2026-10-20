@@ -54,7 +54,7 @@ order and repo map.
   launcher agent session contract, and the separate host test capability.
 - [agent-launch-mcp-conduit-lifecycle.md](agent-launch-mcp-conduit-lifecycle.md)
   — the host wiki-MCP local socket conduit: admission, readiness, teardown,
-  client registrations, and the unsupported Agy posture.
+  client registrations, and Agy and OpenCode native configuration boundaries.
 - [agent-launch-conduit-authority-and-review-sources.md](agent-launch-conduit-authority-and-review-sources.md)
   — minted conduit authority, review checkout capture, the frozen worker
   assignment, and terminal candidate validation.

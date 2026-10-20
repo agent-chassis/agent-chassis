@@ -26,6 +26,7 @@ import {
 import { registeredToolRequestContracts } from "./registered-tool-request-contracts.mjs";
 import { selectedResponseRequestSchema } from "./selected-response-snapshot.mjs";
 import { resolveWorkspaceRepo } from "./workspace-repo-resolution.mjs";
+import { createCodeReviewSource } from "./code-index-query-reviewed-source.mjs";
 
 export const CODE_INDEX_QUERY_ROUTE = "query_code_index";
 
@@ -33,7 +34,7 @@ export const SELECTED_CODE_ANSWER_CONTRACT =
   "Compact answer; follow next_calls for retained detail without rerunning the query.";
 
 export const PUBLISHED_INDEX_CONTRACT =
-  "Answers from published checkout content; reports material coverage limits. This does not establish alignment with a reviewed version.";
+  "Answers from published checkout content; authenticated review reads check the bound reviewed source and offer exact reviewed code when it differs.";
 
 const CODE_QUESTION_CONTRACT =
   "Selectors choose the answer: one of paths, patchText, diffRecords or liveGit:true asks change " +
@@ -90,6 +91,7 @@ export function createCodeIndexSelection({ workspaceRepos, env = process.env }) 
     route: CODE_INDEX_QUERY_ROUTE,
     requestSchema: selectedResponseRequestSchema(z.object({ detail: codeIndexDetailSchema(z) }).strict()),
     detailSchema: codeIndexDetailSchema(z),
+    review: createCodeReviewSource({ workspaceRepos, env }),
     buildDetailArguments: (_binding, selection) => ({ detail: selection }),
     resolveCurrentObservationIdentity: async (retained) => {
       const repoRoot = resolveWorkspaceRepo(workspaceRepos, retained.repository).dir;

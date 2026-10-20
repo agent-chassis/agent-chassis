@@ -149,6 +149,7 @@ export function readyStructuredAcceptanceCriterion(z) {
   return z
     .object({
       text: readyNonemptyString(z),
+      typed_identity: z.string().min(1).optional(),
       verification_method: z
         .enum(WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES)
         .nullable()

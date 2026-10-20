@@ -125,7 +125,9 @@ function reviewLimb(review) {
     case "compatible":
       return limb({});
     case "incompatible":
-      return limb({ recovery: COORDINATOR_REVIEW_RECOVERY.incompatible });
+      return limb({ recovery: COORDINATOR_REVIEW_RECOVERY.incompatible,
+        ...(review.missing_facts?.length ? { missing_facts: review.missing_facts } : {}),
+        ...(review.ambiguous_facts?.length ? { ambiguous_facts: review.ambiguous_facts } : {}) });
     case "authored_contract_divergent":
       return limb({
         divergence: {

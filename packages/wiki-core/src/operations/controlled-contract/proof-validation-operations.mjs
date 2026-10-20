@@ -1,5 +1,6 @@
 
 
+import { createPublicSelectionSource, resolvePublicSelections, projectPublicSelection } from './public-selection.mjs';
 import { bindProofAuthoringRevision } from './proof-authoring-revision.mjs';
 import { findObligation, unitAddress } from './proof-authoring-preparation.mjs';
 import { ControlledContractToolError, assertControlledContractOperationInput,
@@ -196,6 +197,66 @@ function diagnosisInventory({ resolved, envelope, obligationId, entries, familie
       family.status !== 'unavailable'),
     families, diagnoses, unselectable_findings: unselectable,
     corrections: usedCorrectionDefinitions(diagnoses.flatMap(diagnosis => diagnosis.subjects), clauses) };
+}
+
+async function captureAssessmentSubjects(inventory, resolved) {
+  const relevant = inventory.diagnoses.filter(diagnosis => diagnosis.family === 'authoring');
+  if (!relevant.length) return inventory;
+  const source = await createPublicSelectionSource({ captured: resolved, population: 'all' });
+  const populations = await Promise.all(['requirements', 'verifications'].map(async population =>
+    (await resolvePublicSelections({ source, population, intent: 'read' })).results[0]));
+  const matches = populations.flatMap(population => population.status === 'resolved' ? population.matches : [])
+    .filter(match => ['requirement', 'verification'].includes(match.kind));
+  const unresolved = populations.find(population => population.status !== 'resolved');
+  const targets = matches.filter(match => match.selector !== undefined);
+  const checked = targets.length ? (await resolvePublicSelections({ source,
+    selectors: targets.map(match => match.selector), intent: 'read' })).results : [];
+  const targetOf = match => {
+    const result = checked[targets.indexOf(match)];
+    const { requirement: _requirement, ...meaning } = match.meaning;
+    return result?.status === 'resolved' ? { target: match.selector, meaning }
+      : { state: result?.status ?? 'unavailable',
+        issue: result ? projectPublicSelection(result).issue : unresolved?.issue,
+        cause: 'No unique authored selection is established for this association.' };
+  };
+  const meanings = (id, kind) => {
+    const selected = matches.filter(match => match.kind === kind &&
+      (kind === 'requirement' ? match.internal.claim_ids.includes(id) : match.internal.claim_id === id));
+    return selected.length ? [...new Map(selected.map(match => {
+      const value = targetOf(match); return [JSON.stringify(value), value];
+    })).values()] : [{ state: 'unavailable', cause: unresolved?.issue?.cause ??
+      'This saved association has no available authored declaration in the captured source.',
+      ...(unresolved?.issue ? { issue: unresolved.issue } : {}) }];
+  };
+  const targetsOnly = (id, kind) => meanings(id, kind).map(({ meaning: _meaning, ...target }) => target);
+  const association = value => {
+    const ids = [...new Set([...value.eligible_verification_ids, ...value.candidate_verification_ids])];
+    const { choose_one_of: choices, ...required } = value.required_choice;
+    return { condition: value.condition, case_id: value.case_id,
+      verifications: ids.flatMap(id => meanings(id, 'verification').map(selection => ({ ...selection,
+        eligible: value.eligible_verification_ids.includes(id), candidate: value.candidate_verification_ids.includes(id) }))),
+      blocked: value.blocked.map(({ verification_id: id, ...facts }) => ({ ...facts,
+        ...(id === undefined ? {} : { verification: targetsOnly(id, 'verification') }) })),
+      ...(value.competitions === undefined ? {} : { competitions: value.competitions.map(({ verification_id: id, ...facts }) =>
+        ({ ...facts, verification: targetsOnly(id, 'verification') })), competition_recovery: value.competition_recovery }),
+      required_choice: { ...required, ...(required.otherwise === undefined
+        ? { choices_from: 'verifications with candidate:true and a unique target; unavailable or ambiguous targets cannot be selected' }
+        : { choose_one_of: choices }) } };
+  };
+  inventory.public_subjects = Object.fromEntries(relevant.map(diagnosis => [diagnosis.diagnostic_group_id, diagnosis.subjects.map(subject => {
+    const { node_id: node, verification_id: verification, claim_id: claim, row_id: _row,
+      association: native, owner_diagnostics: _checks, path, field, ...facts } = subject;
+    const authoredField = field === 'proof_name' ? 'obligations[].proof.name' : field === 'statement' ? 'obligations[].statement' : field;
+    const pathField = typeof path !== 'string' ? null : /^\/obligations\/\d+\/(controlled_contract_node_ids|case_id|statement|selection)/u.exec(path)?.[1];
+    const affectedField = authoredField ?? ({ controlled_contract_node_ids: 'obligations[].claims', case_id: 'obligations[].case',
+      statement: 'obligations[].statement', selection: 'obligations[].proof' })[pathField];
+    return { ...facts, ...(affectedField === undefined ? {} : { field: affectedField }),
+      ...(pathField || path === undefined ? {} : { path }),
+      ...(node === undefined && claim === undefined ? {} : { requirements: meanings(node ?? claim, 'requirement') }),
+      ...(verification === undefined ? {} : { verification: meanings(verification, 'verification') }),
+      ...(native === undefined ? {} : { association: association(native) }) };
+  })]));
+  return inventory;
 }
 const familyAvailability = (failure, failed) => failure === null ? { status: 'complete', failure: null }
   : { status: failed, failure: publicOwnerFailure(failure) };
@@ -407,14 +468,14 @@ function assessProof(input, deps, { capture, fields }) {
         .sort((left, right) => left.priority - right.priority || left.order - right.order);
     };
     const diagnoses = capture || obligationId !== undefined ? ownerDiagnoses() : [];
-    const inventory = capture ? diagnosisInventory({ resolved, envelope, obligationId, entries: diagnoses,
+    const inventory = capture ? await captureAssessmentSubjects(diagnosisInventory({ resolved, envelope, obligationId, entries: diagnoses,
       families: { authoring: familyAvailability(executableMapFailure, 'incomplete'),
         ...(definitions.entries.every(entry => entry.family !== 'definition') && definitionFailure === null ? {}
           : { definition: familyAvailability(definitionFailure, 'unavailable') }),
         ...(definitions.entries.every(entry => entry.family !== 'specification_meaning') && definitionFailure === null ? {}
           : { specification_meaning: familyAvailability(definitionFailure, 'unavailable') }),
         semantic: familyAvailability(workbenchFailure, 'unavailable') }, clauses,
-      unselectable: contractInputFindings(projectProofAuthoringContractInputs(resolved)) }) : null;
+      unselectable: contractInputFindings(projectProofAuthoringContractInputs(resolved)) }), resolved) : null;
 
     if (obligationId !== undefined) {
       const row = result.rows.find(entry => entry.obligation_id === obligationId) ?? null;

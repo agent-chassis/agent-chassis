@@ -4,6 +4,13 @@ This document defines how saved semantic proof meaning becomes one exact runtime
 verification. Authoring and validation do not execute code. The public
 `verify_proof` operation owns execution.
 
+Test processes consume the same authenticated, finalized backend fact as delivery.
+Active confinement requires a disposable writable view of the selected current
+source; inactive confinement preserves ordinary host writes. Source and candidate
+identity, proof transformations and attribution are unchanged. No public request
+selects a backend. The guarantee and refusal boundaries are defined in
+[Host execution](test-proof-execution.md#host-execution).
+
 The current `proof.verification.test-validity@12.0.0` definition uses the closed
 `controlled-contract-test-execution-profile.v1` representation. Its nonempty
 execution expression names the existing exact evaluator and authenticated

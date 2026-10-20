@@ -1,6 +1,4 @@
-import { readFileSync } from "node:fs";
-
-import { discoveryLimitation, discoverySourceIdentity } from "./proof-discovery-scope.mjs";
+import { discoveryLimitation } from "./proof-discovery-scope.mjs";
 
 import { packagedCompiledValidators }
   from "./compiled-validator-cache.mjs";
@@ -9,8 +7,7 @@ import {
   ProofIntentDiscoveryError,
   normalizeProofIntentDiscoveryCatalog,
   normalizeSearchText,
-  capturePackagedProofIntentMetadata,
-  readProofIntentMetadataFileIdentity,
+  capturePackagedProofDiscoveryMetadata,
   validateProofIntentCatalog
 } from "./proof-intent-metadata.mjs";
 import { TEST_PROOF_PROVIDER_AUTHORING_FACTS } from "./test-proof-provider-registry.mjs";
@@ -81,7 +78,7 @@ function isProofIntentDiscoveryQueryWithinLimit(query) {
     Buffer.byteLength(query, "utf8") <= MAX_DISCOVERY_QUERY_BYTES;
 }
 
-const capturedMetadata = capturePackagedProofIntentMetadata();
+const capturedMetadata = capturePackagedProofDiscoveryMetadata();
 const packagedMetadata = capturedMetadata.document;
 const PROOF_INTENT_DISCOVERY_CATALOG = deepFreeze(structuredClone(packagedMetadata.discovery.catalog));
 const PROOF_INTENT_DISCOVERY_CATALOG_DIGEST = packagedMetadata.discovery.catalog_digest;
@@ -94,16 +91,25 @@ const { validateProofIntentDiscoveryResult } = await packagedCompiledValidators(
   PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR.directory,
   { rebuildCommand: PROOF_INTENT_DISCOVERY_RESULT_VALIDATOR.rebuildCommand });
 
-const runtimeSourceIdentity = (inputs, metadata) => ({ discovery: canonicalDigest({ inputs, metadata }) });
-const currentDiscoveryInputs = discoverySourceIdentity(PROOF_INTENT_DISCOVERY_CATALOG,
-  JSON.parse(readFileSync(new URL("../profiles/catalog.json", import.meta.url), "utf8")));
+const runtimeSourceIdentity = captured => ({ discovery: canonicalDigest({
+  inputs: captured.discoverySource.discovery, metadata: captured.sha256,
+  unavailable: captured.unavailableDefinitions }) });
+const unavailableDefinitions = capturedMetadata.unavailableDefinitions;
+const unavailableNames = new Set(unavailableDefinitions.map(entry => entry.proof_name));
 const discoveryPopulation = Object.freeze({
-  population: deepFreeze(structuredClone(packagedMetadata.discovery.population)),
-  sourceIdentity: deepFreeze(runtimeSourceIdentity(packagedMetadata.discovery.source_identity.discovery,
-    capturedMetadata.sha256)),
+  population: deepFreeze(structuredClone(packagedMetadata.discovery.population.filter(entry =>
+    !unavailableNames.has(entry.proof_name)))),
+  sourceIdentity: deepFreeze(runtimeSourceIdentity(capturedMetadata)),
 
-  currentSourceIdentity: () => runtimeSourceIdentity(currentDiscoveryInputs().discovery,
-    readProofIntentMetadataFileIdentity())
+  currentSourceIdentity: () => {
+    try { return runtimeSourceIdentity(capturePackagedProofDiscoveryMetadata()); }
+    catch (error) {
+      if (error.code !== 'proof_intent_metadata_stale') throw error;
+      throw new ProofIntentDiscoveryError('proof_discovery_source_changed',
+        'The loaded discovery sources no longer identify one authenticated generation.',
+        { cause: { code: error.code, message: error.message, details: error.details } });
+    }
+  }
 });
 
 function proofVerificationCapability(proofName) {
@@ -307,11 +313,20 @@ function rankProofIntentCandidates(population, { queryTerms, providerTerms = [],
 }
 
 function assertResultSemantics(result) {
+  const availability = result.availability;
+  const unavailable = availability.definitions.map(entry => entry.proof_name);
   if (result.returned_count !== result.candidates.length ||
       result.omitted_count !== result.total_match_count - result.returned_count ||
       result.truncated !== (result.omitted_count > 0) ||
       new Set(result.candidates.map(x => x.id)).size !== result.candidates.length ||
-      (result.status === "no_match") !== (result.total_match_count === 0)) {
+      new Set(result.candidates.map(x => x.proof_name)).size !== result.candidates.length ||
+      result.total_match_count > result.candidate_count ||
+      availability.available !== result.candidate_count ||
+      availability.unavailable !== unavailable.length ||
+      new Set(unavailable).size !== unavailable.length ||
+      result.candidates.some(entry => unavailable.includes(entry.proof_name)) ||
+      (result.status === "partial") !== (availability.status === "partial") ||
+      (result.status === "no_match") !== (result.total_match_count === 0 && availability.status === "complete")) {
     throw new ProofIntentDiscoveryError("proof_intent_discovery_result_inconsistent",
       "discovery population accounting is inconsistent");
   }
@@ -345,6 +360,16 @@ function discoverProofIntentsInternal(options, unexpectedArguments, { completeSe
       "The loaded discovery definitions changed; reload the package/server before fresh discovery.",
       { changed: false, source_identity: current });
   }
+  const failedSelection = request.mode === "detail"
+    ? unavailableDefinitions.filter(entry => entry.proof_name === request.proofName) : unavailableDefinitions;
+  if (failedSelection.length > 0 && (request.mode === "detail" || population.population.length === 0)) {
+    throw new ProofIntentDiscoveryError("proof_discovery_definitions_unavailable",
+      request.mode === "detail" ? "The selected proof definition is unavailable."
+        : "No proof definition in this catalogue is available.",
+      { availability: { status: "unavailable", definitions: failedSelection },
+        effects: "none: no selection, execution or canonical write",
+        stopping_condition: "The failed definitions cannot be selected; discovery has no call that restores them." });
+  }
   const { context: provider, propertyTerms } = providerContext(request.queryTokens);
   const propertySearch = request.mode === "search" && propertyTerms.length > 0;
   let matches = propertySearch ? rankProofIntentCandidates(population.population, {
@@ -373,7 +398,7 @@ function discoverProofIntentsInternal(options, unexpectedArguments, { completeSe
   const result = canonicalValue({
     schema_version: "controlled-contract-proof-intent-discovery.v1",
     mode: request.mode, query: request.query,
-    status: matches.length ? "match" : "no_match",
+    status: unavailableDefinitions.length ? "partial" : matches.length ? "match" : "no_match",
     catalog_intent_count: PROOF_INTENT_DISCOVERY_CATALOG.intents.length,
     evaluated_intent_count: PROOF_INTENT_DISCOVERY_CATALOG.intents.length,
     candidate_count: population.population.length,
@@ -382,6 +407,9 @@ function discoverProofIntentsInternal(options, unexpectedArguments, { completeSe
     truncated: candidates.length < matches.length, result_limit: request.limit,
     provider_context: provider,
     candidates, source_identity: population.sourceIdentity,
+    availability: { status: unavailableDefinitions.length ? "partial" : "complete",
+      available: population.population.length, unavailable: unavailableDefinitions.length,
+      definitions: structuredClone(unavailableDefinitions) },
     catalog_digest: PROOF_INTENT_DISCOVERY_CATALOG_DIGEST,
     selection_performed: false, pack_invocation_performed: false,
     pack_admission_performed: false, authority: "non_authoritative"

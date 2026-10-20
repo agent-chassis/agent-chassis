@@ -39,7 +39,7 @@ export function publicationDiagnosisFacts(value, root = true) {
 export function publicationPreparation(value) {
   if (value == null) return undefined;
   const changes = Object.fromEntries(Object.entries(pick(value,
-    ["generation", "authoring_sources", "terminal_candidate", "previous_candidate", "candidate"]))
+    ["record", "generation", "authoring_sources", "terminal_candidate", "previous_candidate", "candidate"]))
     .filter(([, effect]) => effect !== "existing" && effect !== "not_applicable"));
   return Object.keys(changes).length === 0 ? undefined : changes;
 }

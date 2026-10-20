@@ -8,6 +8,7 @@ import {
   resolveModel
 } from "./agent-launch-model-registry.mjs";
 import {
+  isConfiguredOpenCodeModel,
   readAgentLaunchConfigSnapshot,
   readRoleDefaultModel,
   readRoleEffort,
@@ -65,6 +66,8 @@ export const AGENT_LAUNCH_NEUTRAL_EFFORTS = Object.freeze([
 const NEUTRAL_EFFORT_SET = new Set(AGENT_LAUNCH_NEUTRAL_EFFORTS);
 
 export const OPENCODE_NATIVE_MODEL_CAPABILITIES = Object.freeze({
+  "google-vertex/gemini-4-argon": Object.freeze({ provider: "google-vertex", location: "global",
+    variants: Object.freeze(["low", "medium", "high"]) }),
   "google-vertex/gemini-3.8-flash": Object.freeze({ provider: "google-vertex", location: "global",
     variants: Object.freeze(["low", "medium", "high"]) }),
   "google-vertex-anthropic/claude-sonnet-5-5@default": Object.freeze({ provider: "google-vertex-anthropic", location: "global",
@@ -211,8 +214,15 @@ function unknownRoleModelRefusal({ role, model, source }) {
   };
 }
 
-function resolveKnownModel({ role, model, source }) {
-  const resolved = resolveModel(model);
+export function resolveConfiguredModel(model, snapshot, registry = MODEL_REGISTRY_BY_NAME) {
+  if (isConfiguredOpenCodeModel(model, snapshot?.opencode)) return Object.freeze({
+    app: "opencode", backend: "opencode", backend_profile: null, codex_profile: null, default_effort: null
+  });
+  return resolveModel(model, registry);
+}
+
+function resolveKnownModel({ role, model, source, snapshot = null }) {
+  const resolved = resolveConfiguredModel(model, snapshot);
   if (!resolved) {
     return unknownRoleModelRefusal({ role, model, source });
   }
@@ -221,7 +231,7 @@ function resolveKnownModel({ role, model, source }) {
     model,
     app: resolved.app,
     model_source: source,
-    app_source: "model_registry",
+    app_source: isConfiguredOpenCodeModel(model, snapshot?.opencode) ? "opencode_config" : "model_registry",
     model_spec: resolved
   };
 }
@@ -260,7 +270,7 @@ export function resolveLauncherOverrideToken(token) {
   return unknownAppOrModelRefusal(normalized);
 }
 
-export function resolveExplicitOverrideSelection({ role, app, model }) {
+export function resolveExplicitOverrideSelection({ role, app, model, snapshot = null }) {
   const appToken = typeof app === "string" && app.trim().length > 0 ? app.trim() : null;
   const modelToken = typeof model === "string" && model.trim().length > 0 ? model.trim() : null;
 
@@ -275,9 +285,11 @@ export function resolveExplicitOverrideSelection({ role, app, model }) {
 
   const modelSelection = modelToken === null
     ? null
-    : MODEL_NAME_SET.has(modelToken)
-      ? resolveLauncherOverrideToken(modelToken)
-      : unknownRoleModelRefusal({ role, model: modelToken, source: "operator_override" });
+    : isConfiguredOpenCodeModel(modelToken, snapshot?.opencode)
+      ? { ...resolveKnownModel({ role, model: modelToken, source: "operator_override", snapshot }), token: modelToken }
+      : MODEL_NAME_SET.has(modelToken)
+        ? resolveLauncherOverrideToken(modelToken)
+        : unknownRoleModelRefusal({ role, model: modelToken, source: "operator_override" });
   if (modelSelection && modelSelection.ok !== true) {
     return modelSelection;
   }
@@ -433,7 +445,7 @@ export function resolveEffectiveRoleEffort({
     };
   }
 
-  const resolvedModel = resolveModel(selectedModel);
+  const resolvedModel = resolveConfiguredModel(selectedModel, snapshot);
   if (!resolvedModel) {
     return {
       ok: false,
@@ -448,7 +460,7 @@ export function resolveEffectiveRoleEffort({
   return {
     ok: true,
     effort: resolvedModel.default_effort,
-    effort_source: "model_registry_default",
+    effort_source: resolvedModel.default_effort === null ? null : "model_registry_default",
     config_effort: null
   };
 }
@@ -463,13 +475,14 @@ export function resolveRoleModelSelection({
 } = {}) {
   const routing = validateModelRouting(snapshot, registry);
   if (!routing.ok) return routing;
-  const runtime = resolveModel(model, registry);
+  const runtime = resolveConfiguredModel(model, snapshot, registry);
   if (!runtime) return unknownRoleModelRefusal({ role, model, source: modelSource });
   const effort = resolveEffectiveRoleEffort({ role, effortOverride, selectedModel: model, snapshot });
   if (!effort.ok) return effort;
   return {
     ok: true,
-    value: Object.freeze({
+
+    value: Object.freeze(Object.defineProperty({
       model,
       model_source: modelSource,
       app: runtime.app,
@@ -478,7 +491,7 @@ export function resolveRoleModelSelection({
       config_effort: effort.config_effort,
       high_priority_role_guide: roleGuideDeliveryFromSnapshot(role, snapshot),
       route: resolveModelRoute({ model, snapshot, registry })
-    })
+    }, "opencode", { value: runtime.app === "opencode" ? snapshot?.opencode ?? null : null }))
   };
 }
 
@@ -542,7 +555,7 @@ export function resolveDispatchedRoleModel({
     const modelSource = typeof resolvedProfile?.model_source === "string"
       ? resolvedProfile.model_source
       : "resolved_profile";
-    const resolvedModel = resolveKnownModel({ role, model: profileModel, source: modelSource });
+    const resolvedModel = resolveKnownModel({ role, model: profileModel, source: modelSource, snapshot });
     if (!resolvedModel.ok) {
       return resolvedModel;
     }
@@ -569,6 +582,7 @@ export function resolveDispatchedRoleModel({
     const resolvedModel = resolveKnownModel({
       role,
       model: roleDefaultModel,
+      snapshot,
       source: "role_config"
     });
     if (!resolvedModel.ok) {
@@ -1057,7 +1071,8 @@ export function resolveLauncherProfile({
     return refusal("unknown_role", `unknown launcher role: ${role}`, "role");
   }
 
-  const overrideSelection = resolveExplicitOverrideSelection({ role, app, model });
+  const snapshot = readConfigSnapshot({ dir });
+  const overrideSelection = resolveExplicitOverrideSelection({ role, app, model, snapshot });
   if (overrideSelection && overrideSelection.ok !== true) {
     return refusal(
       overrideSelection.reason,
@@ -1078,7 +1093,6 @@ export function resolveLauncherProfile({
     );
   }
 
-  const snapshot = readConfigSnapshot({ dir });
   let roleConfigSelection = null;
   const resolveRoleConfigSelection = (selectionRole) => {
     if (roleConfigSelection !== null) {
@@ -1092,6 +1106,7 @@ export function resolveLauncherProfile({
     const resolved = resolveKnownModel({
       role: selectionRole,
       model: roleDefault,
+      snapshot,
       source: "role_config"
     });
     roleConfigSelection = resolved.ok === true ? resolved : resolved;

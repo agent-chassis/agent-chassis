@@ -2,6 +2,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
+import { readManagedRunObservation } from "./managed-run-process-identity-store.mjs";
 
 import {
   WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES,
@@ -18,6 +19,7 @@ import {
 } from "./worktree-substrate-exact-unit-identity.mjs";
 import {
   bindingFilePath,
+  inspectStaleAssignmentBinding,
   resolveVerifiedSparseExactUnitBinding
 } from "./worktree-substrate-identity.mjs";
 
@@ -76,7 +78,7 @@ function classifyExistingSliceTip({ runGit, repo, branch, wkBaseSha }) {
   return Object.freeze({ state: SLICE_TIP_RECONCILE_STATES.ORPHANED, slice_tip: sliceTip });
 }
 
-function implementationBindingCandidates(repo, unitAddress) {
+function implementationBindingCandidates(repo, unitAddress, { runGit, branch, worktreePath, wkBaseSha, sliceTip }) {
   const store = worktreeIdentityStoreDir(repo);
   let entries;
   try {
@@ -91,6 +93,7 @@ function implementationBindingCandidates(repo, unitAddress) {
     );
   }
   const candidates = [];
+  const stale = [];
   for (const entry of entries) {
     const filePath = path.join(store, entry.name);
     let binding;
@@ -117,13 +120,62 @@ function implementationBindingCandidates(repo, unitAddress) {
         { file_path: filePath, expected_path: expectedPath }
       );
     }
-    candidates.push(resolveVerifiedSparseExactUnitBinding({
-      mainRepo: repo,
-      launchRef: binding.launch_ref,
-      runId: binding.run_id,
-      retryId: binding.retry_id,
-      expectedBinding: binding
-    }));
+    try {
+      candidates.push(resolveVerifiedSparseExactUnitBinding({
+        mainRepo: repo, launchRef: binding.launch_ref, runId: binding.run_id,
+        retryId: binding.retry_id, expectedBinding: binding
+      }));
+    } catch (error) {
+      const historical = inspectStaleAssignmentBinding(error, { mainRepo: repo });
+      if (historical === null) throw error;
+      stale.push({ error, binding: historical.binding });
+    }
+  }
+
+  if (candidates.length === 0 && stale.length > 0) {
+    const eligible = stale.filter(({ binding }) => binding.output_branch === branch &&
+      binding.worktree_path === worktreePath &&
+      gitAncestor(runGit, repo, binding.base_sha, wkBaseSha, { unit_address: unitAddress }) &&
+      gitAncestor(runGit, repo, binding.base_sha, sliceTip, { unit_address: unitAddress }));
+    let error = stale[0].error;
+    let recovery = { retained_delivery: "unavailable",
+      retained_delivery_problem: { code: "retained_range_not_authenticated" } };
+    if (eligible.length > 0) {
+      const association = runGit({ repo: worktreePath, args: ["symbolic-ref", "--quiet", "HEAD"] });
+      if (association?.ok === true && String(association.stdout).trim() === `refs/heads/${branch}` &&
+          revParse(runGit, worktreePath, "HEAD") === sliceTip && revParse(runGit, repo, branch) === sliceTip) {
+
+        const attempts = new Map();
+        let unavailable = null;
+        for (const entry of eligible) {
+          const { binding } = entry;
+          const observed = readManagedRunObservation({ mainRepo: repo,
+            subject: binding.selected_unit.address, sliceBinding: binding });
+          if (observed.ok) {
+            const receipts = observed.selected?.delivery_receipts
+              ?.filter(({ receipt }) => receipt.delivery.commit === sliceTip) ?? [];
+            if (receipts.some(({ receipt }) => receipt.source.digest === binding.source_digest &&
+                receipt.source.version === binding.source_version && receipt.producer_tuple.run_id === binding.run_id)) {
+              attempts.set(observed.selected.dispatch_tuple.run_id, entry);
+            } else if (receipts.length > 0) unavailable = { code: "retained_delivery_binding_mismatch" };
+          } else if (observed.code !== "attempt_binding_unavailable") {
+            const cause = observed.refusal ?? observed;
+            unavailable = Object.fromEntries(["code", "reason", "cause_code"]
+              .filter(key => cause[key] !== undefined && cause[key] !== null).map(key => [key, cause[key]]));
+          }
+        }
+        if (attempts.size > 1) unavailable = { code: "attempt_selection_ambiguous" };
+        recovery = { retained_delivery: unavailable ? "unavailable" : attempts.size === 1 ? "recorded" : "not_recorded",
+          ...(unavailable ? { retained_delivery_problem: unavailable } : {}) };
+        if (recovery.retained_delivery === "recorded") {
+          const [attemptId, entry] = [...attempts][0];
+          error = entry.error;
+          recovery.retained_attempt = { subject: entry.binding.selected_unit.address, attempt_id: attemptId };
+        }
+      } else recovery.retained_delivery_problem = { code: "retained_checkout_identity_changed" };
+    }
+    error.detail = { ...error.detail, ...recovery };
+    throw error;
   }
   return candidates;
 }
@@ -162,7 +214,8 @@ function authenticateAccumulatedImplementationTip({
 }) {
   const expectedSubject = name.wk_id + "#" + name.slice_id;
   const expectedSliceRef = "refs/heads/" + branch;
-  const candidates = implementationBindingCandidates(repo, name.unit_address)
+  const candidates = implementationBindingCandidates(repo, name.unit_address,
+    { runGit, branch, worktreePath, wkBaseSha, sliceTip })
     .filter((binding) => binding.output_branch === branch &&
       binding.worktree_path === worktreePath &&
       binding.record_id === name.wk_id && binding.slice_id === name.slice_id)

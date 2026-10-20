@@ -45,7 +45,11 @@ diagnostic retention remain with their owners.
 
 A failure preserves `selection.version`, its specific code and diagnosis,
 established effects, cause-specific recovery or stopping condition, and supported
-calls. A selection disagreement identifies the requested and observed versions.
+calls. Nested operation failures preserve their operation, native cause and
+affected path when supplied, including distinct failed-write and reobservation
+causes. The shared diagnostic owner interprets captured exceptions; derivation
+and validation inventories remain internal. A selection disagreement identifies
+the requested and observed versions.
 Current inspection is informational: it neither repairs the condition nor
 authorizes advancement of a replacement selection. Choosing another candidate
 requires a new explicit decision. A historical read never reselects that version.

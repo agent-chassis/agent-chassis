@@ -25,6 +25,7 @@ import { isControlledContractFocus } from
   "../../../wiki-core/src/lib/controlled-contract-tools.mjs";
 import { resolveNativeTestSelector } from "../../../controlled-contract/lib/test-proof-provider-registry.mjs";
 import { authorableNativeCaseTarget } from "@agent-chassis/controlled-contract/native-test-cases";
+import { proofAuthoringCorrespondence } from './verify-proof-authoring-correspondence.mjs';
 
 export const VERIFY_PROOF_REFUSAL_SCHEMA_VERSION = "workspace-verify-proof-refusal.v1";
 export const VERIFY_PROOF_EXECUTION_CODES = new Set(
@@ -78,7 +79,7 @@ const TEST_PROOF_EVIDENCE_FAILURES = Object.freeze({
     "repair_the_server_owned_verify_proof_execution_input_then_retry",
   test_proof_candidate_execution_error: null,
 
-  test_proof_candidate_inventory_missing: "resolve_the_selected_test_observation_failure_then_retry",
+  test_proof_candidate_inventory_missing: 'resolve_the_selected_test_observation_limit',
   test_proof_evidence_identity_invalid: "repair_the_receipt_provider_binding_then_retry",
   test_proof_falsifier_execution_error: null,
   test_proof_falsifier_provider_missing: "repair_the_canonical_proof_binding_then_retry",
@@ -460,8 +461,14 @@ export function projectProofAuthoringRecoveryCall(call, { wkId = null, source = 
     const expected = { ...coverageUnitArguments({ wkId: source.wkId, focus: source.focus ?? null,
       selectedUnit: source.selectedUnit ?? null }), obligation_id: obligationId };
     return isDeepStrictEqual({ ...args }, expected)
-      ? { tool: "workspace_read_wiki", arguments: { subject: source.selectedUnit === null || source.selectedUnit === undefined
-        ? source.wkId : `${source.wkId}#${source.selectedUnit}` } } : null;
+      ? { tool: "workspace_read_wiki", arguments: { reads: [{ subject: source.selectedUnit === null || source.selectedUnit === undefined
+        ? source.wkId : `${source.wkId}#${source.selectedUnit}`,
+        select: { contract: 'obligations', where: { kind: 'obligation', id: obligationId } },
+        for_changes: ['obligations'] }, {
+        subject: source.selectedUnit == null ? source.wkId : `${source.wkId}#${source.selectedUnit}`,
+        select: { contract: 'requirements', where: { kind: 'requirement', obligation: obligationId },
+          include: ['verifications', 'dependencies'] }
+      }] } } : null;
   }
   const argumentKeys = Object.keys(args);
   if (!argumentKeys.includes("unit") ||
@@ -470,14 +477,17 @@ export function projectProofAuthoringRecoveryCall(call, { wkId = null, source = 
       (wkId !== null && args.unit !== wkId) ||
       (Object.hasOwn(args, "focus") &&
         (typeof args.focus !== "string" || !FOCUS_RE.test(args.focus)))) return null;
-  return { tool: "workspace_read_wiki", arguments: { subject: args.unit } };
+  return { tool: "workspace_read_wiki", arguments: { reads: [{ subject: args.unit,
+    select: { contract: 'obligations' }, for_changes: ['obligations'] }] } };
 }
 
 export async function projectProofAuthoringAcquisition({ call, recovery, intent,
-  requestContracts, receivingRole, resolveAuthoringSource }) {
+  requestContracts, receivingRole, resolveAuthoringSource, ambiguities = [] }) {
   const contract = requestContracts?.contractFor(call.tool) ?? null;
   const accepted = contract !== null && await contract.acceptsArguments(call.arguments);
-  const matchesSource = call.arguments.subject === intent.source.unit;
+  const reads = call.arguments.reads;
+  const matchesSource = Array.isArray(reads) && reads.length > 0 &&
+    reads.every(read => read.subject === intent.source.unit);
   let sourceCause;
   let reason = !accepted ? contract === null ? "reader_not_registered"
     : "authoring_subject_rejected_by_registered_reader" : "focused_authoring_selection_unavailable";
@@ -493,8 +503,14 @@ export async function projectProofAuthoringAcquisition({ call, recovery, intent,
         sourceCause = { code: error.code, message: error.message, details: structuredClone(error.details) };
       }
       if (sourceCause !== undefined) reason = "reader_source_unavailable";
-      else if (context.identity.source.kind === "canonical_workspace") return { call, recovery };
+      else if (context.identity.source.kind === "canonical_workspace") {
+        if (recovery.action !== 'read_the_obligation_and_link_one_verification_then_retry') return { call, recovery };
+        sourceCause = await proofAuthoringCorrespondence({ context, unit: intent.source.unit, ambiguities });
+        if (sourceCause === null) return { call, recovery };
+        reason = 'authored_verification_correspondence_unavailable';
+      }
       else if (context.identity.source.kind === "frozen_review_materialization") reason = "reader_serves_frozen_review_source";
+      else if (context.identity.source.kind === "worker_assignment_worktree") reason = "reader_serves_worker_assignment_source";
       else throw new TypeError("proof authoring acquisition has an unsupported authenticated source kind");
     }
   }
@@ -509,7 +525,9 @@ export async function projectProofAuthoringAcquisition({ call, recovery, intent,
     ...(sourceCause === undefined ? {} : { cause: sourceCause }),
     correction_boundary: {
       owner: "workspace_read_wiki",
-      required_correction: "An entitled acquisition of the exact saved source and obligation is required; adding a capability or changing role authority requires an operator decision."
+      required_correction: reason === 'authored_verification_correspondence_unavailable'
+        ? 'The proof failure stands. Its competing verifications cannot be identified through authenticated, selectable authored correspondence; no correction read or unchanged verification retry is offered.'
+        : "An entitled acquisition of the exact saved source and obligation is required; adding a capability or changing role authority requires an operator decision."
     }
   } } };
 }
@@ -651,6 +669,7 @@ const PUBLISHED_DETAIL_CODES = new Set([...LAUNCHER_ATTRIBUTION_OBSERVATION_CODE
   ...NATIVE_SOURCE_OBSERVATION_CODES, OBSERVATION_TRANSPORT_FAILED_CODE, ...OBSERVATION_FACT_CODES]);
 const LATER_STAGES = new Set(["falsifier", "traversal", "receipt"]);
 const LAUNCHER_OBSERVATION_DEFECT_ACTION = "report_the_launcher_selected_test_observation_defect";
+const OBSERVATION_LIMIT_ACTION = "resolve_the_selected_test_observation_limit";
 const LAUNCHER_OBSERVATION_CORRECTION_OWNER = "launcher_test_proof_provider";
 
 const NATIVE_INSTRUMENTATION_UNSUPPORTED_CODE = "test_proof_native_instrumentation_unsupported";
@@ -687,9 +706,9 @@ function selectedTestCorrection(details) {
 }
 
 function noRetryCorrection(recoveryAction, details) {
-  if (recoveryAction === LAUNCHER_OBSERVATION_DEFECT_ACTION) {
+  if (recoveryAction === LAUNCHER_OBSERVATION_DEFECT_ACTION || recoveryAction === OBSERVATION_LIMIT_ACTION) {
     return { correction_owner: LAUNCHER_OBSERVATION_CORRECTION_OWNER,
-      condition: details.structured_observation_code };
+      condition: details.structured_observation_code ?? details.deepest_stable_cause_code };
   }
   if (recoveryAction === CHECK_SHAPE_LIMITATION_ACTION) {
     return { correction_owner: LAUNCHER_OBSERVATION_CORRECTION_OWNER,
@@ -701,6 +720,7 @@ function noRetryCorrection(recoveryAction, details) {
 }
 
 function evidenceExecutionRecovery(details) {
+  if (details.deepest_stable_cause_code === 'test_proof_candidate_inventory_missing') return OBSERVATION_LIMIT_ACTION;
 
   if (details.structured_observation_code === TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE.code) {
     return "repair_the_canonical_proof_binding_then_retry";
@@ -726,7 +746,7 @@ function evidenceExecutionRecovery(details) {
     return LAUNCHER_OBSERVATION_DEFECT_ACTION;
   }
   if (details.structured_observation_code !== undefined) {
-    return "resolve_the_selected_test_observation_failure_then_retry";
+    return OBSERVATION_LIMIT_ACTION;
   }
   if (details.timed_out === true) {
     return "repair_the_launcher_runtime_timeout_prerequisite_then_retry";
@@ -1063,7 +1083,8 @@ export function projectedEvidenceFailure(error, executionContext) {
     projected.check = check;
   }
   const executionFailure = TEST_PROOF_EVIDENCE_FAILURES[error.code] === null;
-  if (executionFailure || SELECTED_OBSERVATION_CODES.has(error.code)) {
+  if (executionFailure || SELECTED_OBSERVATION_CODES.has(error.code) ||
+      error.code === 'test_proof_candidate_inventory_missing' && detail?.run !== undefined) {
     if (!SAFE_EXECUTION_STAGES.includes(projected.execution_stage)) return null;
     const runFacts = publicRunFacts(detail?.run, { attributionCodes: PUBLISHED_DETAIL_CODES });
     if (runFacts === null) return null;
@@ -1243,9 +1264,12 @@ export const LOCAL_ATTEMPT_CAUSE_CODES = new Set([
   "test_proof_receipt_projection_invalid"
 ]);
 
-function localExecutionStatus(details) {
-  if (details?.ran !== true) return "not_started";
-  return details.timed_out === true ? "interrupted" : "completed";
+function localExecutionStatus(details, code) {
+  if (details?.ran === false) return 'not_started';
+  if (details?.ran !== true) return TEST_PROOF_PROVIDER_CODES.has(code) ? 'not_started' : 'unknown';
+  if (details.timed_out === true || details.signal != null) return 'interrupted';
+  if (details.disposition === 'unconfirmed' || details.completion_recovery !== undefined) return 'unknown';
+  return Number.isInteger(details.exit_code) ? 'completed' : 'unknown';
 }
 
 export function proofLocalContinuationFacts(chain) {
@@ -1258,7 +1282,7 @@ export function proofLocalContinuationFacts(chain) {
   const selectedObservation = chain.at(-1)?.details?.selected_observation;
   return typeof verificationId === "string" && typeof target === "string"
     ? Object.freeze({ verification_id: verificationId, target,
-      execution_status: localExecutionStatus(chain.at(-1)?.details),
+      execution_status: localExecutionStatus(chain.at(-1)?.details, chain.at(-1)?.code),
       ...(selectedObservation === undefined ? {} : {
         selected_observation: structuredClone(selectedObservation) }) }) : null;
 }

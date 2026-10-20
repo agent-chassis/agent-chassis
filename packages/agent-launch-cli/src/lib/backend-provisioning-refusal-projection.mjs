@@ -9,6 +9,7 @@ import {
   getRuntimeBlockerEntry
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { BACKEND_REFUSAL_CODES } from "@agent-chassis/agent-launch-core";
+import { staleAssignmentBindingChange } from "./worktree-substrate-identity.mjs";
 import { WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES } from "./worktree-substrate.mjs";
 
 import {
@@ -39,7 +40,7 @@ export function baseSelectionMissingPreflightMessage(recordId) {
     `managed allocation (${BASE_SELECTION_MISSING_LAUNCH_REASON}). An operator chooses an ` +
     `existing canonical short local branch; author it on the root ${recordId}, not a slice, ` +
     `through ${BASE_SELECTION_EDITOR} changes.base_branch with the root record's fresh ` +
-    "revision from workspace_read_wiki({subject:root}), then retry start_agent on the original " +
+    "revision from workspace_read_wiki({reads:[{subject:root,for_changes:['base_branch']}]}), then retry start_agent on the original " +
     "exact slice. The save requires the caller's branch choice; it is not an executable call yet. " +
     BASE_SELECTION_NO_FALLBACK;
 }
@@ -151,6 +152,30 @@ function unsettledCanonicalWkContentRecovery() {
 
 export function projectProvisioningRefusal(error, serialized, { requestedRepositoryAlias = null } = {}) {
   const { cause, diagnostic } = serialized;
+  const bindingChange = staleAssignmentBindingChange(error);
+  if (bindingChange !== null) {
+    const attempt = error.detail?.retained_attempt;
+    return { accepted: false, refusal: {
+      code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, reason: MANAGED_PROVISIONING_UNAVAILABLE,
+      detail: { cause, diagnostic, reason: "saved_assignment_binding_stale", binding_change: bindingChange,
+        ...(error.detail?.retained_delivery === undefined ? {} : { retained_delivery: error.detail.retained_delivery }),
+        ...(error.detail?.retained_delivery_problem === undefined ? {} : {
+          delivery_problem: error.detail.retained_delivery_problem }),
+        actor_recovery: "coordinator",
+        recovery: attempt?.subject === bindingChange.subject ? {
+          state: "guidance", route: "get_run_result", args: attempt,
+          information: "Observe the retained attempt and discover its authenticated delivery; this read starts and integrates nothing",
+          prerequisite: "the saved assignment differs from the retained implementation binding",
+          responsible_actor: "coordinator",
+          explanation: "If integration is authorized, integrate the observed delivery, then request the original slice again " +
+            "for same-WK follow-up authoring. Preserve existing review, disposition, remediation and validation requirements. " +
+            "A review alone does not authorize integration or another worker."
+        } : { state: "no_supported_route", route: null },
+        explanation: "The saved record and retained binding disagree. Retained work and authority are unchanged; " +
+          "this worker cannot continue under the stale binding."
+      }
+    } };
+  }
   if (error?.code === INTEGRATED_SLICE_REDISPATCH_CODE) {
     return { accepted: false, refusal: { code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
       reason: INTEGRATED_SLICE_REDISPATCH_CODE,

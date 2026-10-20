@@ -11,6 +11,10 @@ import { RUN_WAIT_TIMEOUT_MS_BOUNDS } from "./dispatch-monitor-call-deadline.mjs
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
 import { selectedResponseCorrectableError, selectedResponseRequestSchema } from "./selected-response-snapshot.mjs";
 import { retainedRunSourceFailure } from './get-run-result-source-failure.mjs';
+import { runResultMeaning } from './get-run-result-final-result.mjs';
+import { managedObservationFailureFacts } from '../../../agent-launch-core/src/lib/managed-run-observation.mjs';
+import { captureDiagnosticEvidence } from '../../../agent-launch-cli/src/lib/diagnostic-evidence.mjs';
+import { distillDispatchFailureDetail } from './dispatch-tool-helpers.mjs';
 import { authenticateManagedWorkerSliceBinding, managedTestAuthorityAuthenticated,
   managedTestAuthorityIdentity } from "./managed-test-source-context.mjs";
 
@@ -31,6 +35,18 @@ function waitRefusal(reason, subject, attemptId) {
     prerequisite: "a wait observes a live attempt whose reservation is still held; this attempt is read, not waited on",
     successCondition: "the same subject and attempt without timeout_ms returns that attempt's recorded " +
       "observation at once; it waits for nothing and starts, captures and integrates nothing" });
+}
+
+export function projectRunObservationFailure(record) {
+  const { ok: _ok, observation_failure: error, ...facts } = managedObservationFailureFacts(record);
+  if (facts.refusal != null) {
+    const { schema_version: _schema, ...refusal } = facts.refusal;
+    facts.refusal = refusal;
+  }
+  const cause = Object.hasOwn(record, 'observation_failure') ? captureDiagnosticEvidence(error) : facts;
+  return { state: 'unavailable', operation: 'read_managed_run_observation',
+    cause: distillDispatchFailureDetail(cause, { nested: true }).detail,
+    limitation: 'This source could not establish recorded results or deliveries. Earlier effects stand. Stop work requiring this evidence; no correction is available here.' };
 }
 
 export function createGetRunResultObservation({ workspace, sessionEnv,
@@ -74,46 +90,56 @@ export function createGetRunResultObservation({ workspace, sessionEnv,
         ...(selection === null ? { includeProofSummary: true, includeReviewOriginal: true, includeVerifiedSource: true }
           : { detail: selection, includeVerifiedSource: true }) });
       } catch (error) {
-        return { ok: false, code: error.code, observation_failure: error };
+        return { ok: false, code: error?.code, observation_failure: error };
       }
     };
     const withReceipts = (status, recorded) => {
-      if (!recorded.ok) return { ...status, verified_source: recorded.verified_source, proof_detail: recorded, delivery: { available: false, references: [],
-        cause: recorded.refusal ?? { code: recorded.code } } };
+      if (!recorded.ok) return { ...status, verified_source: recorded.verified_source,
+        observation_detail: recorded, delivery: { state: 'unavailable' } };
       const receipts = recorded.selected.delivery_receipts;
       return { ...status, verified_source: recorded.verified_source,
         ...(recorded.selected.assignment_change === undefined ? {} : { assignment_change: recorded.selected.assignment_change }), proof_detail: recorded.proof_detail,
         delivery_receipts: receipts };
     };
-    const reviewCandidate = (candidate, original) => {
+    const taskCandidate = (candidate, original) => {
       const id = candidate.attempt_id;
       if (original.subject !== parsed.subject || original.run_id !== id || original.role !== candidate.role) {
         return refuse("observation_original_attempt_mismatch", { subject: parsed.subject, attempt_id: id });
       }
+      const meaning = runResultMeaning(original.final_result);
       return { attempt_id: id, role: original.role, status: original.status, terminal: original.terminal,
-        ...(original.review_task === undefined ? {} : { review_task: original.review_task }) };
+        ...(meaning.unavailable ? { result_meaning: meaning.facts } : {}),
+        ...(original.review_task === undefined ? {} : { review_task: original.review_task }),
+        ...(original.worker_task === undefined ? {} : { worker_task: original.worker_task }) };
     };
     if (live?.accepted !== true) {
       if (live?.refusal?.reason === "attempt_selection_ambiguous" && Array.isArray(live.refusal.detail?.attempts)) {
         const attempts = [];
         for (const candidate of live.refusal.detail.attempts) {
-          if (!["reviewer", "redteam"].includes(candidate.role)) { attempts.push(candidate); continue; }
+          if (!["worker", "reviewer", "redteam"].includes(candidate.role)) { attempts.push(candidate); continue; }
           const exact = await backend.getRunStatus({ ...input, run_id: candidate.attempt_id });
-          if (exact.accepted !== true) return { ...exact, run_id: candidate.attempt_id };
-          attempts.push(reviewCandidate(candidate, exact));
+          if (exact.accepted !== true) {
+            attempts.push({ ...candidate, result_unavailable: projectRunObservationFailure(exact) });
+            continue;
+          }
+          attempts.push(taskCandidate(candidate, exact));
         }
         return { ...live, refusal: { ...live.refusal, detail: { ...live.refusal.detail, attempts } } };
       }
       if (!["attempt_observation_unavailable", "unknown_run_or_handle"].includes(live?.refusal?.reason)) return live;
       const cold = await durable(parsed.attempt_id ?? null);
-      if (!cold.ok && cold.code === "attempt_selection_ambiguous" && Array.isArray(cold.candidates)) {
+      if (!cold.ok && cold.code === "attempt_selection_ambiguous" &&
+          (Array.isArray(cold.candidates) || Array.isArray(cold.attempts))) {
         const originals = createObservationOriginals({ workspace, sessionEnv, responseEnv });
         const candidates = [];
         let readable = 0, unavailable;
-        for (const candidate of cold.candidates) {
-          if (candidate.original_result === undefined) { candidates.push(candidate); continue; }
+        for (const retainedCandidate of cold.candidates ?? cold.attempts) {
+          const candidate = retainedCandidate.dispatch_tuple == null ? retainedCandidate : {
+            attempt_id: retainedCandidate.dispatch_tuple.run_id, role: 'worker',
+            original_result: retainedCandidate.original_result };
+          if (candidate.original_result == null) { candidates.push(candidate); continue; }
           try {
-            candidates.push(reviewCandidate(candidate, originals.read(candidate.original_result, parsed.subject).carrier));
+            candidates.push(taskCandidate(candidate, originals.read(candidate.original_result, parsed.subject).carrier));
             readable += 1;
           } catch (error) {
 
@@ -162,7 +188,7 @@ export function createGetRunResultObservation({ workspace, sessionEnv,
 
     if (live.role === "worker") {
       const recorded = await durable(live.run_id);
-      if (!recorded.ok) return recorded;
+      if (!recorded.ok) return withReceipts(live, recorded);
       if (recorded.selected.released) throw waitRefusal("released_attempt_cannot_wait", parsed.subject, live.run_id);
     }
     const waited = await backend.waitForRunStatus({ ...input, attempt_id: live.run_id, timeout_ms: parsed.timeout_ms });

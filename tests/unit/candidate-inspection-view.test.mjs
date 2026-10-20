@@ -66,3 +66,21 @@ test('a native Git deciding diagnosis survives without its internal invocation i
   assert.equal(answer.diagnostic.git_operation, 'cat-file');
   assert.doesNotMatch(JSON.stringify(answer), /private-invocation|private-ref|git_stderr_bytes/u);
 });
+
+test('a captured originating cause survives a nested runtime wrapper without its bookkeeping', () => {
+  const native = { name: 'Error', message: 'Selected material cannot be opened.', properties: {
+    code: 'EACCES', syscall: 'open', path: '/selected/material' } };
+  const wrapper = { name: 'Error', message: 'Selected candidate material could not be read.',
+    properties: { inventory: ['server-only'] }, cause: native };
+  const { answer } = candidateInspectionView({ code: 'candidate_read_failed', carried: { subject, selection,
+    diagnostic: { condition: 'candidate_read_failed', uncertainty: 'Candidate validity is unknown.',
+      cause_chain: [{ name: 'RuntimeError', message: 'Candidate observation failed.', detail: { cause: wrapper } }] } } });
+  assert.ok(answer.diagnostic.cause_chain.some(cause => cause.code === 'EACCES' && cause.path === '/selected/material'));
+  assert.doesNotMatch(JSON.stringify(answer), /server-only|inventory|properties/u);
+  const grown = structuredClone(wrapper);
+  grown.properties.inventory.push(...Array.from({ length: 200 }, () => 'irrelevant bookkeeping'));
+  const again = candidateInspectionView({ code: 'candidate_read_failed', carried: { subject, selection,
+    diagnostic: { condition: 'candidate_read_failed', uncertainty: 'Candidate validity is unknown.',
+      cause_chain: [{ name: 'RuntimeError', message: 'Candidate observation failed.', detail: { cause: grown } }] } } }).answer;
+  assert.deepEqual(again, answer);
+});

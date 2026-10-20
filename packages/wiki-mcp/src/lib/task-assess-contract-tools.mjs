@@ -24,7 +24,7 @@ function sliceFocusCorrection(args, inputSchema) {
 async function initiativeUnitCorrection(args, contracts) {
   const keys = args !== null && typeof args === "object" ? Object.keys(args) : [];
   if (keys.length !== 1 || typeof args.unit !== "string" || !/^IN-[0-9]{4}$/u.test(args.unit)) return {};
-  const lookup = { search: { inventory: true, where: { initiative: args.unit, kind: "issues" } } };
+  const lookup = { reads: [{ search: { inventory: true, where: { initiative: args.unit, kind: "issues" } } }] };
   const offered = await contracts?.contractFor("workspace_read_wiki")?.acceptsArguments(lookup) === true;
   const creation = contracts?.contractFor("workspace_create_record") != null
     ? "through workspace_create_record" : "that this session has no registered tool for";

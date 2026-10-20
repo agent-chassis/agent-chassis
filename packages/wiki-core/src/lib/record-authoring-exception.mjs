@@ -1,5 +1,7 @@
 
 
+import { buildPublicSelectionSchema } from '../operations/controlled-contract/public-selection-schema.mjs';
+
 import { createRequire } from "node:module";
 
 import { OBLIGATION_DRAFT_SCHEMA } from "@agent-chassis/controlled-contract/obligation-coverage";
@@ -26,8 +28,6 @@ export const RECORD_AUTHORING_EXCEPTION_RATIONALE_PROVENANCE = Object.freeze({
 
 const rationale = Object.freeze({ type: "string", minLength: 1, maxLength: 8192, pattern: "^\\S(?:[\\s\\S]*\\S)?$",
   description: "The author's own reason, trimmed and nonempty. Recorded as written; never assessed." });
-
-export const GRAMMAR_EXCEPTION_SUBJECT_PATTERN = "^u[1-9][0-9]{0,3}$";
 const WORK_ITEM_PATTERN = "^WK-[0-9]{4,}$";
 
 const SUBJECTS = Object.freeze({
@@ -35,9 +35,8 @@ const SUBJECTS = Object.freeze({
     description: "The id of one saved obligation of the selected unit." }),
   names: "one saved obligation of the selected unit, by its obligation id",
   read: Object.freeze({ contract: "obligations" }) }),
-  grammar: Object.freeze({ schema: Object.freeze({ type: "string", pattern: GRAMMAR_EXCEPTION_SUBJECT_PATTERN,
-    description: "The id (u1, u2, ...) of one saved unresolved meaning, as read at the supplied revision." }),
-  names: "one saved unresolved meaning, by the id its read returns at the supplied revision; the id means nothing at any other revision",
+  grammar: Object.freeze({ schema: buildPublicSelectionSchema({ kinds: ["unresolved"] }),
+  names: "one saved unresolved fragment selected by its exact text, reason or candidate_concept at the supplied revision",
   read: Object.freeze({ contract: "requirements" }) }),
   controlled_acceptance: Object.freeze({ schema: Object.freeze({ type: "string", pattern: WORK_ITEM_PATTERN,
     description: "The work item the selected unit belongs to." }),

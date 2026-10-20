@@ -6,7 +6,10 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
-import { parseExecutableSelector, parseRunnerSelector } from "./test-runtime-setup/cli.mjs";
+import { parseRunnerSelector } from "./test-runtime-setup/cli.mjs";
+import { optionValue, readSetupParameterOption, parseSetupParameterInputs, reportIgnoredSetupParameters } from './test-runtime-setup/parameter-inputs.mjs';
+import { SETUP_PARAMETER_HELP } from './test-runtime-setup/parameter-adapters.mjs';
+import { testRuntimeEnvironmentId } from '@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs';
 import { SETUP_AGENTS, setupAgentChoices, setupAgentCommands } from "./setup-agent-catalog.mjs";
 
 export { SETUP_AGENTS } from "./setup-agent-catalog.mjs";
@@ -44,9 +47,7 @@ cannot ask):
   --language <name>             detect only the environments of this language
   --runner <name>[@<project>]   detect exactly this runner's environment
                                 instead of the repository inventory
-  --executable <toolchain>=<absolute-path>
-                                where a toolchain is installed, when PATH has
-                                none or the wrong one (repeatable)
+${SETUP_PARAMETER_HELP}
 
 --test-runtime-report <path> writes compact diagnostic facts for this invocation's
 last step, separately from readiness history. A requested report must be preserved.
@@ -77,49 +78,43 @@ function detectAgents() {
   return SETUP_AGENTS.filter((agent) => commandAvailable(agent.command));
 }
 
-function valueOf(argv, index, name) {
-  const arg = argv[index];
-  if (arg.startsWith(`${name}=`)) return { value: arg.slice(name.length + 1), next: index };
-  if (index + 1 >= argv.length) throw new Error(`${name} requires a value`);
-  return { value: argv[index + 1], next: index + 1 };
-}
-
-function parseArgs(argv) {
+function parseArgs(argv, env) {
   const options = {
     agent: null,
     dryRun: false,
     testRuntimeReport: null,
     language: null,
     runners: [],
-    executables: {}
+    parameterInputs: [],
+    nonInteractive: false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     const name = arg.split("=")[0];
-    if (arg === "--dry-run") {
+    const parameterNext = readSetupParameterOption(argv, index, options.parameterInputs);
+    if (parameterNext !== null) {
+      index = parameterNext;
+    } else if (arg === "--non-interactive") {
+      options.nonInteractive = true;
+    } else if (arg === "--dry-run") {
       options.dryRun = true;
     } else if (name === "--agent") {
-      const { value, next } = valueOf(argv, index, name);
+      const { value, next } = optionValue(argv, index, name);
       options.agent = value;
       index = next;
     } else if (name === "--test-runtime-report") {
-      const { value, next } = valueOf(argv, index, name);
+      const { value, next } = optionValue(argv, index, name);
       if (!value || value.startsWith("--")) throw new Error(`${name} requires a path`);
       options.testRuntimeReport = value;
       index = next;
     } else if (name === "--language") {
-      const { value, next } = valueOf(argv, index, name);
+      const { value, next } = optionValue(argv, index, name);
       options.language = value;
       index = next;
     } else if (name === "--runner") {
-      const { value, next } = valueOf(argv, index, name);
+      const { value, next } = optionValue(argv, index, name);
       options.runners.push(parseRunnerSelector(value));
-      index = next;
-    } else if (name === "--executable") {
-      const { value, next } = valueOf(argv, index, name);
-      const { name: toolchain, executable } = parseExecutableSelector(value);
-      options.executables[toolchain] = executable;
       index = next;
     } else if (arg === "--help" || arg === "-h") {
       options.help = true;
@@ -132,6 +127,7 @@ function parseArgs(argv) {
     throw new Error(`Unsupported --agent value: ${options.agent}. Use ${setupAgentCommands()}.`);
   }
 
+  options.parameters = parseSetupParameterInputs({ inputs: options.parameterInputs, env, testRuntimeEnvironmentId });
   return options;
 }
 
@@ -161,7 +157,7 @@ function runCommand(command, args, { dryRun, cwd, env, output }) {
   }
 }
 
-async function chooseAgent({ requestedAgent, detectedAgents, input = process.stdin, output = process.stdout }) {
+async function chooseAgent({ requestedAgent, detectedAgents, interactive, input = process.stdin, output = process.stdout }) {
   if (requestedAgent !== null) {
     return SETUP_AGENTS.find((agent) => agent.key === requestedAgent);
   }
@@ -181,7 +177,7 @@ async function chooseAgent({ requestedAgent, detectedAgents, input = process.std
     output.write(`  ${index + 1}. ${agent.label} (${agent.key})\n`);
   });
 
-  if (!input.isTTY) {
+  if (!interactive) {
     output.write(`Rerun with ${setupAgentCommands()} to choose a launcher template.\n`);
     return null;
   }
@@ -249,7 +245,7 @@ async function prepareTestRuntimes({ prepare, options, cwd, input, output, env }
     (await import("./test-runtime-setup/prepare.mjs")).prepareRepositoryTestRuntimes;
   try {
     return await prepareRepositoryTestRuntimes({ repositoryRoot: cwd, runners: options.runners,
-      language: options.language, executables: options.executables, dryRun: options.dryRun,
+      language: options.language, parameters: options.parameters, interactive: options.interactive, dryRun: options.dryRun,
       input, output, env });
   } catch (error) {
     const { TestRuntimeSetupError } = await import(TEST_RUNTIME_SETUP_MODULE);
@@ -276,12 +272,14 @@ export async function runSetup({
     if (!result.ok) process.exitCode = 1;
     return;
   }
-  const options = parseArgs(argv);
+  const options = parseArgs(argv, env);
+  options.interactive = !options.nonInteractive && input.isTTY === true;
   if (options.help) {
     output.write(`${USAGE}\n`);
     return;
   }
 
+  reportIgnoredSetupParameters(options.parameters, output);
   const reportPath = options.testRuntimeReport === null ? null : path.resolve(cwd, options.testRuntimeReport);
 
   if (reportPath !== null) {
@@ -295,6 +293,7 @@ export async function runSetup({
   const detectedAgents = options.agent === null ? detectAgents() : [];
   const agent = await chooseAgent({
     requestedAgent: options.agent,
+    interactive: options.interactive,
     detectedAgents,
     input,
     output

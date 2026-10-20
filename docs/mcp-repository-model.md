@@ -149,7 +149,7 @@ If the answer is sufficient, continue the caller task without rereading.
 same original and remain conjunctive. `input_path` qualifies one affected file.
 `lines:{start_line,end_line}` selects absolute, one-based inclusive source lines
 inside the context `source` member, one region selected by ID, or one complete
-file selected by path. Invalid selections return an exact inspection call when
+indexed/reviewed file selected by path. Invalid selections return an exact inspection call when
 the authenticated original permits it; that inspection enables a choice and
 does not claim to answer the rejected selection. Provider/graph snapshots,
 patch echoes, raw diagnostics and provenance are not public detail collections.
@@ -162,8 +162,12 @@ has an explicit source reason. Later reads keep previously captured bytes;
 material movement or unavailable currentness is reported without internal
 comparison identities. A missing/corrupt/foreign original is never replaced by
 rerunning its query. The exact retained impact handle remains usable by an
-already authorized impact-evidence consumer; that consumer receives the complete
-authenticated original server-side.
+already authorized impact-evidence consumer. Creation and save composition use
+`retained-graph-impact.mjs` to validate the locator with the shared selected-response
+owner, authenticate the producer/repository/unit binding, and require an impact
+answer. The complete original and retention-owned evidence digest pass to the
+internal graph/admission preparation and persistence owners. There is no separate
+public graph-impact recording route.
 
 No usable index returns `available:false`, its specific cause and the condition
 that prevents answering. Pending preparation requires a published index; failed
@@ -172,13 +176,32 @@ unchanged question loop. A preparation call is offered only if the current
 registrar actually holds it, and explicitly requires task authorization for
 maintenance. Status and reading a selection never perform that maintenance.
 
-Index/checkout equality is not reviewed-source alignment. This route has no
-trusted launcher review-target binding or reviewed-version reader. It cannot
-establish a finding about an independently selected reviewed version merely by
-being current. Other-source code can be supplemental; unavailable exact reviewed
-content limits only conclusions that need it. Adding that guarantee requires
-the shared launcher/source-reader owner to supply the trusted binding and exact
-read; caller-supplied hashes or a new unbound commit selector cannot supply it.
+Index/checkout equality is not reviewed-source alignment. In an authenticated
+reviewer/redteam session, the query uses the launcher's existing bound private
+checkout, including a design review's separate supporting checkout. The server
+compares admitted code content against the publication; matching content adds no
+routine provenance or call. When content differs, `review_limit` labels indexed
+code/relationships as supplemental. Small exact code is returned as
+`reviewed_files`; larger content has an exact `read_reviewed_source` call on this
+same tool, selecting a reviewed file with its issued source handle. Source
+coordinates from the index do not select lines in a differing reviewed file.
+
+Review source reads reuse native path confinement, source decoding and retained
+line selections. Their captured bytes are bound to the authenticated review run
+and cannot be read under another run or an unbound session. Retained reads never
+query, refresh or replace those bytes. Exact reviewed source and indexed impact
+evidence have separate retained originals, so the existing save consumer receives
+indexed evidence without copying private reviewed code. A missing index can still
+return a known bound source file; graph conclusions remain unavailable.
+
+An absent/nonregular/undecodable reviewed file reports its source cause; a failed
+review-source operation preserves its deciding diagnosis. Unavailable exact
+content stops only conclusions requiring it. Invalid/missing managed review
+authority refuses before an index question executes, without falling through to
+the mutable repository. Status remains passive. Sessions without a managed review
+binding retain published-index semantics and cannot infer reviewed alignment;
+no caller argument selects a review root or commit. Existing background-refresh
+effects and maintenance authority are unchanged.
 
 Planning queries use exact provider-qualified SCIP identities. File context includes
 `definitions` in the input, incoming references to those definitions, and outgoing

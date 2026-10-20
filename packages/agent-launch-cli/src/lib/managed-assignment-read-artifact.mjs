@@ -234,6 +234,13 @@ export function createManagedAssignmentReadSnapshot(assignment) {
     schema_version: MANAGED_ASSIGNMENT_READ_ARTIFACT_SCHEMA_VERSION,
     assigned_unit: assignment.unit_address,
     role: assignment.role,
+
+    task: assignment.canonical_summary == null ? null : Object.freeze({
+      title: assignment.canonical_summary.selected_unit?.title ?? assignment.canonical_summary.title,
+      summary: assignment.canonical_summary.operative_summary,
+      instructions: assignment.canonical_summary.operative_tasks,
+      notes: assignment.canonical_summary.operative_notes,
+      criteria: assignment.canonical_summary.acceptance_criteria }),
     bytes,
     byte_length: bytes.byteLength,
     digest: sha256Digest(bytes)

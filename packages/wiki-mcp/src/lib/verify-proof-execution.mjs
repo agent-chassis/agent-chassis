@@ -152,8 +152,7 @@ export function withVerifyProofInvocationTiming(result, timing) {
 
 const DEFINITION_REPAIR_REQUIRED_ANSWERS = Object.freeze({
   "verify_proof.test_selector_invalid.v1": Object.freeze({
-    "runtime_test.falsifier.select": "one existing falsifier identity from the row's current population",
-    "runtime_test.selector": "the exact node:test name and nesting depth inside the unit's bound node_test target, or the exact provider-qualified literal native node identity inside the authored case target"
+    "case.target.selector": "the intended exact test in the saved case target's current selector grammar; preserve its target path and execution family"
   })
 });
 
@@ -167,7 +166,7 @@ export function projectDefinitionRepairQuestion({ reasonCode, verificationId }) 
     required_meaning: requiredAnswer,
     correction_route: null,
     next_step:
-      "Read the saved obligation that owns this verification identity through workspace_read_wiki, then amend its semantic proof inputs through save_record using the returned call.",
+      "Read the saved obligation and its case through workspace_read_wiki; use contexts[unit].revision and the case's public identity to correct its authored target through save_record.",
     execution_evidence: "owned_by_workspace_verify_proof"
   });
 }
@@ -198,7 +197,7 @@ export function buildUnavailableProofResult({ resolution, runtime, proof, blocke
       ? blocker === null ? undefined : Object.freeze(definitionBlocked ? {
         action: DEFINITION_BLOCKER_ACTIONS[unavailableReason],
         ...(recoveryCall === null ? {} : { recovery_call: recoveryCall }),
-        authoring_source: { unit: recoveryCall.arguments.subject,
+        authoring_source: { unit: recoveryCall.arguments.reads[0].subject,
           focus: expectedRecovery.source?.focus ?? blocker.details.recovery_call.arguments.focus ?? null },
         retry_operation: VERIFY_PROOF_TOOL_NAME,
         ...(repair === undefined ? {} : { repair })
@@ -207,7 +206,7 @@ export function buildUnavailableProofResult({ resolution, runtime, proof, blocke
         condition: unavailableReason,
         missing_selection: missingSelection,
         recovery_call: recoveryCall,
-        authoring_source: { unit: recoveryCall.arguments.subject, focus: expectedRecovery.source.focus },
+        authoring_source: { unit: recoveryCall.arguments.reads[0].subject, focus: expectedRecovery.source.focus },
         retry_operation: VERIFY_PROOF_TOOL_NAME
       } : {
         action: "repair_the_named_proof_prerequisite",
@@ -681,12 +680,15 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
       const binding = resolution.execution_source_binding;
       const correctionUnit = binding?.selected_unit == null ? binding?.wk_id
         : `${binding.wk_id}#${binding.selected_unit}`;
+      const obligationIds = [...new Set(proof.relationships.map(row => row.obligation_id))];
 
-      const authoring = recovery?.condition === "not_collected" && correctionUnit !== undefined
+      const authoring = recovery?.condition === "not_collected" && correctionUnit !== undefined && obligationIds.length > 0
         ? { ...recovery,
-          recovery_call: { tool: "workspace_read_wiki", arguments: { subject: correctionUnit } },
+          recovery_call: { tool: "workspace_read_wiki", arguments: { reads: obligationIds.map(id => ({
+            subject: correctionUnit, select: { contract: "obligations", where: { kind: "obligation", id } },
+            for_changes: ["obligations"] })) } },
           authoring_source: { unit: correctionUnit, focus: binding.focus ?? null },
-          correction: { obligation_ids: [...new Set(proof.relationships.map(row => row.obligation_id))],
+          correction: { obligation_ids: obligationIds,
             field: "case.target",
             verify_after_correction: { tool: VERIFY_PROOF_TOOL_NAME, arguments: {
               subject: proof.test_proof_id, source: { unit: correctionUnit,

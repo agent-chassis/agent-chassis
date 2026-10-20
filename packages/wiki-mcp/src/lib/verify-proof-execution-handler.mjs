@@ -3,6 +3,7 @@ import path from "node:path";
 import { VerifyProofOperationError, assertVerifyProofCallerShape, verifyProofBranchContextWkId, verifyProofPopulationSubject } from "../../../wiki-core/src/operations/controlled-contract/verify-proof-operations.mjs";
 import { withOrchestratorTestProofRuntime } from "../../../agent-launch-cli/src/lib/workspace-agent-orchestrator-test-proof-runtime.mjs";
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
+import { withAuthenticatedTestExecution } from "../../../agent-launch-cli/src/lib/test-execution/authenticated-execution-context.mjs";
 import { managedTestAuthorityIdentity, resolveExecutionBranchSource } from "./managed-test-source-context.mjs";
 import { resolveDispatchWorktreeProvisioningConfig } from "./dispatch-launch-runtime.mjs";
 import { retainOperatorOnlyEvidence, readOperatorOnlyEvidence, activeMcpInlineByteLimit, measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
@@ -21,6 +22,7 @@ async function executeProductionVerifyProof({ args: received, env, responseEnv, 
 
   const regressionHost = { repository, sessionEnv: env, responseEnv };
   const state = (deps.resolveLauncherRunState ?? resolveLauncherRunState)(env);
+  return withAuthenticatedTestExecution(state.sessionContract, async () => {
   assertVerifyProofCallerShape(received, { authenticatedRole: state.role });
   run.role = state.role;
   run.authorityIdentity = managedTestAuthorityIdentity(state);
@@ -113,6 +115,7 @@ async function executeProductionVerifyProof({ args: received, env, responseEnv, 
     diagnostics: [],
     requestedEnvironment: args.environment ?? null
   }), ...(result.recovery === undefined ? {} : { recovery: result.recovery }) });
+  });
 }
 
 export function createVerifyProofExecutionHandler({ resolveWorkspace, env, responseEnv,
@@ -174,6 +177,7 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
         envelope = { ...envelope, refused_source: run.source };
       }
       envelope = await calls.refusal(envelope);
+      const presentation = await calls.presentEvidence(envelope);
 
       let recordedRefusal = null;
       let retention = null;
@@ -219,7 +223,7 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
         ...(recordedRefusal === null ? {} : {
           recorded_invocation: recordedInvocation(args.subject, run.invocationId, calls) }),
         ...(retention === null ? {} : { original_retention: retention }) };
-      const delivered = { ...calls.presentRefusal(envelope, { responseEnv, decoration, request: args,
+      const delivered = { ...calls.presentRefusal(presentation, { responseEnv, decoration, request: args,
         retentionFailed: sourceChoices !== null && retention !== null,
         readCall: sourceChoices === null || retention !== null ? null : run.attempt === null
           ? (source) => calls.sourceRetained(workspace.repo, ambiguityLocator, args.subject, source, args)
@@ -251,8 +255,9 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
       return errorContent(projected);
     }
     let evidence;
+    let presentation;
     try {
-      evidence = await validatedVerifyProofEvidence(result, calls, args, run.role);
+      ({ evidence, presentation } = await validatedVerifyProofEvidence(result, calls, args, run.role));
     } catch (error) {
       return errorContent(error);
     }
@@ -261,15 +266,15 @@ export function createVerifyProofExecutionHandler({ resolveWorkspace, env, respo
       if (recorded !== null) run.original = {
         recorded_invocation: recordedInvocation(args.subject, run.invocationId, calls) };
     } catch (recordingError) {
-      return calls.settledFailure({ evidence, error: recordingError, jsonContent, errorContent, responseEnv });
+      return calls.settledFailure({ evidence: presentation, error: recordingError, jsonContent, errorContent, responseEnv });
     }
     try {
       return run.attempt === null
-        ? deliverStandaloneVerification({ evidence, args, repository: workspace.repo, jsonContent,
+        ? deliverStandaloneVerification({ evidence, presentation, args, repository: workspace.repo, jsonContent,
           responseEnv, requestSchema, calls, run })
-        : deliverManagedVerification({ evidence, args, run, jsonContent, responseEnv, calls });
+        : deliverManagedVerification({ evidence: presentation, args, run, jsonContent, responseEnv, calls });
     } catch (error) {
-      return calls.settledFailure({ evidence, error: deliveryFailure(result, error), jsonContent, errorContent,
+      return calls.settledFailure({ evidence: presentation, error: deliveryFailure(result, error), jsonContent, errorContent,
         responseEnv, original: run.original, phase: "delivery" });
     }
   };

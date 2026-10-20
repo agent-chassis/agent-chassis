@@ -20,6 +20,14 @@ export function saveRecordFailureMeaning(value) {
     .map(([key, member]) => [key, saveRecordFailureMeaning(member)]));
 }
 
+function recoveryMeaning(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return saveRecordFailureMeaning(value);
+  const { missing_capability: boundary, responsible_owner: owner, ...meaning } = value;
+
+  if (meaning.correction === undefined && owner === 'controlled_contract_authoring_settlement') meaning.correction = boundary;
+  return saveRecordFailureMeaning(meaning);
+}
+
 function persistenceMeaning(value, cleanupRecoverable) {
   const coveredCleanup = cleanupRecoverable && value.diagnostics?.every(entry => entry.phase === 'cleanup');
   const diagnostics = (coveredCleanup ? [] : value.diagnostics ?? []).map(({ category, operation, producer_diagnostic, ...diagnostic }) => ({
@@ -38,45 +46,42 @@ function persistenceMeaning(value, cleanupRecoverable) {
     ...(nonempty(cleanup) ? { admission_sidecar_cleanup: cleanup } : {}),
     ...(coveredCleanup ? {} : { recovery: cleanupRecoverable ? {
       correction: 'Canonical publication stands. Use the returned maintenance_retry call to finish unresolved artifact cleanup; successful checks are preserved.' }
-      : { missing_capability: 'save_persistence_recovery',
-        correction: 'No supported call repairs or reconciles this persistence failure. Preserve the reported effects; do not replay the canonical mutation.' } }) });
+      : { correction: 'No supported call repairs or reconciles this persistence failure. Preserve the reported effects; do not replay the canonical mutation.' } }) });
 }
 
 export function saveRecordIdentityBindings(body) {
-  const bindings = Object.fromEntries(Object.entries(body.bindings ?? {}).filter(([, rows]) => nonempty(rows)));
-
-  if (bindings.requirement !== undefined) bindings.requirement = Object.fromEntries(
-    Object.entries(bindings.requirement).map(([key, identity]) => {
-      const row = body.requirement_rows?.rows.find(row => row.key === key);
-      return [key, { ...identity, ...(row?.verification_claim_id !== undefined && row.verification_key === undefined
-        ? { verification_claim_id: row.verification_claim_id } : {}) }];
-    }));
-  return bindings;
+  const publicKinds = new Set(['obligation', 'case', 'slice', 'entry', 'disposition']);
+  return Object.fromEntries(Object.entries(body.bindings ?? {})
+    .filter(([kind, rows]) => publicKinds.has(kind) && nonempty(rows)));
 }
 
 export function saveRecordMaintenanceMeaning(body) {
   const maintenance = body.maintenance ?? body.result ?? (body.members === undefined ? null : body);
   if (maintenance === null) return null;
+  const parentCause = maintenance.cause ?? body.coordination?.cause;
   const failures = (maintenance.members ?? []).flatMap(({ member, state, check }) => {
     const actionable = state !== 'succeeded' || check?.cause_code != null || check?.cause_message != null;
     if (!actionable) return [];
 
     const afterChecks = state === 'succeeded';
+
+    const nonexecutionCauseKnown = state === 'not_run' && (parentCause?.code != null || parentCause?.message != null);
+    const missingDiagnosis = !afterChecks && check?.cause_code == null && check?.cause_message == null &&
+      !nonempty(check?.top_findings) && !nonexecutionCauseKnown;
     return [{ member, state,
+      ...(check?.lint_scope === undefined ? {} : { scope: check.lint_scope }),
       ...(afterChecks ? { failure_stage: 'after_completed_checks', unavailable: {
-        missing_capability: 'maintenance_post_check_recovery',
         correction: 'Checks completed, but the executor then reported this failure. No supported call repairs that post-check failure; do not repeat the save or rerun successful checks.' } } : {}),
       ...(check?.cause_code == null && check?.cause_message == null ? {} : {
         cause: { code: check.cause_code, message: check.cause_message } }),
       ...(nonempty(check?.top_findings) ? { findings: saveRecordFailureMeaning(check.top_findings) } : {}),
-      ...(nonempty(check?.warnings) ? { warnings: saveRecordFailureMeaning(check.warnings) } : {}),
-      ...(state !== 'succeeded' && check !== undefined && check.cause_code == null && check.cause_message == null &&
-        !nonempty(check.top_findings) && !nonempty(check.warnings) ? {
-          unavailable: { missing_capability: 'maintenance_member_failure_diagnosis',
+      ...(missingDiagnosis ? {
+          unavailable: {
             correction: `The ${member} owner reported ${state} without a specific cause. Stop this recovery; do not retry unchanged to discover the diagnosis.` }
         } : {}),
-      ...(check === undefined ? {} : { effects: pick(check, ['ran', 'generated_views', 'write_effects_retained']),
-        ...(check.next_action == null ? {} : { correction: check.next_action }) }) }];
+      ...(check === undefined ? {} : { effects: { ...pick(check, ['ran', 'generated_views', 'write_effects_retained']),
+        ...(nonempty(check.removed) ? { removed: check.removed } : {}) },
+        ...(check.next_action == null || missingDiagnosis ? {} : { correction: check.next_action }) }) }];
   });
   const coordinationOnly = (maintenance.coordination ?? body.coordination)?.stage === 'settled_attempt' &&
     (maintenance.members ?? []).length > 0 && failures.length === 0;
@@ -100,19 +105,20 @@ export function projectSaveRecordResponse(body) {
   const bindings = saveRecordIdentityBindings(body);
   if (nonempty(bindings)) response.bindings = bindings;
 
-  const rows = body.requirement_rows?.rows.filter(row => row.key === undefined) ?? [];
-  const collections = body.requirement_rows?.collections.filter(row => row.key === undefined) ?? [];
-  if (rows.length > 0 || collections.length > 0) response.requirement_rows = {
-    ...(rows.length === 0 ? {} : { rows }), ...(collections.length === 0 ? {} : { collections }) };
   const versions = (body.entries ?? []).filter(entry => entry.version_id !== undefined)
     .map(entry => pick(entry, ['entry_id', 'version_id']));
   if (versions.length > 0) response.entries = versions;
-  if (nonempty(body.criterion_identity_changes)) response.criterion_identity_changes = body.criterion_identity_changes;
   if (body.exception !== undefined) response.exception = pick(body.exception,
     ['kind', 'action', 'subject', 'consequence', 'enforcement']);
-  for (const name of ['diagnostics', 'cause', 'failure', 'recovery']) {
-    if (nonempty(body[name])) response[name] = saveRecordFailureMeaning(body[name]);
+  for (const name of ['diagnostics', 'cause', 'failure']) {
+    if (nonempty(body[name])) response[name] = saveRecordFailureMeaning(name === 'diagnostics'
+      ? body[name].map(diagnostic => {
+        if (diagnostic.details === undefined) return diagnostic;
+        const { next_calls: _calls, correction, ...details } = diagnostic.details;
+        return { ...diagnostic, ...(correction === undefined ? {} : { correction }), details };
+      }) : body[name]);
   }
+  if (nonempty(body.recovery)) response.recovery = recoveryMeaning(body.recovery);
   const persistenceFailed = nonempty(body.persistence) && !(body.cleanup_resolved === true && body.persistence.diagnostics?.every(entry => entry.phase === 'cleanup'));
   if (persistenceFailed) {
     response.persistence = persistenceMeaning(body.persistence,

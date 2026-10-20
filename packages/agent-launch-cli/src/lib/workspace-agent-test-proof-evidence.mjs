@@ -688,7 +688,8 @@ async function executeObservedTestProofAttempt({ trusted, executionBudget, stage
     "launcher-owned candidate observation did not complete",
     providerExecutionFailureDetail(trusted, "candidate", candidate.run, providers.candidate));
   if (!isObject(candidate.test_inventory)) fail("test_proof_candidate_inventory_missing",
-    "launcher-owned candidate events did not yield a complete test inventory");
+    "launcher-owned candidate events did not yield a complete test inventory",
+    providerExecutionFailureDetail(trusted, "candidate", candidate.run, providers.candidate));
   observeSelected(candidateSelectedObservation(trusted, candidate));
   const launcherArtifacts = [...candidate.artifacts];
   const falsifierExecutions = [];

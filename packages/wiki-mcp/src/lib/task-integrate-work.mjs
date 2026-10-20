@@ -8,6 +8,8 @@ import { releaseRetainedSlice } from "@agent-chassis/agent-launch-cli/src/lib/wo
 import { digestTrustedExactReviewEvidence } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-validation.mjs";
 import { resolveCommittedSliceIntegrationOriginal } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs";
 import { captureDiagnosticEvidence } from "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
+import { readTerminalCandidateCurrentRef } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
+import { authenticateHistoricalTerminalCandidate } from "./dispatch-terminal-candidate-authentication.mjs";
 import { readSavedReviewDispositions } from "@agent-chassis/wiki-core/src/operations/work-record-dispositions.mjs";
 import { createIntegrateWorkInputContract, INTEGRATE_WORK_TOOL_NAME } from "./task-integrate-work-schema.mjs";
 import { createIntegrationOriginals, INTEGRATION_ORIGINAL_PRODUCER, prepareIntegrateWorkResponse } from "./task-integrate-work-result.mjs";
@@ -24,7 +26,8 @@ import { activeMcpInlineByteLimit, measureMcpInlineResultBytes, jsonContent } fr
 
 export function integrateWorkBackendOptions({ workspace, sessionEnv = process.env, responseEnv = sessionEnv,
   backendOptions: { synchronizeIntegratedWkWorktree: synchronizeWkWorktree = synchronizeIntegratedWkWorktree,
-    releaseRetainedSlice: releaseSlice = releaseRetainedSlice, prepareTerminalCandidate = null, ...backendOptions } }) {
+    releaseRetainedSlice: releaseSlice = releaseRetainedSlice, prepareTerminalCandidate = null,
+    recoverSelectedCandidateCheckout = null, ...backendOptions } }) {
   const env = Object.freeze({ ...sessionEnv });
   const responseConfiguration = Object.freeze({ ...responseEnv });
   const trustedWorkspace = Object.freeze({ ...workspace, dir: path.resolve(workspace.dir) });
@@ -42,7 +45,7 @@ export function integrateWorkBackendOptions({ workspace, sessionEnv = process.en
       }
       return originals.retain(input);
     },
-    finalizeCommittedSliceIntegration: async (integration, { approvedDelivery, retireManagedWorkerIdentity }) => {
+    finalizeCommittedSliceIntegration: async (integration, { approvedDelivery, retireManagedWorkerIdentity, candidateVersion = null }) => {
 
       let pair;
       try {
@@ -65,9 +68,14 @@ export function integrateWorkBackendOptions({ workspace, sessionEnv = process.en
       }
       const finalIntegration = integration.review_target != null ||
         integration.recovered === true && integration.integrated_state === 'final';
-      if (finalIntegration && prepareTerminalCandidate !== null) {
+      const preparesCandidate = candidateVersion !== null || finalIntegration && prepareTerminalCandidate !== null;
+      if (preparesCandidate) {
 
-        await prepareTerminalCandidate({ integration, initiative: pair.wk_binding.initiative,
+        if (candidateVersion !== null) {
+          if (recoverSelectedCandidateCheckout === null) throw new Error("Selected candidate checkout recovery is unavailable.");
+          await recoverSelectedCandidateCheckout({ wkId: approvedDelivery.subject.split('#')[0],
+            version: candidateVersion, integratedSha: integration.slice_sha });
+        } else await prepareTerminalCandidate({ integration: { ...integration, wk_sha: integration.slice_sha }, initiative: pair.wk_binding.initiative,
           wkId: approvedDelivery.subject.split('#')[0], wkRef: integration.wk_ref,
           baseSha: pair.wk_binding.base_sha, baseRef: pair.wk_binding.base_ref,
           preserveSelectedCandidate: true });
@@ -92,7 +100,9 @@ export function integrateWorkBackendOptions({ workspace, sessionEnv = process.en
               worktreeIdentityDigest: digestTrustedExactReviewEvidence(pair.slice_binding) });
           } } });
       const { integration: _integration, ...finalization } = finalized;
-      return { ...integration, ...finalization };
+      return { ...integration, ...finalization,
+        ...(preparesCandidate ? { candidate_preparation: { state: 'complete',
+          ...(candidateVersion === null ? {} : { version: candidateVersion }) } } : {}) };
     } };
 }
 
@@ -123,15 +133,15 @@ export function createIntegrateWorkTask({ workspace, sessionEnv = process.env, r
         receivingRole: parseToolProfile(env), requestContracts,
         original: { captured: false, evidence: { code: error.code } },
         result: { integrated: false, code: error.code, reason: error.message,
-          recovery: { state: "no_supported_route", message: "Integration requires a launcher-authenticated session. " +
-            "An authenticated orchestrator session is required. No in-session call creates or replaces that session; stop this integration request. " +
-            "No delivery read, integration, record or checkout change, or result retention was attempted." } } });
+          recovery: { state: "no_supported_route", message: "An authenticated orchestrator session is required. " +
+            "This request made no changes, and no call here can establish that session." } } });
       return { ...frame, isError: true };
     }
     let result;
     let original;
     let selection = null;
     let integrationRequested = false;
+    let knownPreparation = null;
     try {
       const parsed = inputContract.inputSchema.safeParse(request);
       if (!parsed.success) throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME,
@@ -151,8 +161,24 @@ export function createIntegrateWorkTask({ workspace, sessionEnv = process.env, r
         throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME, "delivery_original_has_no_selected_delivery");
       }
       selection = { subject: identity.unit };
+      if (parsed.data.candidate_version !== undefined) {
+        knownPreparation = await originals.unfinishedPreparation({ units: [identity.unit], delivery: parsed.data.delivery });
+        if (knownPreparation === null) throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME,
+          'unfinished_integration_preparation_unestablished');
+        const wkId = identity.unit.split('#')[0];
+        const historical = await authenticateHistoricalTerminalCandidate({ mainRepo: trustedWorkspace.dir,
+          wkId, versionIdentity: parsed.data.candidate_version });
+        const current = await readTerminalCandidateCurrentRef({ mainRepo: trustedWorkspace.dir, canonicalWkId: wkId });
+        if (historical.binding.candidate !== current) throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME,
+          'candidate_preparation_selection_moved');
+        const supported = await originals.unfinishedPreparation({ units: [identity.unit], delivery: parsed.data.delivery,
+          candidate: { ...historical.binding, version_decision: { version_identity: parsed.data.candidate_version } } });
+        if (supported === null) throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME,
+          'candidate_preparation_implementation_mismatch');
+      }
       integrationRequested = true;
       result = await backend.requestCommittedSliceIntegration({ subject: identity.unit,
+        ...(parsed.data.candidate_version === undefined ? {} : { candidateVersion: parsed.data.candidate_version }),
         approved_request: parsed.data, approvedDelivery: { subject: identity.unit, commit, base: binding.base_sha,
           slice_ref: binding.output_branch, launch_ref: binding.launch_ref, run_id: binding.run_id, retry_id: binding.retry_id } });
       original = resolveCommittedSliceIntegrationOriginal(result);
@@ -174,7 +200,7 @@ export function createIntegrateWorkTask({ workspace, sessionEnv = process.env, r
       }
     } catch (error) {
 
-      const completed = error?.detail?.completed_integration_result ?? error?.detail?.completed_recovery_result;
+      const completed = error?.detail?.completed_integration_result ?? error?.detail?.completed_recovery_result ?? knownPreparation?.result;
       result = { ...(completed ?? { integrated: false,
         ...(integrationRequested ? { integration_effects_unconfirmed: true } : {}) }),
         code: error?.code ?? null,

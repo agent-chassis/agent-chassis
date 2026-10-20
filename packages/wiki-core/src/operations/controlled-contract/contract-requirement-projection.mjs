@@ -64,46 +64,44 @@ function refuseRequirementBatch(refusals) {
     field: pathText(refusals[0].path, BATCH_ROOT), finding_count: findings.length, findings });
 }
 
-function projectUnresolvedMeaning(entry, index) {
+function projectUnresolvedMeaning(entry) {
   const { grammar_exception: exception, ...meaning } = typeof entry === "string" ? { text: entry } : clone(entry);
-  return { id: `u${index + 1}`, ...meaning, ...(exception === undefined ? {} : { grammar_exception: {
+  return { ...meaning, ...(exception === undefined ? {} : { grammar_exception: {
     enforcement: GRAMMAR_EXCEPTION_ENFORCEMENT, rationale: exception.rationale, ...(exception.source_passages === undefined ? {} : { source_passages: clone(exception.source_passages) }), ...RECORD_AUTHORING_EXCEPTION_RATIONALE_PROVENANCE,
     consequence: RECORD_AUTHORING_EXCEPTION_CONSEQUENCES.grammar } }) };
 }
 
 function carryGrammarExceptions(stored, restated) {
   const held = new Map();
+  const meaningKey = entry => { const { grammar_exception: _exception, ...meaning } = typeof entry === "string" ? { text: entry } : entry;
+    return canonicalJson(meaning); };
   for (const entry of stored) {
     if (typeof entry === "string" || entry.grammar_exception === undefined) continue;
-    held.set(entry.text, [...(held.get(entry.text) ?? []), entry.grammar_exception]);
+    held.set(meaningKey(entry), [...(held.get(meaningKey(entry)) ?? []), entry.grammar_exception]);
   }
   return restated.map(entry => {
-    const text = typeof entry === "string" ? entry : entry.text;
-    const exception = held.get(text)?.shift();
-    return exception === undefined ? entry : { ...(typeof entry === "string" ? { text } : entry), grammar_exception: clone(exception) };
+    const exception = held.get(meaningKey(entry))?.shift();
+    return exception === undefined ? entry : { ...(typeof entry === "string" ? { text: entry } : entry), grammar_exception: clone(exception) };
   });
 }
 
-export function prepareGrammarException({ contract = null, subject, action, rationale, sourcePassages }) {
+export function prepareGrammarException({ contract = null, selected, action, rationale, sourcePassages }) {
   const stored = contract?.authored_requirements ?? emptyAuthored();
-  const position = /^u([1-9][0-9]*)$/u.exec(subject ?? "");
-  const index = position === null ? -1 : Number(position[1]) - 1;
-  if (index < 0 || index >= stored.unresolved.length) throw new ControlledContractToolError(
+  const index = selected?.internal?.unresolved_index;
+  if (!Number.isInteger(index) || index < 0 || index >= stored.unresolved.length) throw new ControlledContractToolError(
     RECORD_AUTHORING_EXCEPTION_CODES.SUBJECT_UNKNOWN,
-    `exception.subject names ${JSON.stringify(subject)}, which is no unresolved meaning saved at this revision`,
-    { changed: false, phase: "request", path: "exception.subject", kind: "grammar", subject,
-      saved_unresolved_meanings: stored.unresolved.length,
-      correction: "Read the unit's requirements for the unresolved meanings saved at the current revision. Meaning not yet " +
-        "saved is first saved as unresolved draft meaning through changes.requirements.unresolved." });
+    'The selected unresolved fragment is unavailable at this revision.',
+    { changed: false, phase: "request", path: "exception.subject", kind: "grammar",
+      subject: selected?.selector, correction: "Select saved unresolved meaning at the current revision. No exception was changed." });
   const saved = stored.unresolved[index];
   const { grammar_exception: prior, ...meaning } = typeof saved === "string" ? { text: saved } : clone(saved);
   const applied = { rationale, ...(sourcePassages === undefined ? {} : { source_passages: clone(sourcePassages) }) };
   const next = action === "apply" ? { ...meaning, grammar_exception: applied }
-    : meaning.reason === undefined ? meaning.text : meaning;
+    : Object.keys(meaning).length === 1 ? meaning.text : meaning;
   const unresolved = stored.unresolved.map((entry, at) => at === index ? next : clone(entry));
   return Object.freeze({
     answer: { authored_requirements: { rows: clone(stored.rows), collections: clone(stored.collections), unresolved } },
-    subject: `u${index + 1}`, text: meaning.text, ...(meaning.reason === undefined ? {} : { reason: meaning.reason }),
+    subject: selected.selector, text: meaning.text, ...(meaning.reason === undefined ? {} : { reason: meaning.reason }),
     changed: canonicalJson(prior ?? null) !== canonicalJson(action === "apply" ? applied : null) });
 }
 
@@ -212,8 +210,9 @@ const statusOf = (derivation, authored) => {
 
 function assertRowConstraintIdentities(row, constraintIds) {
   if (canonicalJson(constraintIds) !== canonicalJson(row.constraint_ids)) fail(CODES.ROW_DISAGREES,
-    `Stored requirement row ${row.row_id} records constraint identities its own input does not compile to`,
-    { phase: "projection", row_id: row.row_id, recorded_constraint_ids: [...row.constraint_ids], derived_constraint_ids: constraintIds });
+    'The stored declaration disagrees with the constraints derived from its authored meaning',
+    { phase: "projection", subject: row.input.subject.identity,
+      correction: 'Stop: stored requirement integrity is inconsistent. No supported save can safely choose between the stored and derived constraints.' });
 }
 
 export function projectAuthoredRequirements(contract, { wkId, focus = null, sourceText = null, claimIds = null,
@@ -226,6 +225,19 @@ export function projectAuthoredRequirements(contract, { wkId, focus = null, sour
   const authored = stored;
   if (authored === undefined || authored === null) return Object.freeze({ status: "absent", unit: unitScope, compiler: requirementCompilerIdentity(),
     state: REQUIREMENT_BATCH_STATUS.none, rows: [], collections: [], unresolved: [], compiled: null });
+  for (const collection of authored.collections) {
+    const members = collection.member_row_ids;
+    const malformed = !Array.isArray(members) || members.some(member => typeof member !== 'string' || member.length === 0);
+    if (malformed || members.some(member => !authored.rows.some(row => row.row_id === member))) fail(
+      'controlled_contract_requirement_collection_invalid', malformed
+        ? 'The saved collection member association is malformed; members must be nonempty authored declaration bindings.'
+        : 'A saved collection member has no authored declaration in the captured contract.',
+      { phase: 'projection', field: 'members', collection: {
+        ...(collection.kind === undefined ? {} : { kind: collection.kind }),
+        ...(collection.purpose === undefined ? {} : { purpose: collection.purpose }) },
+      uncertainty: 'The complete collection membership cannot be established from this saved source.',
+      correction: 'Stop: the stored collection relationship is inconsistent. No supported save can safely infer the missing authored membership.' });
+  }
   const derivation = deriveAuthored({ unit: controlledContractIdentityScope(wkId, focus), authored, contract, sourceDescriptions, claimIds, visibleNodeIds });
   const rows = authored.rows.map((row, index) => {
     const statement = derivation.statements[index];
@@ -279,18 +291,18 @@ export function projectRequirementDescriptions(contract, { unit, claimIds = null
     claimIds, sourceDescriptions, visibleNodeIds, additionalRoots }).descriptions;
 }
 
-const labelOf = (row, index) => row.key !== undefined ? `$${row.key}` : row.row_id ?? row.id ?? `requirements[${index}]`;
+const labelOf = (row, index) => row.key !== undefined ? `$${row.key}` : `requirements[${index}]`;
 const rowField = index => `${BATCH_ROOT}.requirements[${index}]`;
 
 function assertRowSelectors(rows, collections) {
   rows.forEach((row, index) => {
-    const selectors = ["key", "row_id", "id"].filter(member => row[member] !== undefined);
+    const selectors = ["key", "target"].filter(member => row[member] !== undefined);
     if (selectors.length > 1) fail(CODES.ROW_SELECTOR_CONFLICT, `${rowField(index)} carries ${selectors.join(" and ")}; a row is addressed one way`,
-      { field: rowField(index), selectors, correction: "keep key for a new row, row_id to restate a saved row as a whole, or id to correct one saved requirement claim" });
+      { field: rowField(index), selectors, correction: "Use key for a new declaration or target for a saved declaration, never both." });
   });
-  collections.forEach((row, index) => { if (row.key !== undefined && row.row_id !== undefined) fail(CODES.ROW_SELECTOR_CONFLICT,
-    `${BATCH_ROOT}.collections[${index}] carries key and row_id; a collection is addressed one way`,
-    { field: `${BATCH_ROOT}.collections[${index}]`, selectors: ["key", "row_id"], correction: "keep key for a new collection or row_id to restate a saved one" }); });
+  collections.forEach((row, index) => { if (row.key !== undefined && row.target !== undefined) fail(CODES.ROW_SELECTOR_CONFLICT,
+    `${BATCH_ROOT}.collections[${index}] carries key and target; a collection is addressed one way`,
+    { field: `${BATCH_ROOT}.collections[${index}]`, selectors: ["key", "target"], correction: "Use key for a new collection or target to restate saved collection meaning." }); });
 }
 
 function nativeVerification({ normalizer, row, index, prepared, bindings, uses, entityHoles }) {
@@ -328,7 +340,7 @@ function nativeVerification({ normalizer, row, index, prepared, bindings, uses, 
       boundary: { ...clone(verification.runtime_test.boundary), subjects: subjects.map(declare) } } }) };
 }
 
-export function prepareRequirementBatch({ wkId, focus = null, contract = null, batch = {}, removeRowIds = [], retireClaimIds = [], sourceText = null, compile }) {
+export function prepareRequirementBatch({ wkId, focus = null, contract = null, batch = {}, removeRowIds = [], retireClaimIds = [], sourceText = null, selectionContext, compile }) {
   const unit = controlledContractIdentityScope(wkId, focus);
   const schema = workItemRequirementBatchSchema();
   const normalizer = createRequirementNormalizer({ schema, unit });
@@ -408,31 +420,31 @@ export function prepareRequirementBatch({ wkId, focus = null, contract = null, b
   const storedById = new Map(stored.rows.map(row => [row.row_id, row]));
   const rowsOfClaim = claimId => stored.rows.filter(row => row.claim_ids.includes(claimId));
   const groupRefusal = (field, claimId, row, action) => fail(CODES.GROUP_CORRECTION_REQUIRED,
-    `${field} ${action} ${claimId}, one of ${row.claim_ids.length} claims saved row ${row.row_id} emits together; changing one would leave the row's own declaration untrue`,
-    { field, claim_id: claimId, row_id: row.row_id, row_claim_ids: [...row.claim_ids],
-      correction: `restate the whole row with ${BATCH_ROOT}.requirements[] row_id ${row.row_id}, or remove it with changes.remove.requirement_rows` });
+    `${field} ${action} one assertion of a grouped declaration; changing it alone would leave the declaration untrue`,
+    { field, target: rows.find(incoming => incoming.id === claimId || incoming.row_id === row.row_id)?.target,
+      correction: `Target and restate the whole declaration with ${BATCH_ROOT}.requirements[], or remove the whole requirement with changes.remove.requirements.` });
   const selected = new Map();
-  const select = (rowId, field) => { if (selected.has(rowId)) fail(CODES.ROW_SELECTED_TWICE, `${field} and ${selected.get(rowId)} both address saved row ${rowId}`,
-    { field, row_id: rowId, fields: [selected.get(rowId), field], correction: "address a saved row once in one request" }); selected.set(rowId, field); };
+  const select = (rowId, field) => { if (selected.has(rowId)) fail(CODES.ROW_SELECTED_TWICE, `${field} and ${selected.get(rowId)} both address the same saved declaration`,
+    { field, fields: [selected.get(rowId), field], correction: "Address a saved declaration once in one request." }); selected.set(rowId, field); };
   const taken = new Set(stored.rows.map(row => row.row_id));
   const inputs = written.map((row, index) => boundInput(row, bindings));
   const targets = rows.map((row, index) => {
     const field = rowField(index);
     if (row.row_id !== undefined) {
-      if (!storedById.has(row.row_id)) fail(CODES.ROW_UNKNOWN, `${field}.row_id names ${row.row_id}, which this contract does not store`,
-        { field: `${field}.row_id`, row_id: row.row_id, stored_row_ids: stored.rows.map(entry => entry.row_id).slice(0, 32),
-          correction: "read the unit's requirements for its saved row ids, or send the row with key as a new row" });
+      if (!storedById.has(row.row_id)) fail('selection_unavailable', `${field}.target does not resolve in the captured declaration source`,
+        { field: `${field}.target`, target: row.target,
+          correction: 'Stop this amendment: its resolved declaration is unavailable. Do not turn an unresolved target into creation.' });
       select(row.row_id, field);
       return { row_id: row.row_id, existing: storedById.get(row.row_id), restated: true };
     }
     if (row.id !== undefined) {
       if ((prepared[index].inputs ?? []).length > 1) fail(CODES.GROUP_CORRECTION_REQUIRED,
-        `${field}.id corrects one saved claim, and the row states ${prepared[index].inputs.length} statements, one per object`,
-        { field: `${field}.id`, claim_id: row.id, statement_count: prepared[index].inputs.length,
-          correction: "state one object to correct one claim, or send the grouped statement as a row with key or row_id" });
+        `${field}.target selects one assertion, but the amendment states several assertions`,
+        { field: `${field}.target`, target: row.target,
+          correction: "State one assertion to correct one behavioral part, or target the whole declaration to restate its grouped meaning." });
       const containing = rowsOfClaim(row.id);
       const group = containing.find(entry => entry.claim_ids.length > 1);
-      if (group) groupRefusal(`${field}.id`, row.id, group, "corrects");
+      if (group) groupRefusal(`${field}.target`, row.id, group, "corrects");
       if (containing.length === 1) { select(containing[0].row_id, field); return { row_id: containing[0].row_id, existing: containing[0], restated: false }; }
     }
 
@@ -450,17 +462,23 @@ export function prepareRequirementBatch({ wkId, focus = null, contract = null, b
   const removedCollections = new Set();
   const storedCollections = new Map(stored.collections.map(row => [row.collection_row_id, row]));
   removeRowIds.forEach((rowId, index) => {
-    const field = `changes.remove.requirement_rows[${index}]`;
+    const removal = selectionContext?.removals.get(rowId);
+    const field = removal?.field ?? `changes.remove.requirements[${index}]`;
     if (storedCollections.has(rowId)) { removedCollections.add(rowId); return; }
-    if (!storedById.has(rowId)) fail(CODES.ROW_UNKNOWN, `${field} names ${rowId}, which this contract does not store`,
-      { field, row_id: rowId, correction: "read the unit's requirements for its saved row ids" });
-    if (selected.has(rowId)) fail(CODES.ROW_SELECTED_TWICE, `${field} removes saved row ${rowId}, which ${selected.get(rowId)} also addresses`,
-      { field, row_id: rowId, fields: [selected.get(rowId), field], correction: "restate the row or remove it, not both" });
+    if (!storedById.has(rowId)) fail('selection_unavailable', `${field} does not resolve in the captured declaration source`,
+      { field, target: removal?.target, correction: 'Stop this removal: its resolved declaration is unavailable.' });
+    if (selected.has(rowId)) fail(CODES.ROW_SELECTED_TWICE, `${field} removes the declaration which ${selected.get(rowId)} also addresses`,
+      { field, target: removal?.target, fields: [selected.get(rowId), field], correction: 'Restate the declaration or remove it, not both.' });
     removedRows.add(rowId);
   });
   retireClaimIds.forEach((claimId, index) => {
     for (const row of rowsOfClaim(claimId)) {
-      if (row.claim_ids.length > 1 && !removedRows.has(row.row_id) && !selected.has(row.row_id)) groupRefusal(`changes.remove.requirements[${index}]`, claimId, row, "retires");
+      if (row.claim_ids.length > 1 && !removedRows.has(row.row_id) && !selected.has(row.row_id)) {
+        const removal = selectionContext?.removals.get(claimId);
+        fail(CODES.GROUP_CORRECTION_REQUIRED, 'Removing one assertion would leave its grouped declaration untrue.', {
+          field: removal?.field ?? `changes.remove.requirements[${index}]`, target: removal?.target,
+          correction: 'Target the whole requirement for removal, or restate its grouped meaning with explicit compatible dependency changes.' });
+      }
 
       if (row.claim_ids.length === 1 && !selected.has(row.row_id)) removedRows.add(row.row_id);
     }
@@ -504,8 +522,9 @@ export function prepareRequirementBatch({ wkId, focus = null, contract = null, b
     const members = row.members.map((member, position) => {
       const rowId = member.startsWith("$") ? keyed.get(member) : member;
       if (rowId === undefined || !prospectiveIds.has(rowId)) fail(CODES.ROW_UNKNOWN,
-        `${field}.members[${position}] names ${member}, which is ${member.startsWith("$") ? "no requirement label of this request" : "no saved requirement row of this unit after this save"}`,
-        { field: `${field}.members[${position}]`, member, accepted_labels: [...keyed.keys()], correction: "name a requirement of this request by \"$key\" or a saved row by its row_id" });
+        `${field}.members[${position}] does not name a requirement remaining after this save`,
+        { field: `${field}.members[${position}]`, ...(member.startsWith('$') ? { member, accepted_labels: [...keyed.keys()] } : {}),
+          correction: 'Choose a whole requirement by authored meaning or a "$key" declared in this request; do not retain a removed member.' });
       return rowId;
     });
     const repeated = members.findIndex((member, position) => members.indexOf(member) !== position);
@@ -514,8 +533,8 @@ export function prepareRequirementBatch({ wkId, focus = null, contract = null, b
         message: "a collection lists each requirement once", recovery: { kind: "remove_member", path: `${field}.members[${repeated}]` } }] });
     const body = { ...(row.kind === undefined ? {} : { kind: row.kind }), ...(row.purpose === undefined ? {} : { purpose: row.purpose }), member_row_ids: members };
     if (row.row_id !== undefined) {
-      if (!storedCollections.has(row.row_id) || removedCollections.has(row.row_id)) fail(CODES.ROW_UNKNOWN, `${field}.row_id names ${row.row_id}, which this contract does not store`,
-        { field: `${field}.row_id`, row_id: row.row_id, correction: "read the unit's requirements for its saved collection ids, or send the collection without row_id" });
+      if (!storedCollections.has(row.row_id) || removedCollections.has(row.row_id)) fail('selection_unavailable', `${field}.target does not name a collection remaining after this save`,
+        { field: `${field}.target`, target: row.target, correction: 'Choose a collection remaining after this save; do not create from an unresolved target.' });
       return { collection_row_id: row.row_id, ...body };
     }
     return { collection_row_id: `collection-row-${digest40(canonicalJson([unit, body]))}`, ...body };
@@ -526,9 +545,11 @@ export function prepareRequirementBatch({ wkId, focus = null, contract = null, b
     .filter((row, position, all) => all.findIndex(other => other.collection_row_id === row.collection_row_id) === position);
   const dangling = collections.filter(row => row.member_row_ids.some(rowId => !prospectiveIds.has(rowId)));
   if (dangling.length > 0) fail(CODES.ROW_REMOVAL_DEPENDENCY, "a saved collection still lists a requirement row this save removes",
-    { field: "changes.remove.requirement_rows", dependencies: dangling.map(row => ({ collection_row_id: row.collection_row_id,
-      removed_row_ids: row.member_row_ids.filter(rowId => !prospectiveIds.has(rowId)) })),
-    correction: "remove the collection in the same request by its collection row id, or restate it without the removed rows" });
+    { field: 'changes.remove.requirements', dependencies: dangling.map(row => ({
+      collection: selectionContext?.collections.get(row.collection_row_id),
+      removed_requirements: row.member_row_ids.filter(rowId => !prospectiveIds.has(rowId))
+        .map(rowId => selectionContext?.removals.get(rowId)).filter(Boolean) })),
+    correction: 'Target and remove the affected collection in the same request, or restate it without the removed requirements.' });
 
   const unresolved = batch.unresolved === undefined ? clone(stored.unresolved)
     : carryGrammarExceptions(stored.unresolved, clone(batch.unresolved));

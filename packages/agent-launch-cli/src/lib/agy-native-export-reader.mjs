@@ -5,7 +5,9 @@ import { createHash } from "node:crypto";
 
 const fields = new Set(["event", "conversation_id", "result", "step_update",
   "result.status", "result.error", "result.conversation_id", "result.response", "result.denied_actions",
-  "step_update.conversation_id", "step_update.step_type", "step_update.state", "step_update.tool_name",
+  "step_update.conversation_id", "step_update.step_index", "step_update.step_type", "step_update.state", "step_update.tool_name",
+  "step_update.error", "step_update.tool_info.name", "step_update.tool_info.error",
+  "step_update.tool_info.error.type", "step_update.tool_info.error.message",
   "step_update.tool_info", "step_update.tool_info.parameters",
   "step_update.tool_info.parameters.ServerName", "step_update.tool_info.parameters.ToolName"]);
 
@@ -28,7 +30,13 @@ export async function* readAgyNativeExport(file) {
     if (hash) parameterHash?.update(text);
     return text;
   }
-  async function whitespace() { while (/^[\t\r\n ]$/.test(await peek() ?? "")) consume(1, false); }
+  async function whitespace(lines = false) {
+    let newlines = 0;
+    while ((lines ? /^[\t\r\n ]$/ : /^[\t\r ]$/).test(await peek() ?? "")) {
+      if (consume(1, false) === "\n") newlines++;
+    }
+    return newlines;
+  }
   async function expect(character) { if (await peek() !== character) invalid(); consume(); }
   async function string(keep, presence = false) {
     await expect('"');
@@ -115,14 +123,14 @@ export async function* readAgyNativeExport(file) {
     return result;
   }
   try {
-    await whitespace();
+    await whitespace(true);
     while (await peek() !== undefined) {
       const event = await value("");
 
       while (/^[\t\r ]$/.test(await peek() ?? "")) consume();
       if (await peek() !== undefined) await expect("\n");
       yield event;
-      await whitespace();
+      if (await whitespace(true) > 0 && await peek() !== undefined) invalid();
     }
   } finally { source.destroy(); }
 }

@@ -6,6 +6,7 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-closeout-chain.mjs";
 import { ownedNoRouteRecovery } from "../dispatch-tool-helpers.mjs";
 import { buildDispatchGuidanceRefusal } from "../dispatch-guidance-contract.mjs";
+import { WORK_ITEM_ORDINARY_MEMBERS } from '@agent-chassis/wiki-core/src/lib/record-authoring-schema.mjs';
 
 export const FORGE_HANDOFF_DRIFT_FIELDS_FACT = "forge_handoff.closeout_drift_fields";
 
@@ -32,7 +33,9 @@ function authoredWkReadGuidance({
     code,
     decidingFacts: [...decidingFacts, { field: FORGE_HANDOFF_DRIFT_FIELDS_FACT, value: fields }],
     observedFacts: { ...observedFacts, [FORGE_HANDOFF_DRIFT_FIELDS_FACT]: fields },
-    guidance: { tool: "workspace_read_wiki", arguments: { subject: readUnit }, information },
+    guidance: { tool: "workspace_read_wiki", arguments: { reads: [{ subject: readUnit,
+      for_changes: [...new Set(fields.flatMap(field => field === 'sections.tasks' ? ['tasks']
+        : WORK_ITEM_ORDINARY_MEMBERS.filter(row => row.field === field || field.startsWith(row.field + '.')).map(row => row.member)))] }] }, information },
     recovery: {
       responsible_actor: recovery.responsible_actor,
       prerequisite: recovery.prerequisite,

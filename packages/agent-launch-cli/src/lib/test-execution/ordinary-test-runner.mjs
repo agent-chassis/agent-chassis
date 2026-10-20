@@ -611,6 +611,7 @@ async function runTestFileWithRoot(request, stage, executionRoot, started) {
       directories: [...(additions.directories ?? []), ...(invocation.directories ?? []), ...runtime.directories],
       readOnlyBinds: [...(invocation.readOnlyBinds ?? []), ...(additions.readOnlyBinds ?? [])],
       executionRoot,
+      sourceRoot: contribution?.additions?.copyRoot ?? checkoutRoot,
       ...(writes.length === 0 ? {} : { writes }),
       ...(phase === "run" && additions.channel !== undefined ? { channel: additions.channel } : {}),
       ...(cache.directory === null ? {} : { writableCache: cache.directory })

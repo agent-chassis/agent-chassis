@@ -276,12 +276,24 @@ deterministic projection of the branded
 
 ### Closed schema and field semantics
 
-The top-level JSON object contains exactly these twelve keys, with no unknown,
+The top-level JSON object contains exactly these thirteen keys, with no unknown,
 duplicate, missing, or role-forbidden fields: `schema_version`, `role`,
 `assigned_unit`, `repository`, `read_scope`, `repo_paths`, `write_scope`,
-`lifecycle`, `capabilities`, `completion_transport`, `minting_provenance`, and
+`lifecycle`, `capabilities`, `completion_transport`, `execution_backend`,
+`minting_provenance`, and
 `contract_digest`.
 
+- `execution_backend` is `null` during preparation, which grants no runtime
+  authority. After the launcher acquires the actual isolated child, the shared
+  spawn owner binds `{enforcement:"active",identity:"bwrap"}` before connector
+  callbacks can start the host server. The binding owner accepts an admitted
+  no-confinement decision as `{enforcement:"inactive",identity:"none"}`, but no
+  current managed launch route produces that binding. Normalized reports, absent or refused
+  decisions and copies are not binding sources. Active `seatbelt` remains active
+  and currently refuses disposable test execution. Different rebinding refuses;
+  reconnects preserve the original binding. Each server generation receives the
+  final immutable contract and digest on both independent carriers; conduit
+  accessors and terminal capture expose that final value.
 - `schema_version` is exactly `launcher-agent-session-contract.v1`.
 - `role` is exactly `orchestrator`, `worker`, `reviewer`, or `redteam`.
 - `assigned_unit` is closed at `record_id`, nullable `slice_id`, and canonical
@@ -433,15 +445,14 @@ ten refusal codes is the only carrier.
 
 ## Test and proof execution is a separate host capability
 
-`workspace_run_test` and `verify_proof` do not run test code inside the invoking
-agent's namespace. Under `decision` (repository-only:
-`wiki/decisions/decision.md`) a confined role whose profile grants the tool
-calls it over the conduit, the host wiki-MCP server authenticates the source and
-assignment, and the launcher starts the test processes on the host with the host
-user's permissions: no bubblewrap, replacement sandbox, read-only mount, secret
-mask or network denial applies to them. Test code can therefore reach Git
-metadata, accepted decisions, dependencies and the network even when the calling
-session cannot.
+`workspace_run_test` and `verify_proof` execute through the host service's
+shared driver. Accepted `decision` makes checkout writes conditional on the
+session's authenticated active/inactive confinement fact. Active confinement
+requires a supported disposable source layer; authenticated inactivity retains
+ordinary host writes. Missing state and unsupported active backends refuse.
+The guarantee covers selected-source checkout writes, while other host inputs
+and network access retain their existing reach. See
+[Host execution](test-proof-execution.md#host-execution) for the exact boundary.
 
 Agent-session confinement is unchanged by this. A run adds no mount, write
 scope, tool grant or visibility to the session, and the request names no

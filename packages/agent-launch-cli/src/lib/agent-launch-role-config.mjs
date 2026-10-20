@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { parse as parseToml } from "smol-toml";
 
 import { highPriorityRoleGuideEnabled } from "@agent-chassis/agent-launch-core/src/lib/agent-role-guides.mjs";
 
@@ -19,11 +20,8 @@ const ROLE_MODEL_ENV_KEYS = Object.freeze({
 
 const KNOWN_ROLE_SET = new Set(Object.keys(ROLE_MODEL_ENV_KEYS));
 const ROLE_CONFIG_EFFORT_SET = new Set(["low", "medium", "high", "xhigh", "max"]);
-const SECTION_PATTERN = /^\[\s*([^\[\]]+?)\s*\]$/;
-const ASSIGNMENT_PATTERN = /^([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(.+)$/;
 
 const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-const MODEL_TABLE_PATTERN = /^models\.(?:"([^"\\]*)"|([A-Za-z0-9_-]+))$/;
 const MODEL_TABLE_KEYS = new Set(["use_litellm"]);
 const VERTEXAI_TABLE_KEYS = new Set(["credentials_file", "project", "location", "port"]);
 
@@ -50,116 +48,49 @@ function roleConfigPath(dir) {
   return path.join(dir, AGENT_LAUNCH_ROLE_CONFIG_FILENAME);
 }
 
-function stripInlineTomlComment(rawLine) {
-  let inString = false;
-  let escaped = false;
-  for (let index = 0; index < rawLine.length; index += 1) {
-    const char = rawLine[index];
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (char === "\\" && inString) {
-      escaped = true;
-      continue;
-    }
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (char === "#" && !inString) {
-      return rawLine.slice(0, index);
-    }
-  }
-  return rawLine;
-}
-
 function parseTomlBasicString(value, { lineNumber, key }) {
-  const trimmed = value.trim();
-  if (trimmed.length < 2 || !trimmed.startsWith('"') || !trimmed.endsWith('"')) {
-    throw new AgentLaunchRoleConfigError(
-      `agent-launch-role-config: ${key} on line ${lineNumber} must be a TOML basic string`,
-      {
-        code: "role_config.value_not_string",
-        detail: { line_number: lineNumber, key }
-      }
-    );
+  if (typeof value !== "string") {
+    throw configError(`${key} must be a TOML string`, "role_config.value_not_string",
+      { line_number: lineNumber, key });
   }
-
-  const body = trimmed.slice(1, -1);
-  return body.replace(/\\(["\\btnfr])/g, (_match, escaped) => {
-    if (escaped === "b") return "\b";
-    if (escaped === "t") return "\t";
-    if (escaped === "n") return "\n";
-    if (escaped === "f") return "\f";
-    if (escaped === "r") return "\r";
-    return escaped;
-  });
+  return value;
 }
 
 function configError(message, code, detail) {
   return new AgentLaunchRoleConfigError(`agent-launch-role-config: ${message}`, { code, detail });
 }
 
-function parseSection(sectionName, { lineNumber, source }) {
-  if (sectionName === "roles") return { kind: "roles_root" };
-  if (sectionName === "models") return { kind: "models_root" };
-  if (sectionName === "vertexai") return { kind: "vertexai", key: "vertexai" };
-  if (sectionName.startsWith("models.")) {
-    const match = MODEL_TABLE_PATTERN.exec(sectionName);
-    const model = match ? (match[1] ?? match[2]) : null;
-    if (model === null || !MODEL_ID_PATTERN.test(model)) {
-      throw configError(
-        `[${sectionName}] on line ${lineNumber} is not a model table; use [models."<registered-model-id>"]`,
-        "role_config.invalid_model_table",
-        { line_number: lineNumber, section: sectionName, source }
-      );
-    }
-    return { kind: "model", key: `models.${model}`, model };
-  }
-  if (!sectionName.startsWith("roles.")) {
-    return { kind: "other" };
-  }
-
-  const role = sectionName.slice("roles.".length);
-  if (!KNOWN_ROLE_SET.has(role)) {
-    throw configError(
-      `unknown role ${role} in [${sectionName}] on line ${lineNumber}`,
-      "role_config.unknown_role",
-      { line_number: lineNumber, role, source }
-    );
-  }
-  return { kind: "role", key: `roles.${role}`, role };
-}
-
 function parseTomlBoolean(value, { lineNumber, key }) {
-  const trimmed = value.trim();
-  if (trimmed === "true") return true;
-  if (trimmed === "false") return false;
-  throw configError(
-    `${key} on line ${lineNumber} must be a TOML boolean (true or false)`,
-    "role_config.value_not_boolean",
-    { line_number: lineNumber, key }
-  );
+  if (typeof value === "boolean") return value;
+  throw configError(`${key} must be a TOML boolean (true or false)`,
+    "role_config.value_not_boolean", { line_number: lineNumber, key });
 }
 
 function parseTomlPort(value, { lineNumber, key }) {
-  const trimmed = value.trim();
-  const port = /^[0-9]{1,5}$/.test(trimmed) ? Number(trimmed) : NaN;
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw configError(
-      `${key} on line ${lineNumber} must be a TOML integer between 1 and 65535`,
-      "role_config.value_not_port",
-      { line_number: lineNumber, key }
-    );
+  if (!Number.isInteger(value) || value < 1 || value > 65535) {
+    throw configError(`${key} must be a TOML integer between 1 and 65535`,
+      "role_config.value_not_port", { line_number: lineNumber, key });
   }
-  return port;
+  return value;
+}
+
+function isTable(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    && [Object.prototype, null].includes(Object.getPrototypeOf(value));
+}
+
+function freezeNative(value) {
+  if (value !== null && typeof value === "object") {
+    for (const child of Object.values(value)) freezeNative(child);
+    Object.freeze(value);
+  }
+  return value;
 }
 
 function unsupportedKey(section, key, lineNumber, source, expected) {
   const table = section.kind === "role" ? `role ${section.role}` : `[${section.key}]`;
   return configError(
-    `unsupported key ${key} for ${table} on line ${lineNumber}; expected ${expected.join(" or ")}`,
+    `unsupported key ${key} for ${table}; expected ${expected.join(" or ")}`,
     "role_config.unsupported_key",
     { role: section.role ?? null, table: section.key, key, line_number: lineNumber, source }
   );
@@ -201,7 +132,7 @@ function parseTableValue(section, key, rawValue, { lineNumber, source }) {
   const text = parseTomlBasicString(rawValue, { lineNumber, key }).trim();
   if (text === "") {
     throw configError(
-      `[vertexai] ${key} on line ${lineNumber} must be non-empty; omit it to use the default`,
+      `[vertexai] ${key} must be non-empty; omit it to use the default`,
       "role_config.empty_value",
       { line_number: lineNumber, key, source }
     );
@@ -210,92 +141,56 @@ function parseTableValue(section, key, rawValue, { lineNumber, source }) {
 }
 
 export function parseAgentLaunchRoleConfigSource(input, { source = null, rejectExplicitRouting = false } = {}) {
-  const tables = new Map();
-  let section = { kind: "other" };
-  const lines = String(input ?? "").split(/\r?\n/);
+  let parsed;
+  try {
+    parsed = parseToml(String(input ?? ""));
+  } catch (error) {
 
-  for (let index = 0; index < lines.length; index += 1) {
-    const lineNumber = index + 1;
-    const line = stripInlineTomlComment(lines[index]).trim();
-
-    if (line === "") continue;
-
-    const sectionMatch = SECTION_PATTERN.exec(line);
-    if (sectionMatch) {
-      section = parseSection(sectionMatch[1], { lineNumber, source });
-      if (section.key !== undefined) {
-        const existing = tables.get(section.key);
-        if (existing) {
-          const duplicateLabel = section.kind === "role" ? `[roles.${section.role}]` : `[${sectionMatch[1]}]`;
-          throw configError(
-            `duplicate ${duplicateLabel} table on line ${lineNumber}; first declared on line ${existing.lineNumber}`,
-            section.kind === "role" ? "role_config.duplicate_role" : "role_config.duplicate_table",
-            {
-              ...(section.kind === "role" ? { role: section.role } : { table: section.key }),
-              line_number: lineNumber,
-              first_line_number: existing.lineNumber,
-              source
-            }
-          );
-        }
-        tables.set(section.key, { section, lineNumber, values: new Map(), keyLines: new Map() });
-      }
-      continue;
-    }
-
-    const assignmentMatch = ASSIGNMENT_PATTERN.exec(line);
-    if (!assignmentMatch) {
-      throw configError(
-        `invalid TOML assignment on line ${lineNumber}`,
-        "role_config.invalid_assignment",
-        { line_number: lineNumber, source }
-      );
-    }
-
-    if (rejectExplicitRouting && ["app", "client", "provider", "backend", "family", "model_provider"].includes(assignmentMatch[1])) {
-      throw configError(
-        `explicit ${assignmentMatch[1]} on line ${lineNumber} conflicts with model-family routing; ` +
-        "remove the explicit routing setting or select a configuration using native role model selectors",
-        "role_config.explicit_routing_conflict",
-        { line_number: lineNumber, key: assignmentMatch[1], source }
-      );
-    }
-    if (section.kind === "other") continue;
-    if (section.kind === "roles_root") {
-      throw configError(
-        `[roles] assignments are not supported on line ${lineNumber}; use [roles.<role>] with model = "..."`,
-        "role_config.legacy_roles_table_assignment",
-        { line_number: lineNumber, source }
-      );
-    }
-    if (section.kind === "models_root") {
-      throw configError(
-        `[models] assignments are not supported on line ${lineNumber}; use [models."<registered-model-id>"] with use_litellm = true`,
-        "role_config.models_root_assignment",
-        { line_number: lineNumber, source }
-      );
-    }
-
-    const key = assignmentMatch[1];
-    const table = tables.get(section.key);
-    const value = parseTableValue(section, key, assignmentMatch[2], { lineNumber, source });
-    if (table.keyLines.has(key)) {
-      const owner = section.kind === "role" ? `role ${section.role}` : `[${section.key}]`;
-      throw configError(
-        `duplicate ${key} for ${owner} on line ${lineNumber}; first declared on line ${table.keyLines.get(key)}`,
-        "role_config.duplicate_key",
-        {
-          ...(section.kind === "role" ? { role: section.role } : { table: section.key }),
-          key,
-          line_number: lineNumber,
-          first_line_number: table.keyLines.get(key),
-          source
-        }
-      );
-    }
-    table.values.set(key, value);
-    table.keyLines.set(key, lineNumber);
+    throw configError(`invalid TOML at line ${error.line}, column ${error.column}`,
+      "role_config.invalid_toml", { line_number: error.line, column: error.column, source });
   }
+  if (rejectExplicitRouting) {
+    const inspect = (table) => {
+      if (!isTable(table)) return;
+      for (const [key, value] of Object.entries(table)) {
+        if (["app", "client", "provider", "backend", "family", "model_provider"].includes(key)) {
+          throw configError(`explicit ${key} conflicts with model-family routing`,
+            "role_config.explicit_routing_conflict", { key, source });
+        }
+        inspect(value);
+      }
+    };
+    for (const [key, value] of Object.entries(parsed)) {
+      if (key !== "opencode") inspect({ [key]: value });
+    }
+  }
+  const tables = new Map();
+  const addTable = (section, table) => {
+    if (!isTable(table)) throw configError(`[${section.key}] must be a TOML table`,
+      "role_config.invalid_table", { table: section.key, source });
+    const values = new Map(Object.entries(table).map(([key, value]) =>
+      [key, parseTableValue(section, key, value, { lineNumber: null, source })]));
+    tables.set(section.key, { section, lineNumber: null, values });
+  };
+  for (const key of ["roles", "models"]) {
+    if (parsed[key] !== undefined && !isTable(parsed[key])) throw configError(`[${key}] must be a TOML table`,
+      "role_config.invalid_table", { table: key, source });
+  }
+  for (const [role, table] of Object.entries(parsed.roles ?? {})) {
+    if (!isTable(table)) throw configError(`[roles] assignments are not supported; use [roles.<role>]`,
+      "role_config.legacy_roles_table_assignment", { source });
+    if (!KNOWN_ROLE_SET.has(role)) throw configError(`unknown role ${role} in [roles.${role}]`,
+      "role_config.unknown_role", { role, source });
+    addTable({ kind: "role", key: `roles.${role}`, role }, table);
+  }
+  for (const [model, table] of Object.entries(parsed.models ?? {})) {
+    if (!isTable(table)) throw configError(`[models] assignments are not supported; use [models."<registered-model-id>"]`,
+      "role_config.models_root_assignment", { source });
+    if (!MODEL_ID_PATTERN.test(model)) throw configError(`invalid model table ${model}`,
+      "role_config.invalid_model_table", { source });
+    addTable({ kind: "model", key: `models.${model}`, model }, table);
+  }
+  if (parsed.vertexai !== undefined) addTable({ kind: "vertexai", key: "vertexai" }, parsed.vertexai);
 
   const roles = {};
   const efforts = {};
@@ -335,6 +230,7 @@ export function parseAgentLaunchRoleConfigSource(input, { source = null, rejectE
     highPriorityRoleGuides: Object.freeze(highPriorityRoleGuides),
     models: Object.freeze(models),
     vertexai,
+    opencode: freezeNative(parsed.opencode ?? null),
     source
   });
 }
@@ -380,4 +276,10 @@ export function readRoleEffort(role, { dir, readFileText } = {}) {
 
 export function roleGuideDeliveryFromSnapshot(role, snapshot) {
   return highPriorityRoleGuideEnabled(role, snapshot?.highPriorityRoleGuides);
+}
+
+export function isConfiguredOpenCodeModel(model, opencode) {
+  const slash = typeof model === "string" ? model.indexOf("/") : -1;
+  return slash > 0 && slash < model.length - 1
+    && Object.hasOwn(opencode?.provider ?? {}, model.slice(0, slash));
 }

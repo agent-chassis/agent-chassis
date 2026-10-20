@@ -84,7 +84,7 @@ export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWo
       (!allGuidance.has(reference) || selectedGuidance.has(reference))) })) });
   const { readAdvertisedDoc } = registerToolDocReadTools({ registerTool: () => undefined,
     z, jsonContent, errorContent, docsCarrier, sessionRole, registeredTier, augmentDescriptor });
-  const originalCall = source => ({ tool: "workspace_read_wiki", arguments: { reference: source } });
+  const originalCall = source => ({ tool: "workspace_read_wiki", arguments: { reads: [{ reference: source }] } });
   let inspection, advance, publication, landing;
   read = registerReadWikiTools({ registerTool, workspaceRepos, z, jsonContent, errorContent,
     resolveWorkspaceRepo, resolveWorkspaceReadRepo: createWorkspaceReadRepoResolver({ workspaceRepos, resolveWorkspaceRepo }),
@@ -102,9 +102,9 @@ export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWo
       }
     } });
   if (registeredToolNames.has(read.name)) recordOwnerRegisteredRequestSchema({ registerTool,
-    toolName: read.name, declaredInput: read.config.inputSchema._def.schema });
+    toolName: read.name, declaredInput: read.config.inputSchema });
   const originalOwner = { ownerCall: originalCall,
-    ownerRequestSchema: selectedResponseRequestSchema(read.config.inputSchema._def.schema) };
+    ownerRequestSchema: selectedResponseRequestSchema(read.config.inputSchema) };
   if (granted("workspace_find_proofs")) registerFindProofsTool({ defineTool: registerTool,
     ...host, jsonContent, errorContent });
   if (granted("get_run_result")) {
@@ -194,7 +194,7 @@ export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWo
       inputValidationErrorProjector: async ({ args, validationError }) => ({ terminal_result: {
         ...jsonContent({ ...await projectToolInputValidationFailure({ tool: 'workspace_deliver_work', args, validationError }),
           next_calls: registeredToolNames.has('workspace_read_wiki') && sessionRole === 'worker'
-            ? [buildNextCall({ tool: 'workspace_read_wiki', arguments: { assignment: true } })] : [],
+            ? [buildNextCall({ tool: 'workspace_read_wiki', arguments: { reads: [{ assignment: true }] } })] : [],
           correction: "Delivery accepts an empty request for this authenticated assignment. The optional read inspects the launcher assignment when available. Explicitly resolve the rejected inputs before choosing to deliver; no corrected mutation was selected." }, { env: responseEnv }),
         isError: true } }) },
     guardToolHandler(async args => {

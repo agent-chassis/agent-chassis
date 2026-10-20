@@ -32,7 +32,14 @@ export interface ProofIntentDiscoveryResult {
   schema_version: 'controlled-contract-proof-intent-discovery.v1';
   mode: 'list' | 'search' | 'detail';
   query: null | { normalized_text: string; terms: string[] };
-  status: 'match' | 'no_match';
+  status: 'match' | 'no_match' | 'partial';
+  availability: {
+    status: 'complete' | 'partial';
+    available: number;
+    unavailable: number;
+    definitions: Array<{ proof_name: string; proof_version: string;
+      failures: Array<{ code: string | null; message: string; details: Record<string, unknown> }> }>;
+  };
   catalog_intent_count: number;
   evaluated_intent_count: number;
   candidate_count: number;

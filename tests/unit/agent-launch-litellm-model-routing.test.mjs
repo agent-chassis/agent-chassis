@@ -117,8 +117,8 @@ test("invalid model routing declarations refuse with stable codes", () => {
 
     ['[models."gpt-5.4"]\nuse_vertexai = true', "role_config.unsupported_key"],
     ['[roles.worker]\nmodel = "gpt-5.4"\nuse_litellm = true', "role_config.unsupported_key"],
-    ['[models."gpt-5.4"]\nuse_litellm = true\nuse_litellm = false', "role_config.duplicate_key"],
-    ['[models."gpt-5.4"]\n[models."gpt-5.4"]', "role_config.duplicate_table"],
+    ['[models."gpt-5.4"]\nuse_litellm = true\nuse_litellm = false', "role_config.invalid_toml"],
+    ['[models."gpt-5.4"]\n[models."gpt-5.4"]', "role_config.invalid_toml"],
     ["[models]\nuse_litellm = true", "role_config.models_root_assignment"],
     ['[models."../x"]', "role_config.invalid_model_table"],
     ['[vertexai]\nport = 70000', "role_config.value_not_port"],

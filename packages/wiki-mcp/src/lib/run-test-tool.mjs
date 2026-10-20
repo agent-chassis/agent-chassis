@@ -9,6 +9,7 @@ import { runOrdinaryTest } from "../../../agent-launch-cli/src/lib/test-executio
 import { ordinaryRequestCorrection } from
   "../../../agent-launch-cli/src/lib/test-execution/ordinary-test-runner.mjs";
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
+import { withAuthenticatedTestExecution } from "../../../agent-launch-cli/src/lib/test-execution/authenticated-execution-context.mjs";
 import { resolveWorkerRepositoryCommand, checkRepositoryCommandDefinitions } from './managed-test-command-context.mjs';
 import { projectAssignmentChangeRecovery } from './verify-proof-source-repair-recovery.mjs';
 import { buildNextCall } from '@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs';
@@ -25,6 +26,7 @@ import { RUN_TEST_RETAINED_KINDS, presentRunTestAnswer, presentRunTestDetailRefu
   "./run-test-result.mjs";
 import { readSelectedResponseSource, retainSelectedResponseSource, selectedResponseRequestSchema } from
   "./selected-response-snapshot.mjs";
+import { runTestSemanticReadCall } from './run-test-carrier.mjs';
 
 export const RUN_TEST_DESCRIPTION = "Run one permitted repository command when your assignment authorizes execution. " +
   "Workers use frozen {entrypoint,selection?,timeout?}; omit selection only for an authored default. " +
@@ -36,7 +38,8 @@ export const RUN_TEST_DESCRIPTION = "Run one permitted repository command when y
   "Responses are limited to 1 KiB (1,024 UTF-8 bytes) total. Captured stdout/stderr share that ceiling and may be clipped. " +
   "A pass finishes this check; optional detail is not required. A failure leads with its cause; follow a returned " +
   "diagnosis only if needed. Reads execute nothing. retry explicitly executes a corrected request using a refusal's " +
-  "correction seed, never a native-result handle. Saved proofs use verify_proof.";
+  "correction seed, never a native-result handle. Oversized structured diagnosis or environment choices use the returned " +
+  "authenticated get_run_result call; it exposes no raw streams. Saved proofs use verify_proof.";
 
 const EXECUTION_ROLES = Object.freeze(["orchestrator", "reviewer", "worker"]);
 const CODES = Object.freeze({
@@ -74,7 +77,7 @@ export async function runOrdinaryTestAndObserve({ runRequest, expansion = [], re
 }
 
 export function createRunTestResultReader({ z, inputSchema = runTestInputSchema(z), jsonContent,
-  errorContent, responseEnv = process.env, refreshEnvironmentRecovery = null }) {
+  errorContent, responseEnv = process.env, refreshEnvironmentRecovery = null, completeReadCall = null }) {
 
   const modeRequestSchema = (mode) => selectedResponseRequestSchema(inputSchema.innerType()
     .pick({ [mode]: true }));
@@ -82,7 +85,7 @@ export function createRunTestResultReader({ z, inputSchema = runTestInputSchema(
   const expected = (kind, { workspace, state }) => runTestExpectedBinding({ kind, repository: workspace.repo,
     authorityIdentity: managedTestAuthorityIdentity(state) });
 
-  const read = async ({ result, view, failure = null }, caller) => {
+  const read = async ({ result, view, failure = null }, caller, { completeSemantic = false } = {}) => {
     try {
       const envelope = readSelectedResponseSource(result, { env: responseEnv,
         expected: expected(RUN_TEST_RETAINED_KINDS.NATIVE_RESULT, caller) });
@@ -94,7 +97,8 @@ export function createRunTestResultReader({ z, inputSchema = runTestInputSchema(
           ? { call: null, recovery: { missing_capability: "authenticated_assignment_change_recovery" } }
           : await refreshEnvironmentRecovery({ command, selection, caller }) : null;
       return jsonContent(presentRunTestRead({ view, failure, carrier: envelope.carrier, locator: result,
-        environmentRecovery }));
+        environmentRecovery, completeSemantic, completeCall: completeSemantic || completeReadCall === null
+          ? null : await completeReadCall(result, view, failure) }));
     } catch (error) {
       if (error?.envelope === undefined) throw error;
       return refuse(presentRunTestDetailRefusal(error));
@@ -124,6 +128,11 @@ export function registerRunTestTool({
   deps = {}
 }) {
   const inputSchema = runTestInputSchema(z, { role: env.WIKI_MCP_TOOL_PROFILE ?? null });
+  const completeReadCall = async (locator, view, failure = null) => {
+    const call = runTestSemanticReadCall(locator, view, failure);
+    const contract = requestContracts?.contractFor(call.tool);
+    return contract != null && await contract.acceptsArguments(call.arguments) ? call : null;
+  };
   const refreshEnvironmentRecovery = async ({ command, selection, caller }) => {
     try {
       const binding = authenticateManagedWorkerSliceBinding({ mainRepo: caller.workspace.dir,
@@ -143,7 +152,7 @@ export function registerRunTestTool({
     }
   };
   const { modeRequestSchema, expected, read, retain: retainOriginal } = createRunTestResultReader({
-    z, inputSchema, jsonContent, errorContent, responseEnv, refreshEnvironmentRecovery });
+    z, inputSchema, jsonContent, errorContent, responseEnv, refreshEnvironmentRecovery, completeReadCall });
   const refuse = (payload) => errorContent(refusal(payload));
   const fail = (error, stage) => refuse(presentRunTestFailure(error, { code: CODES.EXECUTION_FAILED, stage }));
 
@@ -301,7 +310,7 @@ export function registerRunTestTool({
         subject: "settled result", capability: "original_read" }), original_output: "unavailable_beyond_this_answer" };
     }
     const { isError, payload } = presentRunTestAnswer({ outcome, source, locator, retention, correction,
-      environmentRecovery, carrier });
+      environmentRecovery, carrier, completeCall: locator === null ? null : await completeReadCall(locator, 'failure') });
     return isError ? refuse(payload) : jsonContent(payload);
   };
 
@@ -388,8 +397,8 @@ export function registerRunTestTool({
             message: error.message, detail: { entrypoint: request.entrypoint,
               ...(request.selection === undefined ? {} : { selection: request.selection }) }, next_calls: error.next_calls }, true)) {
             const reader = requestContracts?.contractFor('workspace_read_wiki');
-            const canRead = reader !== null && reader !== undefined && await reader.acceptsArguments({ assignment: true });
-            error.next_calls = canRead ? [buildNextCall({ tool: 'workspace_read_wiki', arguments: { assignment: true } })] : [];
+            const canRead = reader !== null && reader !== undefined && await reader.acceptsArguments({ reads: [{ assignment: true }] });
+            error.next_calls = canRead ? [buildNextCall({ tool: 'workspace_read_wiki', arguments: { reads: [{ assignment: true }] } })] : [];
             if (canRead) {
               const { seed, failure } = retainSeed(args, caller);
               return refuse(presentRunTestRefusal({ code: error.code, message: error.message,
@@ -448,7 +457,8 @@ export function registerRunTestTool({
           corrections: (seed) => [{ ...runTestRetryCall(seed, { changes: { source: { kind: "current_main" } } },
             "select_current_main"), recommended: false }] });
       }
-      return await execute({ request, args, caller, signal, commandContext, budget });
+      return await withAuthenticatedTestExecution(state.sessionContract,
+        () => execute({ request, args, caller, signal, commandContext, budget }));
       } finally { budget.dispose(); }
     } catch (error) {
       return fail(error, "route");

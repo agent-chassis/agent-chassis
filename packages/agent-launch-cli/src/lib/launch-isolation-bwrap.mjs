@@ -296,3 +296,20 @@ export function assertBubblewrapAvailable({ env = process.env, bwrapPath = null 
   }
   return candidate;
 }
+
+export function assertBubblewrapDisposableOverlayAvailable(options = {}) {
+  const binary = assertBubblewrapAvailable(options);
+  const unsupported = (cause) => {
+    throw Object.assign(new Error(`disposable test overlay unavailable at ${binary}: ${cause}`),
+      { code: "test_execution_disposable_overlay_unsupported" });
+  };
+  if ((statSync(binary).mode & 0o4000) !== 0) unsupported("setuid bubblewrap cannot provide temporary overlays");
+  const help = spawnSync(binary, ["--help"], { encoding: "utf8", timeout: 5000, maxBuffer: 65536,
+    env: options.env ?? process.env });
+  if (help.error) throw help.error;
+  if (help.status !== 0) unsupported(`capability probe exited ${help.status}: ${help.stderr}`);
+  if (!["--overlay-src", "--tmp-overlay"].every(flag => help.stdout.includes(flag))) {
+    unsupported("requires --overlay-src and --tmp-overlay support in a non-setuid installation");
+  }
+  return binary;
+}

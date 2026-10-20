@@ -10,6 +10,23 @@ function publicDiagnosticMeaning(value) {
     .map(([key, entry]) => [key, publicDiagnosticMeaning(entry)]));
 }
 
+export function publicProofRelationshipDiagnostic(value) {
+  if (value.reason_code !== 'verify_proof.qualifying_verification_ambiguous.v1' ||
+      !Array.isArray(value.verification_ids)) return publicDiagnosticMeaning(value);
+  return { obligation_id: value.obligation_id, reason_code: value.reason_code,
+    field: 'obligations[].claims',
+    cause: 'Several saved verifications qualify for this obligation; its intended verification association is unresolved.',
+    ...(value.verification_ids_total === undefined ? {} : { competing_verification_count: value.verification_ids_total }) };
+}
+
+export function publicProofFailureMeaning(failure) {
+  const meaning = publicDiagnosticMeaning(failure);
+  return { ...meaning, ...(meaning.relationships === undefined ? {} : {
+    relationships: meaning.relationships.map(row => ({ ...row,
+      diagnostics: row.diagnostics.map(publicProofRelationshipDiagnostic) }))
+  }) };
+}
+
 export function publicProofRecoveryMeaning(recovery, proofSubject = undefined) {
   if (recovery === undefined) return undefined;
   if (recovery.condition === 'behavioral_coverage_not_established') return {
@@ -26,6 +43,7 @@ export function publicProofRecoveryMeaning(recovery, proofSubject = undefined) {
       required_meaning: repair.required_meaning, next_step: repair.next_step
     } }),
     ...(acquisition === undefined ? {} : { acquisition: {
+      state: acquisition.state,
       missing_capability: acquisition.missing_capability, reason: acquisition.reason,
       source: { unit: acquisition.source.unit,
         ...(acquisition.source.focus_status === 'unknown' ? { focus_status: 'unknown' }
@@ -67,7 +85,7 @@ export function publicProofSelectedRow(proof) {
       ...relationship,
       ...(relationshipReason?.reason_code == null ? {} : { reason_code: relationshipReason.reason_code }),
       ...(failures.get(relationship.obligation_id)?.diagnostics.length
-        ? { diagnostics: failures.get(relationship.obligation_id).diagnostics } : {})
+        ? { diagnostics: failures.get(relationship.obligation_id).diagnostics.map(publicProofRelationshipDiagnostic) } : {})
     })),
     ...(selectedFailure === undefined ? {} : { failure: { selected_test: selectedFailure } }) };
 }

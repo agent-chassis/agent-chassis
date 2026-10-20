@@ -69,17 +69,28 @@ Read the selected initiative:
 
 ```json request:read-initiative workspace_read_wiki
 {
-  "subject": "initiative"
+  "reads": [
+    {
+      "subject": "initiative"
+    }
+  ]
 }
 ```
 
 ```json response:read-initiative
 {
-  "subject": "<initiative>"
+  "results": [
+    {
+      "status": "ok",
+      "value": {
+        "subject": "<initiative>"
+      }
+    }
+  ]
 }
 ```
 
-Use the returned identity, shown here as `<initiative>`, in `changes.initiative`.
+Use `results[0].value.subject`, shown here as `<initiative>`, in `changes.initiative`.
 
 ## Save written acceptance, then follow the selected branch
 
@@ -101,62 +112,45 @@ Follow the assignment's acceptance requirements. For this example, assume the au
 ```json response:create
 {
   "outcome": "created",
-  "unit": "<unit>"
+  "unit": "<unit>",
+  "revision": "<revision>"
 }
 ```
 
-Read the `ordinary_authoring` guidance before saving. Follow the returned topic read to get its complete instructions:
-
-```json request:ordinary-guidance workspace_read_wiki
-{
-  "subject": {
-    "requirement_guidance": true
-  }
-}
-```
-
-Read the created unit for its current revision and reference:
-
-```json request:read-ordinary workspace_read_wiki
-{
-  "subject": "<unit>"
-}
-```
-
-```json response:read-ordinary
-{
-  "subject": "<unit>",
-  "revision": "<revision>",
-  "reference": {
-    "ref_id": "<ordinary-ref>"
-  }
-}
-```
-
-Read the schemas for the shared written acceptance, both branch saves and the later slice:
+Use the revision returned by creation. Read the ordinary-authoring guidance and the schemas for the shared save, branch saves and later slice together:
 
 ```json request:ordinary-inputs workspace_read_wiki
 {
-  "reference": {
-    "ref_id": "<ordinary-ref>"
-  },
-  "select": {
-    "input_contract": {
-      "tool": "save_record",
-      "members": [
-        "user_requirements",
-        "initiative",
-        "controlled_acceptance",
-        "entries",
-        "criteria",
-        "validation",
-        "read_scope",
-        "write_scope",
-        "repo_paths",
-        "ready_slices"
-      ]
+  "reads": [
+    {
+      "subject": {
+        "requirement_guidance": true,
+        "topic": [
+          "ordinary_authoring"
+        ]
+      }
+    },
+    {
+      "subject": "<unit>",
+      "select": {
+        "input_contract": {
+          "tool": "save_record",
+          "members": [
+            "user_requirements",
+            "initiative",
+            "controlled_acceptance",
+            "entries",
+            "criteria",
+            "validation",
+            "read_scope",
+            "write_scope",
+            "repo_paths",
+            "ready_slices"
+          ]
+        }
+      }
     }
-  }
+  ]
 }
 ```
 
@@ -199,26 +193,13 @@ Save the full criteria, validation and planned scopes on the parent. Retain thes
 
 ```json response:save-written
 {
-  "outcome": "saved"
+  "outcome": "saved",
+  "unit": "<unit>",
+  "revision": "<current-revision>"
 }
 ```
 
-Read the current unit before saving either branch:
-
-```json request:read-acceptance workspace_read_wiki
-{
-  "subject": "<unit>"
-}
-```
-
-```json response:read-acceptance
-{
-  "revision": "<current-revision>",
-  "reference": {
-    "ref_id": "<acceptance-ref>"
-  }
-}
-```
+Reuse the revision returned by `save-written` in the selected branch. A separate context read is unnecessary while that revision remains current.
 
 ### If controlled acceptance remains required
 
@@ -247,7 +228,9 @@ Save the required disposition and the authoring blocker through the schemas read
 
 ```json response:save-compilation-blocker
 {
-  "outcome": "saved"
+  "outcome": "saved",
+  "unit": "<unit>",
+  "revision": "<blocked-revision>"
 }
 ```
 
@@ -257,20 +240,22 @@ Confirm that the save succeeded. Do not remove or replace any existing slices wh
 
 This branch records the operator's selection stated in the example's premises. It does not offer an alternative for the blocked assignment above. Record the reason for the selection; a successful save establishes neither authorization nor satisfaction of requirements. Complete the required native validation and review.
 
-Read the exception schema through the shared setup's current reference:
+Read the exception schema through the known unit:
 
 ```json request:ordinary-exception-inputs workspace_read_wiki
 {
-  "reference": {
-    "ref_id": "<acceptance-ref>"
-  },
-  "select": {
-    "input_contract": {
-      "tool": "save_record",
-      "operation": "exception",
-      "kind": "controlled_acceptance"
+  "reads": [
+    {
+      "subject": "<unit>",
+      "select": {
+        "input_contract": {
+          "tool": "save_record",
+          "operation": "exception",
+          "kind": "controlled_acceptance"
+        }
+      }
     }
-  }
+  ]
 }
 ```
 
@@ -291,83 +276,40 @@ Apply the exception to this unit with the current revision. Put the reason for t
 
 ```json response:explicit-author-choice
 {
-  "outcome": "saved"
+  "outcome": "saved",
+  "unit": "<unit>",
+  "revision": "<ordinary-revision>"
 }
 ```
 
-Read back the saved parent before creating the slice:
+Read the saved request, coverage and validation together before creating the slice:
 
-```json request:read-ordinary-saved workspace_read_wiki
+```json request:ordinary-readback workspace_read_wiki
 {
-  "subject": "<unit>"
-}
-```
-
-```json response:read-ordinary-saved
-{
-  "revision": "<ordinary-revision>",
-  "reference": {
-    "ref_id": "<ordinary-saved-ref>"
-  }
-}
-```
-
-```json request:ordinary-user-requirements workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<ordinary-saved-ref>"
-  },
-  "select": {
-    "field": "sections.user_requirements"
-  }
-}
-```
-
-```json request:ordinary-coverage workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<ordinary-saved-ref>"
-  },
-  "select": {
-    "contract": "coverage"
-  }
-}
-```
-
-```json response:ordinary-coverage
-{
-  "members": {
-    "controlled_acceptance": {
-      "disposition": "opted_out"
-    },
-    "acceptance_criteria": [
-      {
-        "text": "Negative numeric retryLimit returns ok=false and code=retry_limit_negative, without throwing."
-      },
-      {
-        "text": "retryLimit=0 returns ok=true and retryLimit=0."
+  "reads": [
+    {
+      "subject": "<unit>",
+      "select": {
+        "field": "sections.user_requirements"
       }
-    ],
-    "obligations": [],
-    "cases": []
-  }
+    },
+    {
+      "subject": "<unit>",
+      "select": {
+        "contract": "coverage"
+      }
+    },
+    {
+      "subject": "<unit>",
+      "select": {
+        "field": "acceptance.validation"
+      }
+    }
+  ]
 }
 ```
 
-```json request:ordinary-validation workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<ordinary-saved-ref>"
-  },
-  "select": {
-    "field": "acceptance.validation"
-  }
-}
-```
-
-Check that the saved request retains the original wording and the disposition records the explicit choice. Compare the saved criteria and validation with all three requirements. Correct any omitted or changed meaning at the current revision before continuing.
-
-After a corrective save, read the parent again. Use the newly returned revision and reference in place of `<ordinary-revision>` and `<ordinary-saved-ref>` in subsequent calls.
+Check each result's status. Compare the saved request with the original wording. Check that coverage records `controlled_acceptance.disposition: "opted_out"` and that the criteria and validation cover all three requirements. Correct omitted or changed meaning using the current save revision. After a corrective save, use its returned revision for the next save; reacquire context through `for_changes` if the revision is stale or unavailable.
 
 Save a complete slice using the `ready_slices` schema already read. Include the instructions the worker needs without this conversation. Set scopes on the slice; the parent's planned scopes do not give the worker access. Require a negative integer, a negative fraction and zero; the worker chooses the remaining test data, assertions and structure. Put the unchanged helper, `package.json` and regression file in `read_scope`. Put the reader and its test file in `write_scope` and `repo_paths`.
 
@@ -462,6 +404,8 @@ Save a complete slice using the `ready_slices` schema already read. Include the 
 ```json response:save-slice
 {
   "outcome": "saved",
+  "unit": "<unit>",
+  "revision": "<parent-revision-sliced>",
   "bindings": {
     "slice": {
       "reject-negative-limit": "<slice-id>"
@@ -470,158 +414,59 @@ Save a complete slice using the `ready_slices` schema already read. Include the 
 }
 ```
 
-Read the slice by the identity returned from the save. Its revision and reference belong to the slice, not the parent:
+Read the slice's saved assignment, validation, scopes and coverage together. No slice write revision is needed because this branch makes no further slice save:
 
 ```json request:read-slice workspace_read_wiki
 {
-  "subject": "<unit>#<slice-id>"
-}
-```
-
-```json response:read-slice
-{
-  "subject": "<unit>#<slice-id>",
-  "revision": "<slice-revision>",
-  "reference": {
-    "ref_id": "<slice-ref>"
-  }
-}
-```
-
-```json request:slice-fields workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "inventory": "fields"
-  }
-}
-```
-
-Use the returned field names to read the saved assignment, validation and scopes:
-
-```json request:slice-assignment workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "field": "sections.summary"
-  }
-}
-```
-
-```json request:slice-validation workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "field": "acceptance.validation"
-  }
-}
-```
-
-```json response:slice-validation
-{
-  "value": [
+  "reads": [
     {
-      "operation": "repository_test",
-      "id": "retry-tests",
-      "purpose": "Validate retry limits and the unchanged helper",
-      "selections": [
-        {
-          "id": "focused",
-          "harness": {
-            "cwd": ".",
-            "argv": [
-              "node",
-              "--test",
-              "tests/unit/retry-config.test.mjs",
-              "tests/unit/config-result.test.mjs"
-            ]
-          },
-          "definition_paths": [
-            "package.json"
-          ]
-        }
-      ]
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "field": "sections.summary"
+      }
+    },
+    {
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "field": "acceptance.validation"
+      }
+    },
+    {
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "field": "read_scope"
+      }
+    },
+    {
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "field": "repo_paths"
+      }
+    },
+    {
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "field": "write_scope"
+      }
+    },
+    {
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "contract": "coverage"
+      }
     }
   ]
 }
 ```
 
-The worker uses `retry-tests` as `entrypoint` and `focused` as `selection`. `cwd` is the working directory. `argv` contains the program and its arguments. `definition_paths` lists the files that define the command. No default selection is saved, so the worker must supply both names:
+The first five results contain the assignment, validation and scopes in request order. `summary.text` is read as `sections.summary`; saved validation is read as `acceptance.validation`. The last result contains the semantic contract members and `controlled_acceptance`. Check every result's status before using its value. In coverage, criteria have `kind: "criterion"`; obligations and cases have their own member kinds.
+
+The saved command uses `retry-tests` as `entrypoint` and `focused` as `selection`. `cwd` is the working directory. `argv` contains the program and its arguments. `definition_paths` lists the files that define the command. No default selection is saved, so the worker must supply both names:
 
 ```json unsent:worker-validation workspace_run_test
 {
   "entrypoint": "retry-tests",
   "selection": "focused"
-}
-```
-
-```json request:slice-read-scope workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "field": "read_scope"
-  }
-}
-```
-
-```json request:slice-repo-paths workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "field": "repo_paths"
-  }
-}
-```
-
-```json request:slice-write-scope workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "field": "write_scope"
-  }
-}
-```
-
-```json request:slice-coverage workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "contract": "coverage"
-  }
-}
-```
-
-```json response:slice-coverage
-{
-  "members": {
-    "controlled_acceptance": {
-      "disposition": "opted_out"
-    },
-    "acceptance_criteria": [
-      {
-        "text": "The extended test \"rejects negative retry limits\" demonstrates that readRetryConfig returns a rejection with ok=false and code=retry_limit_negative for negative numeric retryLimit."
-      },
-      {
-        "text": "The extended test \"accepts a valid retry limit\" demonstrates that readRetryConfig returns an acceptance with ok=true and retryLimit=0 for retryLimit 0."
-      }
-    ],
-    "obligations": [],
-    "cases": []
-  }
 }
 ```
 

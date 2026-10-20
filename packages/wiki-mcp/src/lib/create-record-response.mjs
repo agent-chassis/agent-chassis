@@ -1,6 +1,6 @@
 
 
-import { saveRecordIdentityBindings } from './save-record-response.mjs';
+import { saveRecordIdentityBindings, saveRecordMaintenanceMeaning } from './save-record-response.mjs';
 export function creationFacts(body) {
   const published = body.effects?.published;
   const result = { outcome: published === true ? 'created' : published === 'unknown' ? 'unknown' : body.outcome,
@@ -43,18 +43,7 @@ export function creationConflictSubject(body) {
 }
 
 export function creationMaintenance(body) {
-  const pending = (body.maintenance?.members ?? []).filter(row => row.state !== 'succeeded' ||
-    row.check?.cause_code != null || row.check?.cause_message != null);
-  if (pending.length === 0 && body.maintenance?.coordination?.stage === 'settled_attempt') return null;
-  if (pending.length === 0 && body.maintenance?.cause === undefined) return null;
-  return { ...(body.maintenance.state === undefined ? {} : { state: body.maintenance.state }),
-    ...(body.maintenance.cause === undefined ? {} : { cause: creationCause(body.maintenance.cause) }),
-    members: pending.map(({ member, state, check }) => ({ member, state,
-      ...(check === undefined ? {} : { check: {
-        ...(check.generated_views === undefined ? {} : { generated_views: check.generated_views }),
-        ...(check.cause_code == null && check.cause_message == null ? {} : { cause_code: check.cause_code, cause_message: check.cause_message }),
-        ...(check.top_findings?.length ? { findings: check.top_findings } : {})
-      } }) })) };
+  return saveRecordMaintenanceMeaning(body);
 }
 
 export function creationRecovery(body, maintenance) {
@@ -74,8 +63,8 @@ export function creationRecovery(body, maintenance) {
     stopping_condition: 'Do not repeat creation. The retained outcome does not establish publication. A current-subject read cannot reconcile this operation or repair its participants.'
   };
   if (maintenance !== null && body.maintenance?.members?.length > 0 && body.maintenance.members.every(row => row.state === 'succeeded')) return {
-    state: 'no_supported_route', code: 'creation_maintenance_cleanup_incomplete',
-    stopping_condition: 'Creation and checks completed, but the reported cleanup failed. maintenance_retry cannot repair a durably successful check; no cleanup recovery route is available.'
+    state: 'no_supported_route', code: 'creation_post_check_failure',
+    stopping_condition: 'Creation and checks completed, but the executor then reported this failure. No recorded remaining action is available; do not repeat creation or completed checks.'
   };
   if (maintenance !== null && body.original?.available !== true) return {
     state: 'no_supported_route', code: 'creation_maintenance_receipt_unavailable',

@@ -235,25 +235,22 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
 
   component: {
     field: CASE_COMPONENT_FIELD,
-    forms: '{reference_id} selects a saved reference; {type_term, identity} names one by value and reuses a ' +
+    forms: '{type_term, identity} names the intended component and reuses a ' +
       'saved reference with that exact type_term and identity.',
-    role_constraint: "The selected proof's component parameter refines the accepted type_terms, identity kinds " +
-      "and cardinality. Read them with the unit's workspace_read_wiki selection {obligation, parameters: true}: parameter_contract " +
-      '.parameters[name=component].refinements. A mismatch is refused with ' +
-      'obligation_coverage_prospective_incompatible, whose cause names the role and actual_references.',
+    role_constraint: "When the selected proof declares a component parameter, its refinements constrain accepted " +
+      "type_terms, identity kinds and cardinality. Inspect that proof's parameter contract when those constraints " +
+      "matter. A mismatch is refused with obligation_coverage_prospective_incompatible and the actual failed role.",
     identity_uniqueness: 'One identity names one referent and has one type_term across the contract. A ' +
       '{type_term, identity} whose identity is saved under another type_term is refused ' +
       '(duplicate_reference_identity) with the saved and requested reference. Decide the single type of that ' +
       'referent where it is authored; do not rename it through another identity kind or term to pass.',
 
     module_source: 'A module test binding derives its runtime module path only from the resolved component ' +
-      "identity: a by-value {kind: 'repository_path', repository, path}, or a {reference_id} whose saved " +
-      'reference has that identity, supplies path when it names a module source the schema accepts. A ' +
+      "identity: {kind: 'repository_path', repository, path} supplies path when it names a module source the schema accepts. A " +
       'profile_term or other descriptive identity names meaning, not a source location, and supplies no ' +
       'module path even when its term mentions a file. Author the actual repository and path; the module ' +
       'path itself is derived and never authored.',
-    identities: "The unit's workspace_read_wiki selection {contract: 'references'} lists each saved reference_id, " +
-      'type_term and identity.'
+    identities: "The unit's workspace_read_wiki selection {contract: 'references'} returns authored type_term and identity meaning."
   },
 
   observation: {
@@ -464,7 +461,7 @@ export function applyNativeTestProofCase({ contract, row, caseInput, subject, bu
       'Select a saved declaration associated with this obligation',
       association('unassociated_declaration', matches.map(proof => proof.verification_claim_id)));
   } else if (matches.length > 1) throw new ProofAuthoringError('case_selector_ambiguous',
-    'Select one returned verification identity',
+    'Select one eligible verification by its authored meaning',
     association('ambiguous_declaration', matches.map(proof => proof.verification_claim_id)));
   else binding = matches[0];
   if (!binding) {

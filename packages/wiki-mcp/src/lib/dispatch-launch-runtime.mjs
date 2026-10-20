@@ -99,6 +99,8 @@ import {
 import { createWorkspaceRepoResolutionError } from "./workspace-repo-resolution.mjs";
 import { integrateWorkBackendOptions } from "./task-integrate-work.mjs";
 import { createObservationOriginals } from "./task-get-run-result-delivery.mjs";
+import { createIntegrationOriginals } from "./task-integrate-work-result.mjs";
+import { canonicalWorkRecordIdentity } from "./dispatch-terminal-review-contract.mjs";
 
 export { consumeDispatchCodexTestSeamEvidence };
 export {
@@ -767,7 +769,8 @@ export function buildDispatchRuntime(env = process.env, {
                 workspace: trustedWorkspace, sessionEnv: env, responseEnv: env,
                 backendOptions: { worktreeProvisioning: worktreeProvisioningConfig,
                   requireManagedProvisioning: true,
-                  prepareTerminalCandidate: terminalCandidateCoordinator?.prepareTerminalCandidate ?? null }
+                  prepareTerminalCandidate: terminalCandidateCoordinator?.prepareTerminalCandidate ?? null,
+                  recoverSelectedCandidateCheckout: terminalCandidateCoordinator?.recoverSelectedCandidateCheckout ?? null }
               }) : {}),
           captureRunOriginal: trustedWorkspace === null ? null : observation => createObservationOriginals({
             workspace: trustedWorkspace, sessionEnv: env, responseEnv: env }).capture(observation),
@@ -799,8 +802,20 @@ export function buildDispatchRuntime(env = process.env, {
         } catch (error) {
 
           const synchronization = projectTerminalCandidatePublicationSynchronization(error);
+          let integrationRecovery = null;
+          let recoveryFailure = null;
+          try {
+            const identity = canonicalWorkRecordIdentity({ mainRepo: trustedWorkspace.dir, recordId: assignedUnit });
+            if (identity.ok !== true) throw identity.cause;
+            const selected = await terminalCandidateCoordinator.observeSelectedCandidateIdentity(assignedUnit);
+            if (selected !== null) integrationRecovery = await createIntegrationOriginals({
+              workspace: trustedWorkspace, sessionEnv: env, responseEnv: env }).unfinishedPreparation({
+              units: identity.record.slices.map(slice => `${assignedUnit}#${slice.id}`),
+              candidate: selected.binding });
+          } catch (failure) { recoveryFailure = captureDiagnosticEvidence(failure); }
           return {
             accepted: false,
+            ...(integrationRecovery === null ? {} : { integration_recovery: integrationRecovery }),
             refusal: projectWkForgeHandoffRefusal({
               ok: false,
               category: WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY,
@@ -810,6 +825,7 @@ export function buildDispatchRuntime(env = process.env, {
                 subject: { assigned_unit: assignedUnit },
                 ...authenticatedTypedCandidateFailure(error),
                 ...(synchronization === null ? {} : { synchronization }),
+                ...(recoveryFailure === null ? {} : { recovery_failure: recoveryFailure }),
                 evidence: captureDiagnosticEvidence(error)
               }
             })

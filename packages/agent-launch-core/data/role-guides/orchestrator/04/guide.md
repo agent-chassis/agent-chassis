@@ -8,13 +8,13 @@ Controlled acceptance is required. Save the parent requirements and the obligati
 
 ## Understand the request
 
-Read known records with `workspace_read_wiki({subject})`; find unknown records with `workspace_read_wiki({search:{query:"<what you need>"}})`. Follow returned calls to read complete content, consult input schemas and recover from refusals. Reuse information while it remains current.
+Read known records with `workspace_read_wiki({reads:[{subject:"<unit>"}]})`; find unknown records with `workspace_read_wiki({reads:[{search:{query:"<what you need>"}}]})`. Request related information together. Results follow request order; check each result's status. Follow returned calls for needed content, schemas and recovery. Reuse complete information while it remains current.
 
 Start code investigation with `query_code_index` for change impact on files you expect to change. Read the relevant source, callers, dependencies, tests, component registration, fixtures and generated outputs. If the result is incomplete, inspect the missing context through permitted source tools. Record what remains unknown; do not infer that missing results mean no other code depends on the change.
 
 Repository access is inclusion-based; do not assume unlisted files are visible. An existing file outside permitted paths can appear as “No such file”, and Git can report hidden tracked files as deleted. Check permitted paths before treating either observation as a repository defect or assigning a repair; both observations can have other causes. Use `workspace_read_wiki` for records unavailable as files. Ask the operator for needed source access outside your permitted paths; do not retrieve hidden source through tests.
 
-Use the existing assignment's unit, or create new work with `workspace_create_record`. Read the unit's current revision before saving. Pass it to `save_record`, save related changes together, and refresh the revision after changes.
+Use the existing assignment's unit, or create new work with `workspace_create_record`. For an existing unit, request write context with `workspace_read_wiki({reads:[{subject:"<unit>",for_changes:["<member to change>"]}]})`. Use `contexts[unit].revision` in `save_record`. Creation and successful saves also return a revision; reuse it for the next save. Save related changes together. If a revision is stale or unavailable, follow the returned context read.
 
 Save the complete current request through `changes.user_requirements` in `save_record`. Separate requested behavior, inspected facts and unanswered questions. Account for defaults, exceptions, options and interactions. Do not silently narrow the request or add requirements.
 
@@ -23,9 +23,9 @@ Record decisions that affect the assignment, why you made them, and what remains
 ## Author acceptance
 
 Before preparing acceptance and assignments, read the authoring vignette:
-`workspace_read_wiki({reference:{tool_name:"save_record",path:"packages/agent-launch-core/data/role-guides/orchestrator/04/authoring-vignette.md"}})`.
+`workspace_read_wiki({reads:[{reference:{tool_name:"save_record",path:"packages/agent-launch-core/data/role-guides/orchestrator/04/authoring-vignette.md"}}]})`.
 
-Read authoring guidance with `workspace_read_wiki({subject:{requirement_guidance:true}})` and follow its topic and schema reads.
+Read authoring guidance with `workspace_read_wiki({reads:[{subject:{requirement_guidance:true}}]})` and follow its topic and schema reads.
 
 Before dispatch, read the existing initiative selected by the user and set the parent WK's `changes.initiative` to its returned identity. If that choice is missing, ask the user; do not infer it.
 
@@ -41,11 +41,11 @@ Use the same evidence for several requirements when it establishes each. Choose 
 
 Follow the acceptance requirements established by user direction and repository policy. Unavailable capability, difficulty, risk, scope or time does not authorize changing them.
 
-For controlled acceptance, author structured requirements and link each criterion to its requirement claims and selected proof through `obligations`. Find candidate proofs with `workspace_find_proofs`. Read their assertions and exclusions before choosing them; plan separate checks for anything they do not establish.
+For controlled acceptance, author structured requirements and link each criterion to its requirement claims and selected proof through `obligations`. Select saved requirements, claims and criteria by the text and fields that identify them; use `$key` names only within the save that declares them. Find candidate proofs with `workspace_find_proofs`. Read their assertions and exclusions before choosing them; plan separate checks for anything they do not establish.
 
 If a tool failure prevents you from completing required acceptance, follow its recovery instructions. If you still cannot complete it, record the blocker and stop before dispatch. Save the complete written request, criteria, validation and planned scopes. Do not remove or replace existing slices when recording the blocker.
 
-Save the requirements and obligations, then call `workspace_assess_contract`. Check `specification` for missing definitions or incomplete requirements. Check `acceptance_coverage` for criteria whose obligations are missing or invalid. Follow the returned corrections and assess again.
+Save the requirements and obligations, then call `workspace_assess_contract`. Check `assessment.authored` for invalid inputs and `assessment.specification` for missing definitions or incomplete requirements. Check any reported `assessment.criterion_coverage` gap for criteria whose obligations are missing or invalid. Follow the returned corrections and assess again.
 
 For each implementation slice, create obligations for its own criteria and assess it before dispatch. Check implementation evidence after delivery; do not claim that authoring or assessment has tested the implementation.
 
@@ -97,4 +97,4 @@ Use `workspace_check_landing` to check whether published work has landed. Do not
 
 Lead reports with the outcome, next action or blocker. Distinguish what passed, failed or did not run. Give actionable corrections and references to retained results. Report token counts only when measured.
 
-Report useful confusion, limitations or token waste with `workspace_record_feedback`. Read its guidance with `workspace_read_wiki({reference:{tool_name:"workspace_record_feedback",path:"docs/agent-feedback.md"}})`, then give facts, location and `attempted_action`. Do not guess causes, report routine corrected errors, or make feedback a completion requirement. Do not enter a feedback retry loop.
+Report useful confusion, limitations or token waste with `workspace_record_feedback`. Read its guidance with `workspace_read_wiki({reads:[{reference:{tool_name:"workspace_record_feedback",path:"docs/agent-feedback.md"}}]})`, then give facts, location and `attempted_action`. Do not guess causes, report routine corrected errors, or make feedback a completion requirement. Do not enter a feedback retry loop.

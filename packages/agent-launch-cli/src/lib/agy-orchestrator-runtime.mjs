@@ -64,25 +64,9 @@ export async function executeAgyOrchestrator(plan, { env = process.env, io = {} 
       nativeUsage: nativeUsage.tap === null ? null : { tap: nativeUsage.tap, logPath: plan.headlessLogTarget.logPath },
       nativeCompletion: { captureStdout: false, captureStderr: plan.headless,
         stderrLogPath: plan.headless ? plan.headlessLogTarget.logPath : null, complete: async ({ stderr }) => {
-        const headlessResult = plan.headless ? await nativeExport.complete({ stderr,
-          logPath: nativeUsage.tap === null ? plan.headlessLogTarget.logPath : null }) : null;
-        let facts;
-        try {
-          facts = readAgySessionFacts({ stateRoot: runtime.stateRoot, repo: plan.repo,
-            nativeSessionId: plan.previous?.native_session_id ?? null,
-            afterStepIndex: plan.previous?.native_last_step_index ?? -1 });
-        } catch (error) {
-
-          if (headlessResult?.ok !== false) throw error;
-          return { ok: false, reason: headlessResult.reason, extra: { ...headlessResult.extra,
-            native_state_failure: { message: error.message, code: error.code ?? null } } };
-        }
-        const decoded = headlessResult ?? facts.completion;
-        const identityMatches = !plan.headless || decoded.nativeSessionId === facts.nativeSessionId;
-        return { ok: decoded.ok && facts.completion.ok && identityMatches,
-          reason: !decoded.ok ? decoded.reason : !facts.completion.ok ? facts.completion.reason
-            : !identityMatches ? "agy_session_id_conflict" : undefined,
-          extra: { ...decoded.extra, native_session_id: facts.nativeSessionId, native_last_step_index: facts.lastStepIndex } };
+        return completeAgyOrchestratorInvocation({ stateRoot: runtime.stateRoot, repo: plan.repo,
+          previous: plan.previous, nativeExport,
+          stderr, logPath: nativeUsage.tap === null && plan.headless ? plan.headlessLogTarget.logPath : null });
       } },
       spawnChild: () => {
         if (!plan.headless) return spawnIsolated(isolated, { stdio: ORCHESTRATOR_INTERACTIVE_STDIO });
@@ -101,4 +85,26 @@ export async function executeAgyOrchestrator(plan, { env = process.env, io = {} 
       native_completion_reason: retained?.native_completion_reason ?? null, ...outcome, runtime_dir: plan.runtimeDir })}\n`);
     return outcome;
   } finally { nativeExport?.close(); await conduit.cleanup(); }
+}
+
+export async function completeAgyOrchestratorInvocation({ stateRoot, repo, previous = null,
+  nativeExport = null, stderr = "", logPath = null }) {
+  let facts, stateError;
+  try {
+    facts = readAgySessionFacts({ stateRoot, repo, nativeSessionId: previous?.native_session_id ?? null,
+      afterStepIndex: previous?.native_last_step_index ?? -1 });
+  } catch (error) { stateError = error; }
+  const headlessResult = nativeExport === null ? null : await nativeExport.complete({ stderr, logPath, sessionFacts: facts });
+  if (stateError) {
+    if (headlessResult?.ok !== false) throw stateError;
+    return { ok: false, reason: headlessResult.reason, extra: { ...headlessResult.extra,
+      native_state_failure: { message: stateError.message, code: stateError.code ?? null } } };
+  }
+  const decoded = headlessResult ?? facts.completion;
+  const stateCompletion = headlessResult?.stateCompletion ?? facts.completion;
+  const identityMatches = nativeExport === null || decoded.nativeSessionId === facts.nativeSessionId;
+  return { ok: decoded.ok && stateCompletion.ok && identityMatches,
+    reason: !decoded.ok ? decoded.reason : !stateCompletion.ok ? stateCompletion.reason
+      : !identityMatches ? "agy_session_id_conflict" : undefined,
+    extra: { ...decoded.extra, native_session_id: facts.nativeSessionId, native_last_step_index: facts.lastStepIndex } };
 }

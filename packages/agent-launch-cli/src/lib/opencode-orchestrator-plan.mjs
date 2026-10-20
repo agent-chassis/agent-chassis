@@ -29,7 +29,7 @@ export async function buildOpenCodeOrchestratorPlan(context) {
   const previous = role === "orch-resume" ? validateOpenCodeResumeState(await readOrchestratorSessionState(runtimeDir),
     { repo, initiative, runtimeDir }) : null;
   const hostProfile = resolveLauncherHostSessionProfile({ workspaceDir: repo, role: "orchestrator" });
-  const guideDelivery = resolveRoleGuideInstructions({ role, workspaceDir: repo, selection: resolved,
+  const guideDelivery = resolveRoleGuideInstructions({ role, workspaceDir: repo, selection: resolved.model_selection,
     registeredTier: hostProfile.registeredTier, publishControlledAcceptanceOptOut: hostProfile.publishControlledAcceptanceOptOut });
   if (guideDelivery?.highPriority !== true) throw new Error("opencode_native_guide_delivery_unavailable: select high_priority_role_guide");
   const threadName = buildOrchestratorThreadName({ subject: initiative, repoName: path.basename(repo) });
@@ -38,14 +38,14 @@ export async function buildOpenCodeOrchestratorPlan(context) {
     focus: focusArgs.join(" "), headless, registeredTier: hostProfile.registeredTier, publishControlledAcceptanceOptOut: hostProfile.publishControlledAcceptanceOptOut }), guideDelivery);
   const configured = await resolveConfiguredAgentExecutable({ agentName: "opencode", workspaceDir: repo });
   const commandLine = buildOpenCodeCommandLine({ executable: configured.executable, leadingArgs: configured.leadingArgs,
-    model: resolved.model, effort: resolved.effort, prompt, headless, resultMode: "free_prose",
+    model: resolved.model, effort: resolved.effort, opencode: resolved.model_selection?.opencode, prompt, headless, resultMode: "free_prose",
     nativeSessionId: previous?.native_session_id ?? null });
-  return { schema_version: "opencode-orchestrator-plan.v1", planner_kind: "opencode_orchestrator",
+  return Object.defineProperty({ schema_version: "opencode-orchestrator-plan.v1", planner_kind: "opencode_orchestrator",
     family: "opencode", mode: previous === null ? "start" : "resume", role, subject: initiative,
     repo, runtimeDir, threadName, settings: { model: resolved.model, effort: resolved.effort },
     command: commandLine.command, args: commandLine.args, commandLine, prompt, guideDelivery, hostProfile,
     headless, previous, headlessLogTarget: headless ? resolveHeadlessLogTarget({ runtimeDir, logFileOverride: logFile }) : null,
-    dispatchWorktreeRoot: context.dispatchWorktreeRoot };
+    dispatchWorktreeRoot: context.dispatchWorktreeRoot }, "modelSelection", { value: resolved.model_selection });
 }
 
 async function run(context, role) {

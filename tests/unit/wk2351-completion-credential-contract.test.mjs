@@ -5,11 +5,20 @@ import {
   LAUNCHER_AGENT_SESSION_CONTRACT_FIELDS,
   LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION,
   digestLauncherAgentSessionContract,
-  mintTrustedStdioMcpConduitAuthority,
+  mintTrustedStdioMcpConduitAuthority as mintUnboundAuthority,
+  bindLauncherAgentSessionExecutionBackend,
   resolveLauncherAgentSessionContract,
   resolveLauncherAgentSessionContractFacts,
   authenticateLauncherAgentSessionContract
 } from "../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
+import { createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn } from
+  "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-provenance.mjs";
+function mintTrustedStdioMcpConduitAuthority(input) {
+  const authority = mintUnboundAuthority(input);
+  bindLauncherAgentSessionExecutionBackend(authority,
+    createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn());
+  return authority;
+}
 
 function reviewerAuthority() {
   return mintTrustedStdioMcpConduitAuthority({

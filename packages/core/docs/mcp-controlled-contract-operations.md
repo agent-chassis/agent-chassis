@@ -138,6 +138,22 @@ with exact counts and the one call that returns the complete retained
 catalogue or index in one answer. There is no page, cursor, continuation or
 remaining count, and no proof has to be read to follow one already listed.
 
+When one definition cannot be read or authenticated, discovery excludes its
+meaning and reports its exact proof identity and specific failures in
+`availability.definitions`. A partially available catalogue/search states
+`availability.status: "partial"`, with available and unavailable definition
+counts. Healthy choices remain selectable through the returned form; a failed
+definition cannot be selected or substituted. A search covers only available
+definitions, so zero matches in that population is not a complete negative
+search. An entirely unavailable population refuses with
+`proof_discovery_definitions_unavailable`; it is never an empty successful
+catalogue or search. A known unavailable name reports that definition's failure.
+A healthy named read carries only its selected meaning, without unrelated
+failures. Global metadata/catalogue failures and source movement still refuse
+fresh acquisition; retained meaning remains historical. Package import does not
+perform proof selection: selection operations retain strict whole-definition
+validation before consuming selection meaning.
+
 A complete catalogue or index names each proof and carries its short
 description; it carries no proof's assertion, exclusions, parameter contracts
 or definition digests. `population` distinguishes query matches from the
@@ -161,7 +177,10 @@ a property, selects a nearby proof or recommends an exception.
 
 A selected proof defaults to its `overview`; authoring is never added just
 because it fits the delivery limit. The overview offers its exact retained
-authoring call. Named parameter/constraint alternatives are incomplete forms
+authoring call. Comparisons are optional through `part: {kind: "comparisons"}`
+or the overview's exact returned comparison call; they identify actual
+alternatives with retained/current reads and do not extend the admitted
+assertion. Named parameter/constraint alternatives are incomplete forms
 with `known_arguments` and `missing_caller_input`; fill the named member from
 the proof's returned index, preserving the result and selected proof. No first
 parameter or constraint is chosen. Parameter answers offer exact calls for each
@@ -173,7 +192,7 @@ scenarios distinguish insufficient evidence, false propositions, excluded
 behavior and unsupported mechanism shapes; an excluded conclusion need not cause
 evaluator refusal, and a fit does not establish applicability to the caller’s
 source. The overview also carries the complete admitted assertion, exclusions,
-intent comparisons, parameter index, constraint
+parameter index, constraint
 count and the constraint selectors no parameter names, its observations, and
 `verification_capability`: the fact a caller selects a usable proof by, null
 when the proof declares no test execution. The overview and the bounded proof
@@ -325,9 +344,9 @@ claims with a successful case's claim to clear validation. Reading guidance
 chooses nothing, writes no authored state and executes no proof or proof credit.
 
 For a genuinely different test, resubmit the unchanged requirement meaning in
-`changes.requirements` without `id`, with distinct verification meaning and a
-`verification.key`. The returned `bindings.verification` supplies the identity to
-link in the different obligation's `claims` and `case.verification`. The existing
+`changes.requirements` using its requirement `target`, with distinct verification meaning and a
+`verification.key`. A same-request `$key` or a later semantic verification
+selection links the different obligation's `claims` and `case.verification`. The existing
 requirement, verification and case keep their meaning. These templates require
 authored choices and are not executable until those values are supplied. Removing
 an obligation does not delete its case. No correction deletes, reassigns or reuses
@@ -342,68 +361,34 @@ resources are source-bound; current reads report current facts while original
 references preserve their authenticated observation. A restart does not execute,
 refresh proof pins or rewrite canonical state.
 
-For saved meaning, start with `{contract:"requirements",view:"summary"}` using
-that unit's returned reference. Ordinary context offers it in `next_calls` as
-optional `saved_requirements_summary` inspection. Requirements-focused editing
-retains this inspection there; notes-only editing does not recommend it.
-The summary reports compilation/definition state and exact row and unresolved
-counts, without row previews. Its `selection_context` declares a requirements
-`choices` template: reuse the reference and select and supply the caller's own
-nonblank `query`. Concrete optional detail calls remain in `next_calls`.
-For dependent authoring, use the save receipt's keyed issued bindings and current
-revision directly. When saved-row information is missing, the optional
-`requirement_identities` call selects
-`{contract:"requirements",view:"identities"}` and returns the complete
-authorized row/claim inventory, including grouped rows, verification associations
-and collection identities, without full authored meaning or generated compilation.
-Saved receipts retain all issued requirement/verification key bindings and row
-mappings even when assessment/maintenance detail is compacted. Their identity
-inspection can select this same view. An inventory cannot reconstruct lost
-caller-local keys by row order. Use a row's `row_id` to restate the whole
-authored row and its individual `claim_ids` for claim associations; they are
-different identities. Reuse a held current revision; reacquire context when
-freshness is no longer established or a stale write is refused. Retained
-identities and historical observations do not establish
-current source availability or authorize stale revisions.
-Unknown saved-row refusals recommend that same focused identity selection;
-schema guidance remains available without substituting for the issued IDs.
-`view:"choices",query:<caller words>` returns every matching row in source order.
-Each whitespace-separated term matches literally, ignoring case, within a scalar
-of that row's own authored statement; terms may match different values and
-punctuation is literal.
-Metadata, rendered vocabulary and transitive definitions are not searched.
-The response preserves the query, matching rule and exact population/match counts.
-No lexical match offers query refinement and an explicit complete-inventory call;
-it establishes no applicability and remains distinct from an absent source, an
-empty present population or unavailable source. Omitting `query` explicitly
-selects the complete choice inventory.
-Choices distinguish rows using the exact structured
-`authored_statement`, source state and any pending input. They carry authored
-subjects, modalities, normative relations/operands and applicability metadata,
-without rendered vocabulary or definition expansions. A defining row retains
-`definition:true` and marks its defining value as `definition_body:"selected_row"`;
-the complete defining body stays in the selected row. Identical public descriptions
-remain separate rows with `choice_state:"ambiguous"`; the reader invents no
-distinction or slice applicability. Existing row/verification/dependency selection
-bindings retain their exact identities.
-`view:"row",row_id:<returned row id>` reads one complete saved row;
-its emitted `view:"verifications",row_id:<same row id>` call reads all linked
-native verification meanings, requirement-to-verification identities and the
-referenced entities needed to restate them. It uses the existing verification
-projection, including declared runtime-test boundaries and falsifiers, without
-the full requirement population or generated compilation. Both reads are
-complete selections subject to the existing delivery bound; neither truncates
-required meaning or executes proof.
-`view:"dependencies",row_id:<returned row id>` reads its transitive definition
-context, including lexical scopes, from the descriptions owner's root graph.
-`view:"compiled"` explicitly reads generated CEL and bindings; `view:"unresolved"`
-reads the complete saved unresolved population. Omit the modifier for the full
-requirements population and row inventory. Modifiers apply only to requirements;
-row, verification and dependency views require a row id, and other views forbid it.
-Only choices accepts `query`; blank, non-string and wrong-view queries refuse
-without becoming implicit inventories. Queries issue no write revision. Every view
-keeps the existing authenticated unit, worker assignment, frozen source and
-source-currentness bounds. A row outside that population is refused.
+For saved meaning, use `workspace_read_wiki({reads:[...]})`. One read is a
+length-one batch; mixed selections share a call. Known public subjects can select
+contract requirements, verifications, collections, obligations, cases or references
+directly. Omitted `where` selects the authorized population. A structural `where`
+selects caller-known authored meaning, with exact scalar matching and complete
+array matching; it never guesses from order, recency or prose similarity. Request
+`include:["verifications","dependencies"]` on a requirement only when the work
+needs those additional meanings. Compiler rows, IDs and generated expressions are
+private, including in optional reads.
+
+A requirement selector is `{kind:"requirement",match:{...authored meaning...}}`,
+or `{kind:"requirement",obligation:<public obligation ID>}` for its associated set.
+A claim selector narrows a requirement with `{kind:"claim",requirement,match}`;
+a verification selector uses `{kind:"verification",requirement,match?}` or
+`{kind:"verification",case:<public case ID>}`. Collections use
+`{kind:"collection",match:{kind?,purpose?,members?}}`. Drafts and grouped
+declarations remain whole authored requirements. Whole-declaration mutation and
+collection membership require exactly one match; association/read tasks retain
+the declared set semantics. Missing and ambiguous selections report the failed
+meaning and meaningful distinctions without minting alternate handles.
+
+Successful save receipts supply the next write revision and only necessary new
+public identities. Dependent authoring can immediately reuse the caller's known
+semantic selections. Optional retained outcomes preserve historical save meaning
+and never execute checks or establish current write authority. Request current
+`for_changes:[...members]` context when freshness is unknown or a stale write
+refuses; its revision is bound to that authorized source. An unavailable source
+remains unavailable rather than becoming an empty population.
 
 ## Validation and correction
 
@@ -895,9 +880,13 @@ Definition assessment follows the selected obligation or slice dependency
 closure. Unrelated sibling definition holes do not contaminate it. Unfinished
 meaning belongs to the parent specification as a whole: the selected answer
 states that broader unit qualification without inventing an obligation mapping
-or a local missing operand. Each unfinished entry has its revision-bound `uN`
-identity and saved location in the selected diagnosis, which retains its full
-text and any recorded exception. Follow that diagnosis's current parent read
+or a local missing operand. Each unfinished entry retains its full text,
+reason, vocabulary suggestion and any recorded exception. A grammar exception's
+`subject` selects that saved fragment with `{kind:"unresolved",match:{text,...}}`,
+optionally constrained by exact `reason`, `candidate_concept` or their absence.
+Missing or indistinguishable targets refuse without mutation; no position is a
+public identity. Apply and withdraw preserve the fragment's authored meaning and
+existing authority; the exception keeps it unresolved and unenforced. Follow that diagnosis's current parent read
 and requirement-batch guidance, author the intended typed behavior with its
 source passages, and retain only the entries still unfinished in `unresolved`.
 Resolving all unfinished meaning and other specification findings makes the
@@ -1036,40 +1025,82 @@ The stored shape and projection preserve these rules:
   written with each entity bound, its exact unfinished fields, the canonical
   constraint identities and native claim identities it emits, and its optional
   source link. Native operative claims without rows participate in the same whole-specification derivation.
-- A row has a durable `row_id`, kept through correction. `key` labels a new
-  row, `row_id` restates a saved row as a whole, and `id` corrects one saved
-  requirement claim as before. `remove.requirement_rows` removes whole rows or
-  collections; `remove.requirements` retires native claims as before. A claim
-  that is one of several its row emits is corrected or retired through its
-  row.
-- Restating a row keeps every claim both declarations emit, with its links. A
-  claim only the old declaration emitted retires; a claim only the new one emits
-  is new. Correction-induced retirement never authorizes deleting obligations
-  or cases. A dependent use or case that still names a retiring identity refuses
-  the entire save, including unrelated explicit removals, before publication.
-  The refusal names affected rows, claims, verifications, obligations, cases and
-  units and returns corrective reads. Nothing maps old members to new ones or
-  transfers proof credit. Explicit `remove.requirements` and
-  `remove.requirement_rows` retain their deliberate scope-removal semantics.
-- For a single-claim correction, choose `id` instead of `row_id` and explicitly
-  list retained affected cases in `rebind_case_ids` when their verification
-  changes. The existing rebinding owner updates dependent links across units
-  while preserving obligation and case identities. For a grouped correction,
-  first save the intended replacement verification on the unchanged saved row
-  using `row_id`, unchanged behavior and a request-local verification key. Use
-  that saved verification binding to amend each affected unit's existing
-  obligations by `id` and explicitly choose `case.verification` through its
-  target's owning unit. Shared-case uses can retain both old and chosen
-  verification links during these amendments; change the case selection, then
-  remove changed old claim and verification links. Retry the original `row_id`
-  correction and restore intended requirement associations using its saved
-  claim bindings. This supports opposing corrections without publishing
-  contradictory requirement rows or guessing unsaved identities. Without a
-  replacement verification, explicitly clear only changed claim associations
-  before correction and restore them afterwards; retained bound cases require
-  an authored valid `test_execution` verification. Unchanged associations stay.
-  Unchanged source links, verification definitions, case targets and other
-  authored fields remain with their existing owners throughout this process.
+- Public authoring addresses a saved declaration with `target` and supplies its
+  complete intended meaning. `key` labels a new declaration. A requirement target
+  selects a whole declaration; a claim target can amend only a single-claim row.
+  `remove.requirements` accepts requirement or claim selections, and
+  `remove.collections` accepts collection selections. Internal storage bindings
+  are resolved by the server and never supplied by the caller.
+- A whole-requirement amendment may declare `replacement_key`. In this request,
+  `$key` names exactly the complete submitted assertion population of that
+  targeted declaration. A subset is an explicit list of
+  `{kind:"claim",requirement:"$key",match:StatementPattern}` entries, each selecting
+  exactly one submitted assertion through the shared semantic resolver. Missing
+  or ambiguous parts refuse; narrowed choices retain the request-local parent
+  and are directly reusable in that save. No member is selected by position and
+  no old-to-new assertion mapping is inferred. A missing target, claim target,
+  creation key or invalid label is incompatible with `replacement_key`.
+  Verification remains a separate `verification.key`/`$key` binding; an assertion
+  population includes no verification. These labels are request-local, absent
+  from receipts and fresh reads, and confer no write authority.
+- Restating a declaration keeps assertions both declarations emit with their
+  links. Removed assertions retire and new assertions are added. Correction never
+  authorizes deleting dependent obligations or cases. A surviving dependent use
+  of a retiring assertion refuses the whole save before publication, identifies
+  its authored subject and affected public uses, and preserves the intended scope.
+- An explicit single-claim `target` with `rebind_case_ids` retains the existing
+  rebinding semantics across units. Grouped corrections keep their whole scope;
+  no member-to-member mapping or proof credit is inferred. A targeted grouped
+  declaration can amend its complete verification and runtime meaning together
+  with its owned case while preserving its assertions. Name the submitted check
+  with `verification.key`; use `$key` in `case.verification` and in explicit
+  `claims` when that verification itself is an intended association. If the caller
+  selected that request-local check for a saved case but omitted its required
+  association from explicit `claims`, the refusal offers an exact save adding
+  only that association. It preserves the rest of the request; all remaining
+  validation still applies. Runtime meaning from the declaration and case must
+  agree, including grouped amendments without single-claim rebinding.
+  Retained bound cases require a valid authored `test_execution` verification.
+  Unchanged source links, verification meanings, targets and associations remain
+  with their existing owners.
+  When an otherwise compatible single-claim correction omits retained cases,
+  the refusal returns a complete `save_record` call that preserves the submitted
+  changes and lists the missing public case IDs. Inspection is optional; calling
+  that correction is the explicit decision to retain those cases. If retention
+  would assign distinct cases to one replacement verification, no such save is
+  offered: the refusal identifies those cases and requires the caller to author
+  their distinct compatible verification/case associations. Wrong or
+  incomplete selections still refuse without effects. Incompatible methods or
+  runtime meanings identify both sides and the authored fields requiring a
+  choice. Cross-unit target ownership returns the owner's write-context read;
+  it does not transfer authority or select another target.
+  Complete authorized case acquisition includes retained saved definitions with
+  no obligation uses, with their selected verification and component meaning.
+  An empty use list does not mean an absent case. Assigned and selected-obligation
+  populations retain only their authorized case closure; acquisition does not
+  create a use, recapture a retained source or execute mutation checks.
+  Retirement identifies every affected public use and surviving requirement.
+  Amend mixed uses on their own units before retrying the original retirement
+  with a current revision. Semantic associations resolve against the saved source,
+  before compilation. A selector for replacement meaning cannot select an unsaved
+  declaration; a saved claim selector does not select a replacement assertion.
+  Explicit replacement bindings alone resolve against the complete prepared
+  prospective source, under the captured base revision. All other selections
+  remain bound to saved meaning; no future-meaning fallback is performed.
+  The caller can amend its selected unit's whole/subset assertion associations,
+  explicit verification links and owned case together. Other units retain their
+  exact associations. A retiring assertion or check still required by another
+  unit refuses before publication with the affected public uses; no cross-unit
+  grouped remapping or atomic writes are introduced. Preserve required links
+  rather than clearing them to bypass that refusal. Existing single-claim
+  rebinding and settlement/partial-effect rules remain unchanged. A retained
+  native relation or collection without a supported authored correction is a
+  precise stopping condition, never permission to bypass integrity.
+- Obligation readback's `claims` is directly reusable as
+  `changes.obligations[].claims`. It preserves complete declaration membership,
+  grouped subsets and explicit verification links as their respective semantic
+  selections. Copy it unchanged when editing another obligation field; do not
+  reconstruct associations from related declarations or case meaning.
 - A complete statement emits one constraint and one native claim per object
   where its relation is a set of pairs. A closed membership emits a constraint
   and no native claim. An incomplete row (a missing modality, objects,
@@ -1187,18 +1218,16 @@ the complete-restatement procedure at
 link to that selected guidance. The procedure distinguishes provenance intent
 from the full row payload, identifies the saved-row and native verification
 reads, and requires reporting any unavailable read before claiming a faithful
-repair. `row_id` continues to replace authored meaning; omitted fields are not
-a patch.
+repair. `target` selects the complete authored declaration to replace; omitted fields
+are not a patch.
 
 Requirement compilation and retirement (`requirements`, `remove.requirements`,
-`remove.requirement_rows`, at save and at birth) require the serving host’s captured authoring capability. The session publishes only supported authoring syntax and guidance. Unavailable mutations refuse atomically with `record_authoring_operation_unavailable`; no request field grants a capability. Ordinary written requirements, criteria, scopes, validation and slices remain supported. Required controlled acceptance stays required and incomplete when compilation is unavailable; capability inspection chooses no exemption.
+`remove.collections`, at save and at birth) require the serving host’s captured authoring capability. The session publishes only supported authoring syntax and guidance. Unavailable mutations refuse atomically with `record_authoring_operation_unavailable`; no request field grants a capability. Ordinary written requirements, criteria, scopes, validation and slices remain supported. Required controlled acceptance stays required and incomplete when compilation is unavailable; capability inspection chooses no exemption.
 
-The `{contract: "requirements"}` selection of a unit returns its native
-requirement projection and, as `authored`, the authored-row projection from
-the same stored contract. A save answer states each row's `row_id`, state and
-full `constraint_ids` and `claim_ids`, and names that selected read as the
-exact call for what it leaves out. Saving and reading evaluate no expression
-and execute no proof.
+A requirements selection returns complete authored meaning for the selected
+population. Save acknowledges completion and the next write revision without
+returning compiled claims, constraints, row bindings or successful assessments.
+Saving and reading evaluate no expression and execute no proof.
 
 Public registration, discovery, role policy, routing metadata, and active
 guidance must agree on the public population. Unknown removed names are refused
@@ -1626,7 +1655,7 @@ implementation symbol and constrain its exact negative result:
 The example states requirement meaning; a behavior claim's independently
 written verification and executable proof binding remain separate authoring
 inputs. Exact user-source passage and occurrence are provenance and do not
-change canonical semantic identity. Corrections use the stored row id; reads
+change canonical semantic identity. Corrections use a semantic requirement target; reads
 recompute the same types, scopes, dependencies, bindings and CEL from those
 rows. Selected compilation retains transitive definitions and independent
 mandatory constraints on dependencies. Definitions alone grant no permission.

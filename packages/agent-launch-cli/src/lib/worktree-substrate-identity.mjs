@@ -27,6 +27,7 @@ import {
 import {
   WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES,
   WORKTREE_SUBSTRATE_SCHEMA_VERSION,
+  WorktreeSubstrateError,
   fail,
   assertAbsolutePath,
   assertOpaqueId,
@@ -731,6 +732,30 @@ function sameSelectedUnit(actual, expected) {
     ["kind", "address", "record_id", "slice_id", "repo"].every((field) => actual[field] === expected[field]);
 }
 
+const staleAssignmentBindings = new WeakMap();
+function failStaleAssignment(binding, field, message, detail) {
+  const error = new WorktreeSubstrateError(`agent-launch worktree-substrate: ${message}`, {
+    code: WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH, detail
+  });
+  staleAssignmentBindings.set(error, { binding, field });
+  throw error;
+}
+
+export function inspectStaleAssignmentBinding(error, { mainRepo } = {}) {
+  const stale = staleAssignmentBindings.get(error);
+  if (stale === undefined) return null;
+
+  assertRecoveryBindingContract(stale.binding, { mainRepo,
+    filePath: bindingFilePath(mainRepo, stale.binding.launch_ref, stale.binding.run_id, stale.binding.retry_id) });
+  return { binding: stale.binding, field: stale.field };
+}
+
+export function staleAssignmentBindingChange(error) {
+  const stale = staleAssignmentBindings.get(error);
+  return stale === undefined ? null : { subject: stale.binding.selected_unit.address,
+    record: stale.binding.record_id, field: stale.field };
+}
+
 export function resolveVerifiedSparseExactUnitBinding({
   mainRepo,
   launchRef,
@@ -809,8 +834,8 @@ export function resolveVerifiedSparseExactUnitBinding({
   };
   for (const [field, value] of Object.entries(currentFields)) {
     if (!sameStringArray(binding[field], value)) {
-      fail(
-        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
+      failStaleAssignment(
+        binding, field,
         `exact-slice identity binding ${field} is stale against the canonical selected unit`,
         { field, expected: value, actual: binding[field] ?? null }
       );
@@ -818,8 +843,8 @@ export function resolveVerifiedSparseExactUnitBinding({
   }
   if (!sameSelectedUnit(binding.selected_unit, current.selectedUnit) ||
       binding.source_digest !== current.sourceDigest || binding.source_version !== current.sourceVersion) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
+    failStaleAssignment(
+      binding, "saved_record",
       "exact-slice identity binding selected-unit/source authority is stale against the canonical record",
       {
         expected_selected_unit: current.selectedUnit,

@@ -1,5 +1,6 @@
 
 
+import { resolveSetupParameters } from "./parameter-resolution.mjs";
 import readline from "node:readline/promises";
 import { ensureAgentChassisGitignore } from "@agent-chassis/wiki-core/src/lib/local-state-ignores.mjs";
 
@@ -35,21 +36,22 @@ function unattended(output, lines, failure) {
     correction: failure.detail.correction };
 }
 
-async function resolveMissingExecutable({ name, command, input, output, interactive, invocation }) {
-  const option = `--executable ${name}=/absolute/path/to/${command}`;
+async function resolveMissingExecutable({ adapter, input, output, interactive, invocation }) {
+  const { parameter: name, command, option: flag, example, environment, environmentExample, prompt } = adapter;
+  const option = `${flag} ${example}`;
   const failure = { code: "test_runtime_toolchain_not_found",
     message: `No ${command} was found on PATH, so the ${name} toolchain cannot be located.`,
     detail: { toolchain: name, command,
-      correction: `agent-chassis ${invocation} ${option}` } };
+      correction: `agent-chassis ${invocation} ${option} or ${environment}=${environmentExample}` } };
   if (!interactive) {
     return unattended(output, [
       `No ${command} was found on PATH, so the ${name} toolchain cannot be located.`,
       "Rerun setup with its location, for example:",
-      `  agent-chassis ${invocation} ${option}`
+      failure.detail.correction
     ], failure);
   }
   output.write(`No ${command} was found on PATH for the ${name} toolchain.\n`);
-  const answer = await ask(input, output, `Absolute path to ${command} (blank to abort): `);
+  const answer = await ask(input, output, prompt);
   if (answer === "") {
     return unattended(output, [`Set it later with: agent-chassis ${invocation} ${option}`], failure);
   }
@@ -138,7 +140,7 @@ async function prepareRuntimes({
   repositoryRoot,
   runners = [],
   language = null,
-  executables = {},
+  parameters,
   toolchainVersions = {},
   runtimeConfig = null,
   locatePathToolchains = true,
@@ -154,7 +156,6 @@ async function prepareRuntimes({
   const asking = interactive === null ? input.isTTY === true : interactive;
   const catalog = setup.testRuntimeRunners();
   const ecosystems = setup.testRuntimeEcosystems();
-  const commands = setup.testRuntimeToolchainCommands();
   if (language !== null && !catalog.some(({ languages }) => languages.includes(language))) {
     const available = [...new Set(catalog.flatMap(({ languages }) => languages))].sort();
     throw new Error(`Unsupported --language value: ${language} (known: ${available.join(", ")})`);
@@ -207,44 +208,12 @@ async function prepareRuntimes({
     ...ecosystems[environment.ecosystem].toolchains,
     ...environment.runners.flatMap((runner) => catalog.find(({ name }) => name === runner).toolchains)
   ]))].sort();
-  const toolchains = {};
-  for (const name of required) {
-    Object.assign(context, { phase: "toolchain", toolchain: name });
-    const toolchainCommand = commands[name];
-    let executable = executables[name] ?? null;
-    let executableSource = "--executable";
-    if (executable === null && saved.present && saved.toolchains[name]) {
-      executable = saved.toolchains[name].executable;
-      executableSource = runtimeConfig === null ? REPOSITORY_RUNTIME_CONFIG_FILE : "--runtime-config";
-    }
-    if (executable === null && locatePathToolchains) {
-      const located = setup.findOnPath(toolchainCommand, env.PATH);
-      if (located !== null) {
-        executable = located.real;
-        executableSource = "PATH";
-      }
-    }
-    if (executable === null && !locatePathToolchains) {
-
-      continue;
-    }
-    if (executable === null) {
-      const answered = await resolveMissingExecutable({ name, command: toolchainCommand, input, output,
-        interactive: asking, invocation: command.invocation });
-      if (!answered.ok) return { ...answered, environments, excluded, automatic_selection: automaticSelection };
-      executable = answered.executable;
-      executableSource = answered.source;
-    }
-    toolchains[name] = { executable, version: saved.present
-      ? saved.toolchains[name]?.version ?? null : null };
-    output.write(`Toolchain ${name}: ${executable} (${executableSource})\n`);
-  }
-
-  for (const [name, entry] of Object.entries(runtimeConfig?.toolchains ?? {})) {
-    if (toolchains[name] === undefined) toolchains[name] = { ...entry };
-  }
-
-  const environmentSelections = saved.present ? saved.environments ?? {} : {};
+  const resolved = await resolveSetupParameters({ required, parameters, saved, runtimeConfig,
+    locatePathToolchains, findOnPath: setup.findOnPath, env, output, context,
+    prompt: (adapter) => resolveMissingExecutable({ adapter, input, output,
+      interactive: asking, invocation: command.invocation }) });
+  if (!resolved.ok) return { ...resolved, environments, excluded, automatic_selection: automaticSelection };
+  const { toolchains, environments: environmentSelections } = resolved;
   context.phase = "selection";
   delete context.toolchain;
   const result = await setup.runTestRuntimeSetup({ repositoryRoot, env, environmentSelections,
@@ -264,7 +233,9 @@ async function prepareRuntimes({
     } });
 
   const components = result.components ?? [];
-  const located = components.filter(({ kind }) => kind === "toolchain")
+
+  const toolchainComponents = components.filter(({ kind }) => kind === "toolchain");
+  const located = toolchainComponents.length > 0 && toolchainComponents
     .every(({ status }) => status === "ready");
   const savedRunners = runners.length > 0 ? runners
     : saved.present && runtimeConfig === null ? saved.runners : [];
@@ -274,13 +245,18 @@ async function prepareRuntimes({
   if (!dryRun && located && runtimeConfig === null &&
       (savedRunners.length > 0 || Object.keys(toolchains).length > 0 ||
         Object.keys(environmentSelections).length > 0)) {
-    const written = writeRepositoryRuntimeConfig(repositoryRoot, { runners: savedRunners, toolchains,
+    const written = writeRepositoryRuntimeConfig(repositoryRoot, { runners: savedRunners, toolchains: resolved.savedToolchains,
       environments: environmentSelections, test_entrypoints: savedTestEntrypoints });
     configPath = written.path;
     output.write(`${written.written ? "Saved" : "Unchanged"} runtime configuration: ` +
       `${REPOSITORY_RUNTIME_CONFIG_FILE}\n`);
   }
   output.write(renderTestRuntimeSetupResult(result));
+  if (result.dependency_preparations?.length > 0) {
+    output.write("Native dependency preparation descriptions are available in dependency_preparations " +
+      "in the setup API result and JSON report. The operator or image builder executes them with network " +
+      "access, then reruns setup; setup never executes them or retries automatically.\n");
+  }
 
   const failedComponent = components.find(({ status }) => status === "failed");
   const correction = correctionFor(failedComponent, { configPath }) ??
@@ -321,7 +297,7 @@ function diagnosticFact(fact) {
   if (typeof fact.diagnostic === "string") projected.diagnostic = fact.diagnostic.slice(0, 4000);
   if (fact.detail) {
     const detail = fact.detail;
-    const keys = ["toolchain", "command", "executable", "root", "project", "environment",
+    const keys = ["parameter", "source", "toolchain", "command", "executable", "root", "project", "environment",
       "selected", "reported", "required", "correction", "valid_choices", "available_runners",
       "available_toolchains", "module_cache", "workspace", "virtual_environment"];
     projected.detail = Object.fromEntries(keys.filter((key) => detail[key] !== undefined)
@@ -345,5 +321,6 @@ export function testRuntimePreparationReport(prepared) {
     automatic_selection: prepared.automatic_selection ?? [],
     failure: diagnosticFact(prepared.failure), correction: prepared.correction ?? null,
     components: (prepared.result?.components ?? []).map(diagnosticFact),
+    dependency_preparations: prepared.result?.dependency_preparations ?? [],
     checks: (prepared.result?.verification ?? []).map(diagnosticFact) };
 }

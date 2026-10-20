@@ -65,10 +65,11 @@ offers the root's current `workspace_read_wiki` context. Missing dispatch intent
 initiative, scope paths and validation definitions retain their own causes and
 correction subjects. A runtime failure is not a request to edit the work record.
 Actual worker start performs worker-input preflight before authored readiness.
-That owner can refuse with `exact_implementation_slice_unresolved` before the
-missing-initiative readiness diagnosis is reached. The documented root-authoring
-recovery does not establish that this earlier refusal supplies it; presentation
-does not reorder those checks or claim to resolve that routing gap.
+Unit identity is resolved first: combined missing-slice and missing-initiative
+faults retain `exact_implementation_slice_unresolved` until the caller selects or
+authors an existing slice; the next request can then report the initiative gap.
+The actual deciding cause and its served correction remain visible without
+reordering those checks or substituting a later diagnosis.
 
 Controlled-acceptance failure preserves `requested_unit`, `correction_unit`,
 `deciding_cause`, `deciding_causes`, `explanation` and `responsible_owner`.
@@ -136,13 +137,11 @@ launch uncertainty still lead to observation rather than a replacement start.
 
 For a pre-implementation design redteam, the selected saved slice design is the
 target and its supporting checkout is separate. A writable scope does not require
-completed implementation. The shared advisory material selector currently still
-selects implementation material for a writable slice with no explicit range,
-and rejects equal explicit range endpoints. Those are current limitations of
-that route, not capability or authorization failures. Refusals preserve the
-selected slice and actual cause; neither a parent assignment nor an arbitrary
-nonempty range is an equivalent recovery. The shared material-selection and
-runtime-contract owners must reconcile that behavior with the design target.
+completed implementation: ordinary redteam material selection without an explicit
+range captures the design and selects supporting source independently of that
+scope. An explicit range remains a caller source selection; equal endpoints
+retain the specific `range_empty` refusal. Neither a parent assignment nor an
+arbitrary nonempty range is an equivalent recovery for the selected design.
 
 ### Base selection and source movement
 
@@ -158,6 +157,20 @@ ref remain different conditions under their existing owners. Missing-choice
 correction names the root, current revision, required `base_branch` choice and
 save tool, with the serving root read. No branch value is invented by correction
 guidance.
+
+Worker-input preflight can refuse before the later base-default handler is
+reached. When its typed base-resolution failure establishes an absent root
+selection, the response preserves `scope_existence_base_unresolved`, its cause
+and known no-child effect, and offers the root's focused `base_branch` authoring
+context through the serving reader. The response supplies the root revision and
+names the missing caller choice; it supplies no branch value. The context's
+returned schema call completes any missing save grammar. Reading selects no
+base and changes no assignment; an authorized caller saves the intended branch,
+then starts the original slice. Held grammar and revision can be used directly.
+A named unavailable branch remains a distinct resolution failure, with its
+selected name and cause; this missing-choice correction does not offer to
+replace it. An unavailable or rejecting reader is reported without advertising
+an unserved call.
 
 There remains a conflict between this current-base default and provisioning
 recovery guidance requiring explicit operator selection and forbidding checkout
@@ -251,13 +264,18 @@ receipt, continuation, recovery, or replay route.
 
 ## Supported families
 
-Confined Claude and Codex roles are supported when their runtime and bubblewrap
-contracts validate. Worker, reviewer, and redteam sessions use the same R union
+Confined Codex, Claude, Agy, and OpenCode roles are supported when their runtime
+and bubblewrap contracts validate. Worker, reviewer, and redteam sessions use the same R union
 W namespace construction and write-scope enforcement; reviewers and redteam
 have no writable repository paths. Claude preserves native-edit permission
 settings and settings masking. Codex preserves its isolated runtime home and
-launcher-generated configuration overrides. Agy remains unsupported and fails
-closed.
+launcher-generated configuration overrides. Agy and OpenCode compose the same
+shared assignment, conduit, isolation, supervision, and result owners, with
+private native state and launcher-generated configuration. Both require the
+qualified high-priority role-guide delivery. See [family runtime
+state](agent-launch-family-runtime-state.md#family-runtime-state) and the
+[confinement contract](agent-launch-confinement-mcp-conduit.md) for native
+prerequisites, result-mode limits, and exact-session resume behavior.
 
 ## Launch and monitoring
 

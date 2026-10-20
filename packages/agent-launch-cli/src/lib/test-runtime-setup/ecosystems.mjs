@@ -326,11 +326,10 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
       return { status: "present", files: { ...files, [lock.name]: lock.file } };
     },
 
-    async detect({ project, projectDir, inputs, toolchains, env, complete = true }) {
+    async detect({ project, projectDir, inputs, toolchains, env, complete = true, onLocated = () => {} }) {
 
       const lock = denoLockSelection(projectDir);
       const lockFile = lock.disabled ? undefined : inputs.files?.[lock.name];
-      if (lockFile !== undefined && !denoLockHasDependencies(lockFile)) return { none: true };
 
       const deno = toolchains.deno.executables.deno;
       const described = await runSetupProcess(deno, ["info", "--json"], { cwd: projectDir,
@@ -342,6 +341,8 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
         fail("test_runtime_environment_unusable", `deno at ${deno} did not report its cache directory`,
           { project, diagnostic: processDiagnostic(described) });
       }
+      onLocated({ env: { DENO_DIR: denoDir } });
+      if (lockFile !== undefined && !denoLockHasDependencies(lockFile)) return { none: true };
       const population = ["remote", "npm"].map((name) => path.join(denoDir, name)).filter(existsSync);
       if (population.length === 0 && !complete) return { absent: true };
 
@@ -405,7 +406,8 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
         required: [...PYTHON_REQUIREMENT_FILES, PYTHON_PROJECT_FILE, ...PYTHON_PACKAGING_FILES].join(" or ") };
     },
 
-    async detect({ repositoryRoot, projectDir, project, inputs, toolchains, selection = null, complete = true }) {
+    async detect({ repositoryRoot, projectDir, project, inputs, toolchains, selection = null, complete = true,
+      onLocated = () => {} }) {
       const interpreter = toolchains.python.executables.python;
 
       const venv = selection?.virtual_environment !== undefined
@@ -425,12 +427,13 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
         }
       }
       const declaredIn = Object.keys(inputs.files).sort();
+      const requirementFiles = PYTHON_REQUIREMENT_FILES.filter((name) => inputs.files[name] !== undefined)
+        .map((name) => inputs.files[name]);
 
       const fromProjectFile = inputs.files[PYTHON_PROJECT_FILE] !== undefined;
       const declared = fromProjectFile
         ? pyprojectRequirements(readFileSync(inputs.files[PYTHON_PROJECT_FILE], "utf8"))
-        : fileRequirements(PYTHON_REQUIREMENT_FILES.filter((name) => inputs.files[name] !== undefined)
-          .map((name) => inputs.files[name]), projectDir);
+        : fileRequirements(requirementFiles, projectDir);
 
       const inspected = await runSetupProcess(python, ["-I", "-B", "-c", PYTHON_INSPECT_PROGRAM,
         JSON.stringify(declared)], { env: { PATH: pathWith(), PYTHONDONTWRITEBYTECODE: "1" }, timeoutMs: 60000 });
@@ -448,6 +451,8 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
           missing: report.missing,
           correction: `correct the named requirement in ${declaredIn.join(" or ")}, then rerun setup` });
       }
+
+      onLocated({ env: {}, executables: { python }, requirementFiles });
 
       const missing = [...new Set([...report.missing, ...report.unevaluated.map(({ name }) => name)])];
       if (missing.length > 0 && complete) {
@@ -508,7 +513,7 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
           ...selectGoWorkspace(projectDir, checkoutRoot).files } };
     },
 
-    async detect({ repositoryRoot, project, projectDir, toolchains, env, complete = true }) {
+    async detect({ repositoryRoot, project, projectDir, toolchains, env, complete = true, onLocated = () => {} }) {
       const go = toolchains.go.executables.go;
       const workspace = selectGoWorkspace(projectDir, repositoryRoot);
       if (complete && workspace.invalid.length > 0) {
@@ -530,8 +535,8 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
           GOTELEMETRY: "off" }, timeoutMs: 60000 });
       const cache = located.ok ? located.stdout.trim() : "";
       const correction = (workspace.file === null
-        ? `download the module's dependencies (for example \`go mod download\` in ${projectDir}) `
-        : `download the workspace's dependencies (for example \`go mod download\` in each module of ${workspace.file}) `) +
+        ? `download the module's dependencies (for example \`go mod download all\` in ${projectDir}) `
+        : `download the workspace's dependencies (for example \`go mod download all\` in ${projectDir}, using ${workspace.file}) `) +
         "into the module cache setup sees, then rerun setup";
 
       if (!path.isAbsolute(cache) && !complete) return { absent: true };
@@ -539,6 +544,7 @@ export const DEPENDENCY_ECOSYSTEMS = Object.freeze({
         dependenciesMissing(`project ${project} has no Go module cache${cache ? ` at ${cache}` : ""}`,
           { module_cache: cache || null, diagnostic: located.ok ? null : processDiagnostic(located), correction });
       }
+      onLocated({ env: { GOMODCACHE: cache, GOWORK: workspace.file ?? "off" } });
       const scratch = mkdtempSync(path.join(os.tmpdir(), "agent-chassis-go-detect-"));
       try {
         const listed = await runSetupProcess(go, ["list", "-m", "-f",

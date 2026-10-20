@@ -44,6 +44,37 @@ digest is the environment's input identity, and a coding worker must see each
 of them (see
 [Prepared test runtimes in the coding worker](agent-launch-worker-test-runtimes.md#prepared-test-runtimes-in-the-coding-worker)).
 
+### Standalone npm projects that disable root locks
+
+A standalone package can declare `package-lock=false` in its own `.npmrc`.
+Setup accepts this convention when neither supported root lock exists, the
+package has no `workspaces` field, and there is no conflicting package-manager
+evidence: a non-npm `packageManager`, `pnpm-workspace.yaml`, installed pnpm
+`.modules.yaml`, `npm-shrinkwrap.json` or `yarn.lock`. No `packageManager` field
+is required. Existing root-lock routes take precedence and retain their
+failures; setup never retries a failed locked route as lockless.
+
+The declaration is the literal, unquoted top-level `.npmrc` setting
+`package-lock=false`. Whitespace and `#` or `;` comments are allowed; the last
+top-level assignment decides. A setting inside an INI section, an environment
+substitution, or user/global npm configuration does not select this route.
+An unreadable project `.npmrc` reports its filesystem cause.
+
+The dependency inputs are `package.json` and `.npmrc`, measured by the existing
+input-file digest owner. The same installation detection, population content
+measurement, readiness and offline runner probes apply. The hidden
+`node_modules/.package-lock.json` is installation metadata inside that measured
+population, never a root lock, opt-in or separate authority. Its absence or
+staleness does not replace the actual package-presence checks.
+
+As for locked npm support, required dependency names must be installed;
+dependency versions are not compared, and no complete transitive-graph or
+registry-artifact integrity check is claimed. A changed installation is
+identified by the current-runtime provenance rules, not a new execution gate.
+Missing dependencies retain their existing refusals and direct the operator to
+`npm install` in the project, which keeps its `.npmrc` choice. Setup creates no
+root lock and installs nothing. An undeclared missing lock still refuses.
+
 ## Module trees
 
 An installation is a set of module trees: the root's `node_modules` and the
@@ -99,7 +130,7 @@ nothing and creates no lock.
 
 | Condition | Code | Named input |
 | --- | --- | --- |
-| The installation root has no lock | `test_runtime_dependency_lock_missing` | the installation root, with both supported lock names |
+| The installation root has no lock and does not select the standalone lock-disabled convention | `test_runtime_dependency_lock_missing` | the installation root, with both supported lock names |
 | Two locks and nothing decides between them | `test_runtime_environment_ambiguous` | both lock files |
 | `package.json`, `pnpm-workspace.yaml` or `pnpm-lock.yaml` cannot be parsed | `test_runtime_manifest_invalid` | the file, with the parser's own error |
 | No tree exists, or a required package is in neither the declaring package's tree nor an ancestor's | `test_runtime_dependencies_missing` | the missing packages, the manifest that requires each, and every location searched |

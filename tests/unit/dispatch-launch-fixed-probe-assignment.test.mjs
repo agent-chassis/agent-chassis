@@ -8,25 +8,26 @@ import { CONNECTED_OPERATIVE_NOTES_HEADING, CONNECTED_OPERATIVE_WINDOW_END, CONN
 
 const readAssignment = runInNewContext(`${FIXED_PROBE_MCP_CLIENT_SOURCE}\nreadFixedProbeAssignment`);
 const continuation = { tool: "returned-reader", arguments: {
-  reference: { ref_id: "frozen-assignment" }, select: { field: "guidance" }
+  reads: [{ reference: { ref_id: "frozen-assignment" }, select: { field: "guidance" } }]
 } };
-const context = { reference: continuation.arguments.reference, next_calls: [
+const context = { reference: continuation.arguments.reads[0].reference, next_calls: [
   { tool: "unselected-contract-reader", arguments: { select: { contract: "coverage" } } }, continuation
 ] };
-const guidance = { complete: true, field: "guidance", value: "exact frozen guidance 🚀\n", next_calls: [] };
+const guidance = { field: "guidance", value: "exact frozen guidance 🚀\n", next_calls: [] };
+const bulk = ({ next_calls, ...value }) => ({ results: [{ status: 'ok', value, next_calls }] });
 
 test("fixed assignment probe consumes the returned complete guidance call unchanged", async () => {
   for (const mirrorOnly of [false, true]) {
     const calls = [];
     const result = await readAssignment({ callTool: async (tool, args) => {
       calls.push([tool, args]);
-      const value = calls.length === 1 ? context : guidance;
+      const value = bulk(calls.length === 1 ? context : guidance);
       return mirrorOnly ? { content: [{ type: "text", text: JSON.stringify(value) }] }
         : { structuredContent: value };
     } });
     assert.equal(calls.length, 2);
     assert.equal(calls[0][0], "workspace_read_wiki");
-    assert.equal(JSON.stringify(calls[0][1]), '{"assignment":true}');
+    assert.equal(JSON.stringify(calls[0][1]), '{"reads":[{"assignment":true}]}');
     assert.equal(calls[1][0], continuation.tool);
     assert.equal(JSON.stringify(calls[1][1]), JSON.stringify(continuation.arguments));
     if (!mirrorOnly) assert.equal(calls[1][1], continuation.arguments);
@@ -44,7 +45,7 @@ test("fixed assignment probe retains refusals from context and selected guidance
     let reads = 0;
     await assert.rejects(readAssignment({ callTool: async () => {
       reads += 1;
-      return reads === failedRead ? refused : { structuredContent: context };
+      return reads === failedRead ? refused : { structuredContent: bulk(context) };
     } }), error => {
       assert.equal(error.stage, "assignment_read");
       assert.equal(error.message, "assignment_read_refused:" + JSON.stringify(refused.content));
@@ -58,21 +59,42 @@ test("fixed assignment probe refuses missing selection and incomplete guidance",
   let reads = 0;
   await assert.rejects(readAssignment({ callTool: async () => {
     reads += 1;
-    return { structuredContent: { ...context, next_calls: [] } };
+    return { structuredContent: bulk({ ...context, next_calls: [] }) };
   } }), /assignment_read_missing_guidance_selection/);
   assert.equal(reads, 1);
   reads = 0;
   await assert.rejects(readAssignment({ callTool: async () => ({ structuredContent:
-    ++reads === 1 ? context : { ...guidance, complete: false } }) }),
-  /assignment_read_invalid_guidance_selection/);
+    ++reads === 1 ? bulk(context) : { results: [{ status: "partial", value: guidance, issues: [{ cause: "Incomplete assignment delivery" }] }] } }) }),
+  /assignment_selection_refused/);
   assert.equal(reads, 2);
   for (const changed of [undefined, { ref_id: "different-assignment" }]) {
     let calls = 0;
     await assert.rejects(readAssignment({ callTool: async () => {
       calls += 1;
-      return { structuredContent: { ...context, reference: changed } };
+      return { structuredContent: bulk({ ...context, reference: changed }) };
     } }), /assignment_read_missing_guidance_selection/);
     assert.equal(calls, 1, "an altered/missing binding prevents the dependent read");
+  }
+});
+
+test('fixed assignment probe requires the complete selected result before consuming guidance', async () => {
+  for (const status of ['partial', 'unavailable', 'refused', 'ambiguous']) {
+    let calls = 0;
+    await assert.rejects(readAssignment({ callTool: async () => {
+      calls++;
+      return { structuredContent: calls === 1 ? bulk(context) : { results: [{
+        status, value: guidance, issue: { code: 'selected_assignment_unavailable' }
+      }] } };
+    } }), /assignment_selection_refused/);
+    assert.equal(calls, 2);
+  }
+  for (const results of [[], [bulk(context).results[0], bulk(guidance).results[0]]]) {
+    let calls = 0;
+    await assert.rejects(readAssignment({ callTool: async () => {
+      calls++;
+      return { structuredContent: { results } };
+    } }), /assignment_selection_refused/);
+    assert.equal(calls, 1, 'missing/extra results cannot substitute another selection or reach a guidance read');
   }
 });
 

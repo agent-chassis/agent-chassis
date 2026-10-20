@@ -1,4 +1,9 @@
 import { buildSystemBaselineArgs } from "./launch-isolation-bwrap.mjs";
+
+export function buildDisposableTestBubblewrapArgs({ source, cwd, command, args }) {
+  return ["--die-with-parent", "--dev-bind", "/", "/", "--overlay-src", source,
+    "--tmp-overlay", source, "--chdir", cwd, "--", command, ...args];
+}
 import { sparseNamespaceSkeleton } from "./launch-isolation-worker-scope.mjs";
 
 import {

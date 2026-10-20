@@ -22,6 +22,7 @@ import { codeIndexDetailSchema, selectableSubjects, selectCodeIndexRetainedColle
 export { codeIndexDetailSchema, codeIndexCollectionCounts, selectCodeIndexRetainedCollection } from "./code-index-query-selection.mjs";
 import { resolveWorkspaceRepo } from "./workspace-repo-resolution.mjs";
 import { inputContractMechanicalRefusal } from "./tool-discovery-input-guidance-delivery.mjs";
+import { presentCodeReviewSource } from "./code-index-query-reviewed-source.mjs";
 
 export const CODE_INDEX_NAVIGATION_ANSWER_SCHEMA_VERSION = "code-index-question-navigation.v1";
 
@@ -97,7 +98,7 @@ export async function describeRetainedObservation(binding, resolveCurrentObserva
 }
 
 export function createCodeIndexAnswerSelection({ route, requestSchema, detailSchema, buildDetailArguments,
-  resolveCurrentObservationIdentity = null, env = process.env }) {
+  resolveCurrentObservationIdentity = null, review = null, env = process.env }) {
   if (typeof route !== "string" || typeof buildDetailArguments !== "function" ||
       requestSchema === null || typeof requestSchema !== "object" ||
       typeof detailSchema?.safeParse !== "function") {
@@ -109,8 +110,18 @@ export function createCodeIndexAnswerSelection({ route, requestSchema, detailSch
   const observationOf = (binding) => describeRetainedObservation(binding, resolveCurrentObservationIdentity);
   const refusals = new WeakMap();
 
-  const authenticated = (repository, detail) => readSelectedResponseSource(detail.source, { env,
-    expected: { route, repository } });
+  const authenticated = (repository, detail) => {
+    const retained = readSelectedResponseSource(detail.source, { env, expected: { route, repository } });
+    if (retained.binding.authority_identity !== undefined) {
+      if (!review) throw selectedResponseQueryInvalidError(route, "source_binding_mismatch", { field: "review_source" });
+      review.authenticate(retained.binding);
+    }
+    return retained;
+  };
+  const retain = ({ binding, carrier, selection }) => ({ source: retainSelectedResponseSource({ binding, carrier,
+    ownerCall: locator => ({ tool: route, arguments: buildDetailArguments(Object.freeze({
+      repository: binding.repository, unit: null }), { source: { ref_id: locator.ref_id }, ...selection }) }),
+    ownerRequestSchema: requestSchema }, { env }) });
 
   return Object.freeze({
     route,
@@ -118,14 +129,23 @@ export function createCodeIndexAnswerSelection({ route, requestSchema, detailSch
     requestSchema,
     detailSchema,
     failure: error => refusals.get(error),
-
-    retain({ binding, carrier, selection }) {
-      return { source: retainSelectedResponseSource({ binding, carrier,
-        ownerCall: (locator) => ({ tool: route, arguments: buildDetailArguments(Object.freeze({
-          repository: binding.repository, unit: null }), {
-          source: { ref_id: locator.ref_id }, ...selection }) }),
-        ownerRequestSchema: requestSchema }, { env }) };
+    resolveReviewContext: () => review?.resolve() ?? null,
+    async bindReview({ workspace, result, context }) {
+      const captured = await review?.capture(result, context);
+      if (!captured) return null;
+      const binding = { route, repository: workspace.repo, unit: null, authority_identity: context.binding };
+      const source = captured.files.length ? retain({ binding,
+        carrier: { query_kind: "reviewed_code", reviewed_files: captured.files },
+        selection: { collection: "reviewed_files" } }).source : null;
+      return { files: captured.files, notice: { state: captured.state, paths: captured.paths,
+        ...(captured.cause ? { cause: captured.cause } : {}),
+        choices: captured.files.map(file => ({ path: file.path, state: file.state,
+          ...(file.reason ? { reason: file.reason } : {}),
+          ...(source && file.state === "available" ? { call: detailCall(workspace.repo, {
+            source, collection: "reviewed_files", path: file.path }, { purpose: "read_reviewed_source" }) } : {}) })) } };
     },
+
+    retain,
 
     detailCall(binding, selection, extra = {}) {
       return detailCall(binding.repository, selection, extra);
@@ -136,7 +156,10 @@ export function createCodeIndexAnswerSelection({ route, requestSchema, detailSch
       try {
         const { subject, matched } = selectCodeIndexRetainedCollection({
           route, carrier: retained.carrier, detail });
-        const observation = await observationOf(retained.binding);
+
+        const observation = retained.carrier.query_kind === "reviewed_code" ||
+          retained.binding.authority_identity !== undefined && !retained.carrier._review
+          ? { state: "current" } : await observationOf(retained.binding);
         const response = {
           query_kind: retained.carrier.query_kind,
           selected_detail: { source: detail.source },
@@ -164,6 +187,7 @@ export function createCodeIndexAnswerSelection({ route, requestSchema, detailSch
         response.next_calls = codeSourceCalls({ subjects: selectableSubjects(retained.carrier),
           source: detail.source, summary: response, collection: candidateMeaning ? null : detail.collection,
           detailCall: (binding, selection) => detailCall(binding.repository, selection), binding: retained.binding });
+        presentCodeReviewSource(response, retained.carrier._review, { supplementalRead: true });
         return selectedFullContent({ source: detail.source, retained,
           projection: response });
       } catch (error) {
@@ -202,10 +226,12 @@ function codeIndexObservationIdentity(result) {
 
 export function createSelectedCodeIndexResponse({ workspaceRepo, result, carrier = result,
   projectSummary, session, queryIdentity, collections = [],
+  review = null, authorityIdentity = null,
   observationIdentity = codeIndexObservationIdentity(result) }) {
-  const full = { workspaceRepo, ...structuredClone(carrier) };
+  const full = { workspaceRepo, ...structuredClone(carrier), ...(review ? { _review: review.notice } : {}) };
   const binding = { route: session.route, repository: workspaceRepo, unit: null,
-    query_identity: queryIdentity, observation_identity: observationIdentity };
+    query_identity: queryIdentity, observation_identity: observationIdentity,
+    ...(authorityIdentity ? { authority_identity: authorityIdentity } : {}) };
   const subjects = codeMeaningSubjects(selectableSubjects(full));
   if (subjects.size === 0) throw new TypeError("a retained code answer has no selectable collection");
   const names = [...new Set([...collections.filter(name => subjects.has(name)), ...subjects.keys()])];
@@ -237,6 +263,15 @@ export function createSelectedCodeIndexResponse({ workspaceRepo, result, carrier
     answer.next_calls.push(...codeCandidateCalls(summary, source, session.detailCall, binding));
     answer.next_calls.push(...codeSourceCalls({ subjects, source, summary: answer,
       detailCall: session.detailCall, binding }));
+    presentCodeReviewSource(answer, review?.notice, { files: review?.files });
+    if (review) {
+      const offered = new Set(answer.next_calls.map(call => JSON.stringify(call.arguments)));
+      for (const call of codeSourceCalls({ subjects, source, summary: answer,
+        detailCall: session.detailCall, binding })) {
+        if (!offered.has(JSON.stringify(call.arguments))) answer.next_calls.push({ ...call, recommended: false,
+          information: "Inspect supplemental indexed code; this does not read the reviewed version." });
+      }
+    }
     return answer;
   };
   const summary = projectSummary(result, { fits: candidate => measureMcpInlineResultBytes(frame(candidate)) <= session.maximumBytes });
@@ -317,19 +352,21 @@ function projectNavigationSummary(answer, { fits }) {
   throw new RangeError("navigation meaning exceeds compact admission");
 }
 
-async function answerCodeQuestion({ selected, queries, workspace, args, projections, session }) {
+async function answerCodeQuestion({ selected, queries, workspace, args, projections, session, reviewContext }) {
 
   const selectedArguments = { ...selected.arguments, dir: workspace.dir };
-  const common = { workspaceRepo: workspace.repo, session, queryIdentity: args };
+  const common = { workspaceRepo: workspace.repo, session, queryIdentity: args, authorityIdentity: reviewContext?.binding };
+  const present = async options => createSelectedCodeIndexResponse({ ...common, ...options,
+    review: await session.bindReview?.({ workspace, result: options.result, context: reviewContext }) });
   if (selected.query_kind === "impact") {
     const result = await queries.impact(selectedArguments);
-    return createSelectedCodeIndexResponse({ ...common, result,
+    return present({ result,
       projectSummary: projections.impactSummary, collections: ["affected_files", "semantic_relationships",
         "semantic_resolution", "canonical_refs", "structural_impacts", "invalid_paths", "invalid_diff_records", "unsupported_changes", "validation_hints", "path_limits"] });
   }
   if (selected.query_kind === "context") {
     const result = await queries.context(selectedArguments);
-    return createSelectedCodeIndexResponse({ ...common, result,
+    return present({ result,
       projectSummary: projections.contextSummary,
       collections: ["source", "definitions", "affected_files", "semantic_relationships", "semantic_resolution",
         ...(selected.arguments.includeSuppressed === true ? ["canonical_refs"] : [])] });
@@ -341,7 +378,7 @@ async function answerCodeQuestion({ selected, queries, workspace, args, projecti
 
   const heads = [...new Set(Object.values(answer.parts).map((part) =>
     codeIndexObservationIdentity(part)))];
-  return createSelectedCodeIndexResponse({ ...common, result: answer, carrier,
+  return present({ result: answer, carrier,
     observationIdentity: heads.length === 1 ? heads[0] : null,
     projectSummary: projectNavigationSummary,
     collections: [...answer.requested_relationships.map((relationship) =>
@@ -368,6 +405,7 @@ export function createCodeIndexQuestionHandler({ selectQuestion, queries, argume
     .map((text, index) => `(${index + 1}) ${text}`).join(" ")}`;
   return async (args = {}) => {
     let workspace = null;
+    let selected = null, reviewContext = null;
     try {
       const unknown = Object.keys(args ?? {}).filter((key) => !argumentNames.has(key));
       if (unknown.length > 0) {
@@ -393,21 +431,24 @@ export function createCodeIndexQuestionHandler({ selectQuestion, queries, argume
       if (args.detail !== undefined) {
         return await readSelectedCodeIndexDetail({ args, session, workspace });
       }
-      let selected;
       try {
         selected = selectQuestion(args);
       } catch (error) {
         if (error?.code !== invalidCode && error?.code !== "sidecar_navigation_input_invalid") throw error;
         throw codeQuestionInputError(error, session.route, alternatives);
       }
+      reviewContext = session.resolveReviewContext?.();
       return jsonContent(await answerCodeQuestion({ selected, queries, workspace, args, projections,
-        session }));
+        session, reviewContext }));
     } catch (error) {
       const selectedRefusal = session.failure(error);
       if (selectedRefusal !== undefined) return selectedRefusal;
       if (error?.code === SIDECAR_PUBLISHED_INDEX_UNAVAILABLE_CODE && workspace !== null) {
-        return jsonContent(createCodeIndexUnavailableResponse({ workspaceRepo: workspace.repo,
-          route: session.route, args, error, preparation: await preparation() }));
+        const answer = createCodeIndexUnavailableResponse({ workspaceRepo: workspace.repo,
+          route: session.route, args, error, preparation: await preparation() });
+        const reviewed = await session.bindReview?.({ workspace, context: reviewContext,
+          result: { path: selected?.arguments.path, validated_paths: selected?.arguments.paths } });
+        return jsonContent(presentCodeReviewSource(answer, reviewed?.notice, { files: reviewed?.files }));
       }
       return errorContent(error);
     }

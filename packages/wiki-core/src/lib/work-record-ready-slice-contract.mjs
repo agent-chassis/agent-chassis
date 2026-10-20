@@ -130,7 +130,7 @@ export const ACCEPTANCE_CRITERION_METADATA_KEYS = Object.freeze([
   "verification_method", "evidence_target", "facet_provenance"
 ]);
 const ACCEPTANCE_CRITERION_KEYS = new Set([
-  "text", ...ACCEPTANCE_CRITERION_METADATA_KEYS
+  "text", "typed_identity", ...ACCEPTANCE_CRITERION_METADATA_KEYS
 ]);
 
 const READY_TARGET_COARSE_ACTIVITY_KIND = "implementation";
@@ -187,8 +187,10 @@ export const WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA = deepFreeze({
   additionalProperties: false,
   required: ["criteria", "validation"],
   properties: {
-    criteria: { ...READY_ACCEPTANCE_ENTRIES, description: "The slice's own readable outcomes. A string is literal " +
+    criteria: { ...READY_ACCEPTANCE_ENTRIES, items: { anyOf: [{ type: "string" },
+      { type: "object", additionalProperties: true, properties: { typed_identity: { type: "string", minLength: 1 } } }] }, description: "The slice's own readable outcomes. A string is literal " +
       "text, never a $key reference; a parent criterion label copies no text and transfers no coverage. An object " +
+      "may retain an authored typed_identity exactly and " +
       `states text beside ${ACCEPTANCE_CRITERION_METADATA_KEYS.slice(0, -1).join(", ")} or ` +
       `${ACCEPTANCE_CRITERION_METADATA_KEYS.at(-1)}.` },
     validation: { anyOf: [structuredClone(READY_ACCEPTANCE_ENTRIES), { type: "object",
@@ -382,6 +384,12 @@ function normalizeAcceptanceCriterion(entry, path) {
     if (!ACCEPTANCE_CRITERION_KEYS.has(key)) readyInputError("ready_slice_unknown_field", `${path}.${key} is not allowed`, `${path}.${key}`);
   }
   const result = { text: nonemptyString(entry.text, `${path}.text`) };
+  if (hasOwn(entry, "typed_identity")) {
+    if (!isString(entry.typed_identity) || entry.typed_identity.length === 0) {
+      readyInputError("ready_slice_invalid_acceptance", `${path}.typed_identity must be a non-empty string`, `${path}.typed_identity`);
+    }
+    result.typed_identity = entry.typed_identity;
+  }
   if (hasOwn(entry, "verification_method")) {
     result.verification_method = controlled(
       entry.verification_method,

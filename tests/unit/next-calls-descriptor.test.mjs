@@ -660,6 +660,25 @@ test("requestContractErrors reports one defect per producer mistake", () => {
   assert.equal(requestContractErrors(VALIDATE, undefined, VALIDATE_SCHEMA).length, 1);
 });
 
+test('requestContractErrors retains nested bulk item errors while suppressing only root duplicates', () => {
+  const schema = { type: 'object', required: ['reads'], additionalProperties: false, properties: {
+    reads: { type: 'array', minItems: 1, items: { type: 'object', required: ['reference'], additionalProperties: false,
+      properties: { reference: { type: 'object', required: ['ref_id'], additionalProperties: false,
+        properties: { ref_id: { type: 'string' } } } } } } } };
+  const allowed = { reads: [{ reference: { ref_id: 'held-public-reference' } }] };
+  assert.deepEqual(requestContractErrors('workspace_read_wiki', allowed, schema), []);
+  const denied = requestContractErrors('workspace_read_wiki', { reads: [{ reference: {
+    tool_name: 'workspace_record_feedback', path: 'docs/agent-feedback.md' } }] }, schema);
+  assert.ok(denied.some(message => message.includes('/reads/0/reference') && message.includes('required')));
+  assert.ok(denied.some(message => message.includes('/reads/0/reference') && message.includes('additional')));
+  assert.ok(requestContractErrors('workspace_read_wiki', { reads: [{}, ...allowed.reads] }, schema)
+    .some(message => message.includes('/reads/0') && message.includes('required')));
+  const root = requestContractErrors('workspace_read_wiki', { unexpected: true }, schema);
+  assert.equal(root.length, 2, JSON.stringify(root));
+  assert.ok(root.some(message => message.includes('omits reads')));
+  assert.ok(root.some(message => message.includes('unexpected') && message.includes('does not accept')));
+});
+
 test("the schema contract binds the actionable limb only, not a router permission set", () => {
 
   const permissionSet = [

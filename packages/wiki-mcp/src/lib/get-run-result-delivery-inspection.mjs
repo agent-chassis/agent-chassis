@@ -9,6 +9,7 @@ import { managedObservationFailureFacts } from '../../../agent-launch-core/src/l
 import { selectedResponseQueryInvalidError } from './selected-response-snapshot.mjs';
 import { retainedRunSourceFailure } from './get-run-result-source-failure.mjs';
 import { admitResultContinuations } from './get-run-result-callability.mjs';
+import { runResultMeaning } from './get-run-result-final-result.mjs';
 
 const selection = carrier => ({ subject: carrier.identity.unit,
   selected_delivery: { base: carrier.outcome?.response?.transaction?.base_sha,
@@ -83,12 +84,13 @@ export async function readDeliveryReviews({ workspace, carrier, readOriginal, ta
       unavailable.push({ attempt_id, cause: { code: 'review_delivery_binding_unavailable' } }); continue;
     }
     matched.push({ attempt_id, role: original.role, status: original.status, terminal: original.terminal,
-      review_task: target, result: { ref_id: candidate.original_result.ref_id } });
+      review_task: target, meaning: runResultMeaning(original.final_result), result: { ref_id: candidate.original_result.ref_id } });
   }
   const { next_calls: _calls, ...answer } = await admitResultContinuations({ ...selected,
     state: unavailable.length > 0 ? 'partial' : matched.length > 0 ? 'linked' : 'none_linked',
     attempt_choices: matched.map(item => ({ attempt_id: item.attempt_id, role: item.role, status: item.status,
-      ...taskChoice(item, matched), call: detailCall(item.result) })),
+      ...taskChoice(item, matched), ...item.meaning.facts,
+      ...(item.meaning.unavailable ? {} : { call: detailCall(item.result) }) })),
     ...(unavailable.length === 0 ? {} : { unavailable }), next_calls: [] }, requestContracts);
   if (answer.state === 'none_linked') answer.limitation = 'No retained review is linked to this exact delivery. This does not establish that no review ran or that the change has no findings.';
   if (answer.state === 'partial') answer.limitation = 'Some review bindings are unavailable; the readable reviews do not establish complete review coverage of this delivery.';

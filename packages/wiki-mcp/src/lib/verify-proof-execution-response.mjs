@@ -5,7 +5,8 @@ import { classifyMutationOutcome } from '@agent-chassis/controlled-contract/test
 import { projectPublicVerifyProofRefusal, verifyProofSourceAmbiguityChoices } from './dispatch-run-proof-verification.mjs';
 import { projectVerifyProofRegressions } from './verify-proof-result-detail.mjs';
 import { isDeepStrictEqual } from 'node:util';
-import { publicProofRecoveryMeaning as recoveryMeaning, publicProofSelectedTest } from './verify-proof-agent-meaning.mjs';
+import { publicProofRecoveryMeaning as recoveryMeaning, publicProofSelectedTest,
+  publicProofFailureMeaning, publicProofRelationshipDiagnostic } from './verify-proof-agent-meaning.mjs';
 
 export function projectVerifyProofTestedSource(binding) {
   if (binding == null) return undefined;
@@ -67,9 +68,11 @@ function compactAnswer(summary, evidence, population) {
     const { reason: _reason, failure: _failure, check_limitations: _limitations, ...facts } = compactRow(row);
     const reason = original.status === 'proven' ? undefined : reasonRef({ reason_code: original.reason_code ?? null,
       ...(original.recovery === undefined ? {} : { recovery: recoveryMeaning(original.recovery, original.test_proof_id) }) });
-    facts.obligations = facts.obligations.map(({ reason: old, ...obligation }) => {
+    facts.obligations = facts.obligations.map(({ reason: old, diagnostics, ...obligation }) => {
       const entry = typeof old === 'string' ? summary.reasons[old] : old;
-      return { ...obligation, ...(entry === undefined ? {} : { reason: reasonRef({
+      return { ...obligation, ...(diagnostics === undefined ? {} : {
+        diagnostics: diagnostics.map(publicProofRelationshipDiagnostic)
+      }), ...(entry === undefined ? {} : { reason: reasonRef({
         reason_code: entry.reason_code,
         ...(entry.diagnostic_codes?.length ? { diagnostic_codes: entry.diagnostic_codes } : {})
       }) }) };
@@ -77,7 +80,7 @@ function compactAnswer(summary, evidence, population) {
     const detail = selected.get(row.test_proof_id);
     const checks = decidingChecks(original);
     return { ...facts, ...(reason === undefined ? {} : { reason }),
-      ...(detail?.failure === undefined || isRoutineVerifyProofSuccess(original) ? {} : { failure: detail.failure }),
+      ...(detail?.failure === undefined || isRoutineVerifyProofSuccess(original) ? {} : { failure: publicProofFailureMeaning(detail.failure) }),
       ...(detail?.check_limitations === undefined || !population ? {} : { check_limitations: detail.check_limitations }),
       ...(checks.length === 0 ? {} : { checks }) };
   });

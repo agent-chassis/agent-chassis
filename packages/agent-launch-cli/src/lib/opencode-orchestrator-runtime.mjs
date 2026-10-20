@@ -19,7 +19,7 @@ import { decodeOpenCodeEventStream } from "./workspace-agent-opencode-final-resu
 
 export async function executeOpenCodeOrchestrator(plan, { env = process.env, io = {} } = {}) {
   const prepared = await prepareOpenCodeLaunch({ input: { role: plan.role, workspace_dir: plan.repo,
-    model: plan.settings.model, model_selection: { effort: plan.settings.effort, high_priority_role_guide: true } },
+    model: plan.settings.model, model_selection: plan.modelSelection },
     resultMode: "free_prose", prompt: plan.prompt, env, options: { registeredTier: plan.hostProfile.registeredTier, publishControlledAcceptanceOptOut: plan.hostProfile.publishControlledAcceptanceOptOut,
       headless: plan.headless, nativeSessionId: plan.previous?.native_session_id ?? null } });
 

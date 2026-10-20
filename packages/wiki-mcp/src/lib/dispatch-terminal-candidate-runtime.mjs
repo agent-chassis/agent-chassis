@@ -285,6 +285,10 @@ function classifyThrownCandidateError(error) {
 }
 
 async function readCandidateRecord({ mainRepo, wkId, initiative, candidate, runGit }) {
+  const recordPath = `wiki/work-records/${wkId}.json`;
+  const unavailable = (cause, message, detail = {}) => Object.freeze({ ok: false, cause,
+    failure: new TerminalCandidateRuntimeError(cause, message,
+      { operation: "read_candidate_record", path: recordPath, ...detail }) });
   let observation;
   try {
     observation = await readExactWkRecordBlobObservation({
@@ -296,19 +300,23 @@ async function readCandidateRecord({ mainRepo, wkId, initiative, candidate, runG
     });
   } catch (error) {
     classifyThrownCandidateError(error);
-    return Object.freeze({ ok: false, cause: error?.code ?? "historical_record_invalid" });
+    return unavailable(error?.code ?? "historical_record_invalid",
+      "the selected candidate's work record could not be read", { cause: error });
   }
   if (observation.state === "absent") {
-    return Object.freeze({ ok: false, cause: "historical_record_absent" });
+    return unavailable("historical_record_absent", "the selected candidate contains no work record");
   }
   let record;
   try {
     record = JSON.parse(observation.content);
-  } catch {
-    return Object.freeze({ ok: false, cause: "historical_record_unparseable" });
+  } catch (error) {
+    return unavailable("historical_record_unparseable", "the selected candidate's work record is not valid JSON",
+      { cause: error });
   }
   if (record?.id !== wkId || record?.initiative !== initiative) {
-    return Object.freeze({ ok: false, cause: "historical_record_identity_disagrees" });
+    return unavailable("historical_record_identity_disagrees",
+      "the selected candidate's work record identifies different work",
+      { expected_id: wkId, observed_id: record?.id ?? null, initiative: record?.initiative ?? null });
   }
   return Object.freeze({ ok: true, record, digest: computeWorkRecordSourceDigest(record) });
 }
@@ -381,8 +389,9 @@ function reviewCoordinationFailureCause(cause) {
 }
 
 function reviewConsumerFacts({ compatibility, subject = null, cause = null, divergence = null,
-  failure = null }) {
-  return Object.freeze({ compatibility, subject, cause, divergence, failure });
+  failure = null, missingFacts = [], ambiguousFacts = [] }) {
+  return Object.freeze({ compatibility, subject, cause, divergence, failure,
+    missing_facts: missingFacts, ambiguous_facts: ambiguousFacts });
 }
 
 export async function observeTerminalReviewConsumer({ mainRepo, wkId, backend = null,
@@ -395,7 +404,10 @@ export async function observeTerminalReviewConsumer({ mainRepo, wkId, backend = 
     }
     return reviewConsumerFacts({
       compatibility: "incompatible",
-      cause: reviewCoordinationFailureCause(current.cause)
+      cause: reviewCoordinationFailureCause(current.cause),
+      missingFacts: current.cause.missing_facts,
+      ambiguousFacts: current.cause.ambiguous_facts,
+      failure: current.cause.failure === undefined ? null : current.cause
     });
   }
   const live = current.contract;
@@ -612,7 +624,7 @@ export async function observeTerminalCandidateFacts({
   if (candidateRecord.ok !== true || candidateRecord.digest !== metadata.canonical_wk_digest) {
     return invalid(
       candidateRecord.ok !== true ? candidateRecord.cause : "historical_contract_digest_disagrees",
-      observed);
+      { ...observed, failure: candidateRecord.failure ?? null });
   }
   if (inspection.embedded_w_equal_current_w !== true) {
 

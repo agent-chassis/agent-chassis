@@ -31,13 +31,14 @@ acceptance and its terminal behavior without another completion event.
 An unacknowledged completion publication returns `accepted:null`, the specific
 failure, and `get_run_result({assigned:true})` for inspection. Implementation,
 delivery and request retries must wait while acceptance is unresolved. Missing
-authentication, binding, frozen assignment, termination or retention repair is
-identified by the precise unavailable capability; these responses do not invent
+authentication, binding, frozen assignment, termination or retention is
+identified by its specific cause and affected assignment; these responses do not invent
 an external repair or grant access. A known earlier acceptance stays binding
 even if a later operation fails. Accepted handoff does not prove termination.
 An unavailable frozen assignment can prevent both its read and submission of a
-correction request. Preserve both failures and stop dependent work at the named
-missing repair capability; do not assume this tool can accept every context gap.
+correction request. Preserve both failures and the precise unsupported step;
+do not assume this tool can accept every context gap. Internal ownership and
+capability identifiers are not agent recovery actions.
 
 If delivery already owns completion, a recoverable receipt returns only its
 submission and checkout effects. An already complete delivery needs no repeated
@@ -46,18 +47,27 @@ includes its specific operation diagnosis and `workspace_deliver_work({})` to
 recover that existing delivery after its cause is resolved. A superseded checkout
 has no same-delivery retry. Commit-object, branch-ref and transaction bookkeeping
 stay internal. No new commit or assignment-change request is implied.
-When no receipt can be recovered, the response names the missing reconciliation
-capability and stops without a blind retry. A terminal attempt cannot accept a
+When no receipt can be recovered, the response preserves the failed read and
+uncertain effects and stops without a blind retry. A terminal attempt cannot accept a
 first request and has no worker continuation.
 
 The coordinator follows the exact attempt observation selected by its launch or
 previous observation, retrieves the handoff through returned result/detail
-calls, and reads the current bound unit through `workspace_read_wiki`. It uses
-the current revision and supported `save_record` contract to correct the
-assignment, then separately decides supported continuation subject to repository
-policy. Saved corrections do not update an active worker's frozen assignment.
+calls, and reads the current bound unit through `workspace_read_wiki` with
+`reads:[{subject:unit,for_changes:[...required members]}]`. It uses
+the ordered result for meaning and `contexts[unit].revision` with that
+context's returned schema calls to correct the assignment through `save_record`.
+A stale revision follows the save's returned current-context call; the original
+handoff is not a source of current write authority. A successful correction can
+finish without a reread or reassessment. The coordinator separately decides
+supported continuation subject to repository policy. Saved corrections do not
+update the worker's frozen assignment.
 Partial work remains preserved. Neither acceptance nor a saved correction
 authorizes release, cleanup, integration, publication or successor execution.
+An assigned worker observing known acceptance gets the stop instruction and no
+handoff or wait call. The coordinator retains its handoff navigation. Optional
+assignment detail delivers the frozen guidance once, without its digest, encoded
+copy or authentication metadata; reading it executes nothing.
 
 When the missing instruction is an authored parent decision, the coordinator can
 save an immutable entry on the owning record, select its required version through

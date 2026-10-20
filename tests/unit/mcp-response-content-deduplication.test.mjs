@@ -14,6 +14,7 @@ import { z } from "zod";
 
 import {
   errorContent,
+  completeProducedContent,
   getResponseSpillConfig,
   guardToolHandler,
   isLosslessMcpSpillDelivery,
@@ -33,6 +34,19 @@ import {
 } from "../helpers/mcp-journey-accounting.mjs";
 
 const INLINE_BYTE_LIMIT = 8192;
+
+test("complete produced meaning survives unavailable retention, but copies and alterations gain no exemption", async () => {
+  const env = { WIKI_MCP_RESPONSE_INLINE_BYTE_LIMIT: "8192" };
+  const projection = { outcome: "saved", effects: { published: true },
+    bindings: Object.fromEntries(Array.from({ length: 1000 }, (_, i) => [`chosen-${i}`, `issued-${i}`])) };
+  const complete = completeProducedContent(projection);
+  assert.ok(measureMcpInlineResultBytes(complete.structuredContent) > INLINE_BYTE_LIMIT);
+  assert.deepEqual(readCarrier(normalizeMcpToolResult(complete, { env })), projection);
+  assert.notDeepEqual(normalizeMcpToolResult({ ...complete }, { env }).structuredContent, projection);
+  complete.structuredContent.effects.published = false;
+  assert.notDeepEqual(normalizeMcpToolResult(complete, { env }).structuredContent, complete.structuredContent);
+  assert.throws(() => completeProducedContent({ circular: projection, get invalid() { throw new Error("invalid"); } }));
+});
 
 function utf8Bytes(value) {
   return Buffer.byteLength(value, "utf8");

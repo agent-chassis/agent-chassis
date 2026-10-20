@@ -839,6 +839,18 @@ by this boundary.
 
 ## Exact commit transaction and immutable integration
 
+Delivery materializes the complete content-inert delta and measures its full
+scope before deciding whether to publish it. Only authenticated inactive
+confinement waives a pure mutation-scope mismatch. The complete changed and
+outside-scope paths remain measured and `contained:false` remains truthful.
+Successful delivery reports its actual delivered disposition and completion
+action, without a containment-repair action. The `wiki/contracts` exclusion,
+forbidden sidecar paths (including generated output), symlink/type swaps and
+mixed failures still refuse. Decisions, work records and `AGENTS.md` receive no
+additional delivery restriction. Exact assignment/run/repository/ref checks,
+CAS, compensation and lifecycle transitions remain in force. This exception
+changes no worker edit/read grant, integration or publication authority.
+
 The exact-slice commit transaction has two ordered resources: publish the
 launcher-bound slice ref with exact compare-and-swap, then persist the canonical
 implementation-to-review transition. The response reports committed/submitted
@@ -1483,7 +1495,22 @@ any cache return or recovery. Record repair repeats the fence under the existing
 WK exclusion. Fresh admission must agree with the approved original base and
 commit; a differing merge base is not substituted silently. Existing primitive
 binding checks, ref CAS, compound record CAS and sibling completeness remain the
-effect owners. On final integration, the registered composition invokes the shared terminal-candidate preparation owner before delivery finalization. An authenticated recovered final integration may restore that same candidate’s missing checkout; it refuses a different already-selected candidate. Preparation failure preserves confirmed integration and its specific cause, with recovery limited to unfinished effects. Observation reads prepare nothing and launch nothing.
+effect owners. On final integration, the registered composition invokes the shared terminal-candidate preparation owner before delivery finalization. Ordinary recovery prepares the exact integrated slice commit; a later WK tip cannot silently replace that input. Preparation failure preserves confirmed integration and its specific cause, with recovery limited to unfinished effects. Observation reads prepare nothing and launch nothing.
+
+When publication cannot use a selected candidate's checkout, the shared
+integration-original owner can associate that candidate with one authenticated
+unfinished integration of its implementation. It offers the original delivery
+binding plus `candidate_version` in an exact `integrate_work` call. This is
+separate from ordinary integration: the receiver authenticates the unfinished
+original, immutable version and current selection before entering integration
+recovery. The candidate must contain the already-integrated implementation;
+unknown ancestry, a moved selection or a missing/altered binding stops the
+action. Recovery may restore an explicitly advanced candidate's checkout but
+does not construct an absent selection or replace any candidate. Completed
+Git effects remain intact. A later successful result suppresses recovery for
+that logical delivery. Successful preparation reports its selected version;
+any independently superseded checkout remains a separate fact. An optional
+publication call still requires publication intent and authority.
 A failed current fence preserves any previously confirmed cached integration as
 a partial result with the refusal cause. Without authenticated historical facts,
 a cold fence refusal reports unconfirmed integration rather than invented absence.
@@ -1728,7 +1755,10 @@ Partial, refused and unresolved answers preserve specific causes, the
 authenticated subject when known, actual effects and uncertainty. Unconfirmed
 integration effects are explicit nulls; confirmed integration stands even if
 record reconciliation, checkout synchronization, identity retirement, slice
-cleanup or original storage fails. Remaining effects name their owners. Original
+cleanup or original storage fails. Remaining effects identify the unfinished
+work, its specific originating cause and supported correction or stop. An
+unconfirmed checkout or removal differs from an established failure; neither
+erases confirmed integration. Original
 storage failure alone offers no reintegration to recreate evidence. A superseded
 checkout offers no rewind or same-delivery checkout repair. A historical result
 read performs no synchronization, execution, retention or repair; the mutable WK

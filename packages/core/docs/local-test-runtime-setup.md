@@ -48,7 +48,7 @@ public ID `<ecosystem>@<repository-relative root>`:
 
 | Ecosystem | Installation root | Example ID |
 | --- | --- | --- |
-| npm | a `package.json` directory with its own lock (`package-lock.json` or `pnpm-lock.yaml`) or workspace declaration; the workspace members it declares share its lock and installation (see [npm and pnpm test-runtime layouts](npm-test-runtime-layouts.md)) | `npm@.` |
+| npm | a `package.json` directory with its own lock (`package-lock.json` or `pnpm-lock.yaml`) or workspace declaration, or a standalone package that [explicitly disables npm root locks](npm-test-runtime-layouts.md#standalone-npm-projects-that-disable-root-locks); workspace members share their root's lock and installation | `npm@.` |
 | python | a directory with `requirements.txt`, `test-requirements.txt`, `requirements-dev.txt` and/or `requirements/test.txt`, a `setup.py` or `setup.cfg`, or a `pyproject.toml` that declares a project (`[project]` or `[build-system]`) or carries runner evidence | `python@services/api` |
 | go_modules | a `go.mod` directory; a module its checkout's `go.work` uses stays its own environment and builds in that workspace | `go_modules@billing` |
 | cargo | a `Cargo.toml` directory; `[workspace] members` share its lock | `cargo@.` |
@@ -133,7 +133,7 @@ still remains complete.
 Selection never asks whether a tool is on `PATH`, a lock exists, dependencies
 are installed or a probe passes. Those prerequisites are validated afterward;
 selected Deno still refuses when Deno is missing, and selected npm environments
-still refuse missing locks or dependencies. Malformed declarations and
+still refuse missing dependencies or an undeclared missing lock. Malformed declarations and
 unreadable evidence fail explicitly rather than becoming unused projects.
 Reports include `automatic_selection` decisions for selected and omitted
 environments, with a reason, at most eight evidence items per environment and
@@ -193,7 +193,9 @@ on setup's own `PATH`.
 
 The only question setup can ask is where a toolchain is installed when `PATH`
 has none, and only with a terminal (`--executable <toolchain>=<absolute-path>`
-answers it on the command line). Without a terminal it never waits on stdin: it
+answers it on the command line). `--non-interactive` suppresses every standard
+setup question, including agent selection; ordinary setup still needs a
+determinable agent (for example `--agent claude`). Without a terminal it never waits on stdin: it
 prints the toolchain it could not find and the exact option, and exits with
 status 3 ([Ordinary setup exit status](#ordinary-setup-exit-status)). A
 repository whose manifests declare no environment is reported as such and is
@@ -216,6 +218,72 @@ it does not remove that environment's prerequisite checks.
 | `--executable <toolchain>=<absolute-path>` | Where `node`, `python`, `go`, `rust` (its `rustc`) or `deno` is installed, when `PATH` has none or the wrong one. Repeatable. |
 | `--dry-run` | Detect and validate everything without the sandbox proof, saving configuration or publishing readiness. A requested invocation report is still written. |
 | `--test-runtime-report <path>` | Ordinary setup only: write compact JSON diagnostic facts for this invocation's test-runtime phase, separately from readiness history. The parent directory must exist. |
+
+## Shared setup parameters
+
+Both ordinary setup and `setup --test-runtimes` accept these location inputs:
+
+```sh
+agent-chassis setup --agent claude --non-interactive \
+  --executable python=/usr/local/bin/python3 \
+  --python-environment .=/srv/venvs/app \
+  --python-environment services/api=/srv/venvs/api
+```
+
+`--executable <toolchain>=<absolute-path>` accepts `node`, `python`, `go`,
+`rust` (its `rustc`), and `deno`. Each key may appear once. The corresponding
+adapter environment variables are `AGENT_CHASSIS_NODE_EXECUTABLE`,
+`AGENT_CHASSIS_PYTHON_EXECUTABLE`, `AGENT_CHASSIS_GO_EXECUTABLE`,
+`AGENT_CHASSIS_RUST_EXECUTABLE`, and `AGENT_CHASSIS_DENO_EXECUTABLE`.
+
+`--python-environment <project>=<absolute-venv-path>` is repeatable for
+independent Python projects; `.` names the root. Discovery still determines
+project membership. Its environment input is one JSON object, for example:
+
+```sh
+export AGENT_CHASSIS_PYTHON_ENVIRONMENTS='{ ".": "/srv/venvs/app", "services/api": "/srv/venvs/api" }'
+```
+
+Each toolchain or Python environment ID resolves independently:
+**CLI > adapter environment > saved configuration > existing autodetection**.
+Python tiers merge per environment ID. All supplied syntax is checked first;
+only the winning location undergoes filesystem/toolchain checks. Invalid
+explicit input fails directly, even when a lower tier is usable. Unused
+toolchain inputs are syntax-checked, then ignored without passing or saving
+them. Ambient `PATH` and ecosystem-specific discovery keep their usual meaning.
+Python selections remain optional when existing discovery is sufficient. Setup
+never downloads a missing dependency or adds a dependency questionnaire.
+
+Transport refusals use `setup_parameter_invalid` for malformed maps, values or
+unknown toolchain keys, `setup_parameter_duplicate` for repeated CLI keys, and
+`setup_parameter_conflict` for incompatible explicit flags. Each names the
+parameter, source and CLI/environment correction. Supplied CLI/environment
+syntax is checked during argument parsing; these refusals exit with status 1
+before bootstrap or runtime preparation and write no invocation report. An invalid
+interactive answer fails during ordinary setup's toolchain preparation instead:
+setup exits with status 3 and preserves its diagnostic, source and correction in
+the requested runtime report. The launcher retains its semantic diagnostics for
+project membership, unusable executables, interpreter/venv mismatch and missing tools.
+
+Only ordinary interactive setup asks for an unresolved required toolchain
+location. No terminal or `--non-interactive` means no stdin read. Ordinary setup's
+missing-toolchain correction names both its CLI option and declared environment
+variable. Runtime-only setup never prompts, including with a terminal, and retains
+the launcher's existing `--executable` correction for missing toolchains.
+
+Both modes save supplied toolchain and Python environment choices once all
+required toolchain components are ready, including when a later dependency or
+sandbox check fails. Runtime-only setup therefore retains newly supplied
+locations for later tests. Saving merges resolved toolchains with unrelated
+saved entries and preserves environment selections, explicit runner choices
+and manually authored `test_entrypoints`. Automatic inventory stays transient.
+Dry runs leave existing or absent saved configuration untouched. Configuration
+alone is no proof: readiness still requires the existing native sandbox probes.
+
+`--runtime-config` supplies the whole temporary configuration. It excludes
+`--runner`, `--toolchain`, `--executable` and `--python-environment`. Adapter
+environment variables are reported by name as ignored in this mode; their
+values are neither parsed nor merged. The temporary file is never saved.
 
 ## Ordinary setup exit status
 
@@ -373,8 +441,7 @@ its own. Setup never untracks a copy the consumer already committed.
 
 ## Precedence and refusals for an explicit location
 
-* A configured `executable` — from `--executable`, from
-  `agent-chassis-runtime.json`, or from a `--runtime-config` file — wins over
+* A configured `executable` — from the shared parameter precedence above, or from a `--runtime-config` file — wins over
   host discovery on `PATH`. Toolchains with no configured location are found
   on `PATH` as described under [Toolchains](#toolchains).
 * A configured location must be an absolute path that resolves to an executable
@@ -404,7 +471,7 @@ agent-chassis setup --test-runtimes
 | --- | --- |
 | `--runner <name>[@<project>]` | Detect exactly this runner's environment at a repository-relative installation root (default `.`) instead of the inventory. Repeatable. |
 | `--toolchain <name>=<x.y.z>` | Require an exact installed version of `node`, `python`, `go`, `rust` or `deno`. |
-| `--runtime-config <file>` | Read an explicit runner selection, explicit toolchain executable locations, explicit Python environment selections and/or test-entrypoint associations from one JSON file in the shape above, resolved against the invocation directory. It is temporary: it replaces the repository's saved configuration for this run only and is never written back, so the saved file, its associations included, is left unchanged. Not combinable with `--runner` or `--toolchain`. |
+| `--runtime-config <file>` | Read an explicit runner selection, explicit toolchain executable locations, explicit Python environment selections and/or test-entrypoint associations from one JSON file in the shape above, resolved against the invocation directory. It is temporary: it replaces the repository's saved configuration for this run only and is never written back, so the saved file, its associations included, is left unchanged. Not combinable with `--runner`, `--toolchain`, `--executable` or `--python-environment`. Adapter environment variables are ignored with a notice. |
 | `--dry-run` | Detect and validate everything without the sandbox proof or changing readiness. |
 | `--json` | Print the structured result, including `environments`, `excluded` and the report lines. |
 
@@ -421,7 +488,8 @@ selection from repository evidence. A repository that has never been configured 
 no hand-written file. An unconfigured toolchain is found on `PATH` by the
 launcher owner, which reports one it cannot find
 (`test_runtime_toolchain_not_found`, with the `--executable` correction)
-instead of asking; this mode saves only an explicit `--runner` selection. What
+instead of asking; this mode saves explicit runner and supplied toolchain/Python
+environment choices under the shared toolchain-readiness condition. What
 this mode never does is rerun wiki bootstrap or touch root agent guidance.
 
 ## Toolchains
@@ -532,8 +600,8 @@ exists, checks that it holds what the project's own inputs declare, and records
 it with a measured population. It never runs a package manager's install or
 download, never creates or fills a virtual environment, never copies or
 vendors dependencies into a replacement location, and never writes into the
-installation. Lockfiles are required inputs and are never created or
-rewritten.
+installation. Lockfiles are required unless the supported project configuration
+explicitly disables them; they are never created or rewritten.
 
 Wiki-core owns population content digests, currentness fingerprints and named
 input-file digests in its runtime-inputs population-identity module. Launcher
@@ -551,7 +619,7 @@ policy.
 
 | Ecosystem | Required inputs | Installation used, in precedence order | Validation | Attempt binding |
 | --- | --- | --- | --- | --- |
-| npm | `package.json` and each workspace member's `package.json`, plus the lock that exists (`package-lock.json` or `pnpm-lock.yaml`, with `pnpm-workspace.yaml`) when any dependency or member is declared | the module trees of the installation: the root's `node_modules` and each member's own, in any combination (a link to an installation elsewhere is that installation); see [Module trees](npm-test-runtime-layouts.md#module-trees) | every `dependencies`/`devDependencies` name of the root and of each member is installed where that package resolves it | setup probes use a private project copy; host tests use the selected installation, each tree at its own place, with workspace members and other local source linked to the tree being tested |
+| npm | `package.json` and each workspace member's `package.json`, plus the lock that exists (`package-lock.json` or `pnpm-lock.yaml`, with `pnpm-workspace.yaml`) when any dependency or member is declared; a [standalone lock-disabled npm project](npm-test-runtime-layouts.md#standalone-npm-projects-that-disable-root-locks) instead measures `package.json` and `.npmrc` | the module trees of the installation: the root's `node_modules` and each member's own, in any combination (a link to an installation elsewhere is that installation); see [Module trees](npm-test-runtime-layouts.md#module-trees) | every `dependencies`/`devDependencies` name of the root and of each member is installed where that package resolves it; versions are not compared | setup probes use a private project copy; host tests use the selected installation, each tree at its own place, with workspace members and other local source linked to the tree being tested |
 | python | `requirements.txt`, `test-requirements.txt`, `requirements-dev.txt` and/or `requirements/test.txt`; without any of them, the `pyproject.toml`; without that, the `setup.cfg`, else the `setup.py` | 1. the explicitly selected `virtual_environment`; 2. the nearest `.venv` or `venv` holding `pyvenv.cfg`, from the project directory up to the repository root; 3. the detected interpreter's own site packages | the environment's interpreter is the detected Python; every named requirement (following `-r` includes, or each of the `pyproject.toml`'s `[project]` `dependencies`; a `setup.cfg` or `setup.py` names none) that [applies to the environment](#python-environment-markers) is an installed distribution | setup probes use a read-only environment; host tests use the selected environment with normal host permissions |
 | go modules | `go.mod` (and `go.sum`); for a module its checkout's `go.work` uses, also `go.work`, `go.work.sum`, every used module's `go.mod` and `go.sum`, and the `go.mod` of each local replacement the workspace or a used module declares | the module cache `go env GOMODCACHE` names under the operator's own Go configuration | every workspace reference names a module directory inside the checkout, and the module graph lists with module lookup disabled (`GOPROXY=off`) in that workspace, or with the workspace off for a module that builds alone | setup probes use read-only `GOMODCACHE`, `GOPROXY=off` and the selected workspace (`GOWORK`); host tests use the same workspace selection with normal host permissions |
 | cargo | `Cargo.toml` and each workspace member's `Cargo.toml`, `Cargo.lock` | 1. a configured directory (vendored) replacement of crates.io; 2. otherwise the registry and git stores of `CARGO_HOME` (`$CARGO_HOME`, else `~/.cargo`) | every locked crate is present (vendored with its checksum file, or downloaded and extracted), and the setup probe `cargo metadata --frozen` resolves the whole lock from that source | setup probes use read-only dependency sources and offline mode; host tests use normal host permissions |
@@ -583,6 +651,115 @@ nothing lists what it needs. Setup then records no dependency environment
 tests import nothing remote passes and is published, and one that imports
 something uncached is refused with Deno's own diagnostic.
 
+### Go dependency preparation descriptions
+
+Selected Go environments expose native cache-population operations through the
+same `dependency_preparations` array as Deno: `runTestRuntimeSetup`, runtime-only
+setup's `--json` result and ordinary setup's `--test-runtime-report` JSON all
+carry them. Each selected `go-test` environment contributes one description,
+including independent module roots and each selected workspace member:
+
+```json
+{
+  "environment": "go_modules@e2e",
+  "provider_id": "runner.go-test",
+  "project": "e2e",
+  "invocation": {
+    "command": "/opt/go/bin/go",
+    "args": ["mod", "download", "all"],
+    "cwd": "/app/e2e",
+    "env": {
+      "GOMODCACHE": "/prepared/go-modules",
+      "GOWORK": "off",
+      "GOTOOLCHAIN": "local",
+      "GOTELEMETRY": "off",
+      "GOENV": "off"
+    }
+  }
+}
+```
+
+`command` preserves the selected executable, including a nondefault
+`--executable go` location. The Go ecosystem owner resolves `GOMODCACHE` using
+that executable and the supplied cache-location environment. `cwd` is the
+selected module root; `GOWORK` is the checkout's selected absolute workspace
+path, or `off` for an independent module, including a nonmember below a
+workspace. Workspace version selection and local replacements remain native
+Go behavior. Unselected environments produce no descriptions. Invalid workspace
+references, unavailable toolchains and unresolved cache locations retain their
+existing refusals and produce no operation for the affected environment.
+
+The installation owner executes each invocation separately with permission to
+populate that cache, inheriting its native environment and applying `env` as
+overrides. Proxy, checksum-database and authentication settings belong to that
+owner's environment; the description includes no credentials and sets no
+`GOPROXY` or `GOSUMDB`. `GOTOOLCHAIN=local` prevents toolchain substitution, and
+`GOENV=off` prevents an environment file from changing the described context.
+Preparation may update `go.sum` or workspace checksum files as Go requires;
+it is a native module operation, not a frozen-lock guarantee.
+
+The explicit `all` selects the whole module build list. For modules declaring
+`go 1.17` or higher, bare `go mod download` can omit transitive module source;
+older module directives and workspaces may already download that source with
+no arguments. `go mod download all` covers these contexts without selecting
+packages, adding test-target flags, compiling or running tests. See the
+[Go command change](https://go.dev/doc/go1.18#go-command) and
+[module download reference](https://go.dev/ref/mod#go-mod-download).
+
+Descriptions remain available when the existing offline graph check fails.
+Their presence and a successful download establish no readiness: the consumer
+must rerun setup. Ordinary setup never executes the operation or retries a
+download. Its dependency check and sandbox probe retain `GOPROXY=off`, the
+read-only module policy and the selected workspace. Resolving that module graph
+does not establish that any package compiles or that any test passes.
+
+### Deno dependency preparation descriptions
+
+The Deno runner adapter describes a native dependency-preparation operation
+after the executable, project and cache location have resolved. The setup API
+(`runTestRuntimeSetup`) returns these in `dependency_preparations`, and ordinary
+setup's `--test-runtime-report` JSON carries the same array. Runtime-only
+setup's `--json` result includes it too. Each entry identifies its environment,
+runner and project and carries an invocation as structured values, for example:
+
+```json
+{
+  "environment": "deno@.",
+  "provider_id": "runner.deno",
+  "project": ".",
+  "invocation": {
+    "command": "/opt/deno/bin/deno",
+    "args": ["test", "--no-run", "--no-check", "--no-prompt", "--permit-no-files", "--config", "/app/deno.json"],
+    "cwd": "/app",
+    "env": { "DENO_DIR": "/deno-cache", "DENO_NO_UPDATE_CHECK": "1", "NO_COLOR": "1" }
+  }
+}
+```
+
+`command` is the resolved executable, including an existing `--executable deno`
+selection; `cwd` and `--config` name the resolved project. `DENO_DIR` is the
+cache reported by that executable under the supplied native environment,
+including a nondefault or empty cache. The environment object contains the
+invocation's overrides, not a copy of setup's ambient environment. No shell
+command, separate registry, repository-specific recipe or test-file list is
+generated. When required locations could not be resolved, no invocation is
+invented. Descriptions remain available on dependency detection or offline
+verification failure, alongside the original failure code and diagnostic;
+their presence does not establish readiness.
+
+The installation owner executes the invocation with network access to populate
+the cache, then reruns setup. Ordinary setup only describes it: it never
+executes preparation, fetches dependencies or retries automatically. The
+preparation uses Deno's native test discovery and project test configuration,
+including nested tests and configured includes/excludes. For `lock:false`,
+preparation and offline verification share the same command construction;
+verification adds `--cached-only` and also runs with the network denied.
+`--no-run --no-check` caches imports without evaluating test modules or running
+test bodies. Lock-disabled projects create no lockfile. Locked projects add
+`--frozen` to preparation and retain the existing offline locked-dependency
+checks; preparation cannot create or update their lock. These descriptions
+prepare test imports, not arbitrary project tasks.
+
 ### Deno lockfile selection
 
 The lockfile is the one the project's configuration selects, as Deno reads its
@@ -595,6 +772,54 @@ other lockfile stands in for it: when the selected file is missing, setup
 refuses with `test_runtime_dependency_lock_missing` naming that file even if a
 `deno.lock` lies beside the project, and a selected file that is not a JSON
 object refuses with `test_runtime_manifest_invalid`.
+
+### Python dependency preparation descriptions
+
+Selected pytest and stestr environments expose requirement-file installation
+through the existing `dependency_preparations` array in the setup API,
+runtime-only setup's `--json` result and ordinary setup's
+`--test-runtime-report` JSON. Both runners use the same Python helper. For
+example, a selected virtual environment with two requirement files produces:
+
+```json
+{
+  "environment": "python@.",
+  "provider_id": "runner.stestr",
+  "project": ".",
+  "invocation": {
+    "command": "/prepared/venv/bin/python",
+    "args": ["-m", "pip", "install", "-r", "/app/requirements.txt", "-r", "/app/test-requirements.txt"],
+    "cwd": "/app",
+    "env": {}
+  }
+}
+```
+
+The Python dependency owner supplies the installation it inspected and every
+requirement file it already selected: `requirements.txt`,
+`test-requirements.txt`, `requirements-dev.txt` and `requirements/test.txt`,
+when present. The helper performs no separate requirement discovery. The
+command targets the configured or discovered virtual environment's
+`bin/python`, otherwise the selected base interpreter. Absolute file paths
+keep nested projects separate; pip reads the original files and applies their
+pins, markers, options and recursive includes itself. No package list is
+reconstructed from the missing-distribution diagnostic.
+
+Descriptions become available after the selected installation can be inspected,
+before missing dependencies refuse readiness. An invalid or unusable virtual
+environment, an unavailable interpreter or unresolved inputs produce no
+invocation. Projects whose only dependency inputs are packaging declarations
+(`pyproject.toml`, `setup.cfg` or `setup.py`) have no requirement-file operation;
+setup does not invent requirement files or a project installation command.
+
+The installation owner executes the operation separately, inheriting its own
+native environment and applying the invocation's overrides. This operation
+requires pip in the selected installation; it does not bootstrap pip or create
+a virtual environment. Ordinary setup never executes pip, downloads packages
+or retries preparation. A description establishes neither installability nor
+readiness: native installation failures remain failures, and the owner must
+rerun the unchanged dependency checks and offline sandbox probes after
+population. No test body is run by the preparation description.
 
 ### Python environment markers
 
@@ -715,9 +940,10 @@ A missing installation or missing packages refuse with
 missing, the tool's own diagnostic when it ran one, and the correction (for
 example the install command of the package manager whose lock the project has
 in the installation root, installing the requirements into the
-virtual environment, `go mod download`, `cargo fetch --locked` or `cargo vendor`,
+virtual environment, `go mod download all`, `cargo fetch --locked` or `cargo vendor`,
 `deno install --frozen`), which the operator runs. A missing lockfile refuses
-with `test_runtime_dependency_lock_missing`, except for a Deno project that
+with `test_runtime_dependency_lock_missing`, except for a
+[standalone npm project that explicitly disables root locks](npm-test-runtime-layouts.md#standalone-npm-projects-that-disable-root-locks) or a Deno project that
 [turned its lock off](#deno-projects-without-a-lockfile). Runner packages such as Jest,
 Vitest, Mocha, AVA, lib0, pytest and stestr must be declared and installed by
 the project itself. stestr runs as the installed package's module under the
@@ -1022,8 +1248,11 @@ installation root owns, a wrong named environment, a record that is not
 authentic, an input that cannot be located, or an executable that is gone or
 not executable is refused with its owner's own code; nothing is installed and
 a configured location is never replaced. The command runs through the shared
-host execution capability, in the exact authenticated checkout, with normal
-host filesystem and network permissions. The harness runs in the repository's
+execution capability, using the exact authenticated source and finalized
+session backend. Authenticated inactive confinement keeps normal host writes;
+active confinement requires the disposable source layer described in
+[Host execution](test-proof-execution.md#host-execution). Setup probes retain
+their existing confined verification plan. The harness runs in the repository's
 prepared host environment: `HOME`, supplied `CI` and locale values, cache
 locations, Node options and repository configuration survive the launcher-to-host
 server handoff and runtime composition. The public CLI bootstrap preserves Node
@@ -1136,8 +1365,24 @@ useful assertion values; error-looking output from a passing test establishes
 no failure cause. This extraction grants no proof credit and changes neither
 selection nor execution outcomes.
 
-The structured diagnosis currently recognizes node:test's terminal spec failure
-section and TAP failure diagnostic blocks. Raw reports and traces remain
+The structured diagnosis recognizes node:test's terminal spec failure section,
+TAP failure diagnostic blocks and Go's standard text test/build reports.
+Node diagnosis applies to the native `node-test` runner and a literal
+`node --test` command. An arbitrary script receiving a `--test` argument does
+not establish that framing. Go
+diagnosis applies to the native `go-test` runner and a literal `go test` harness;
+no reporter option is added and wrapper semantics are not inferred. Verbose
+Go ownership markers and nonverbose failed-test blocks keep passing output out
+of a failed test's diagnosis. Build diagnostics and unambiguously attributed
+testing panics retain their source locations without stack or package tails.
+Multiple messages owned by the same failed Go test retain the uncertainty that
+Go does not distinguish logging from failure messages. Native package verdicts
+separate multi-package reports; identically named tests remain distinct. A
+package with an unavailable diagnosis does not erase another package's known
+failure. Package setup failures retain their own diagnostic, rather than being
+presented as a test that ran. A harness-reported relative filename remains
+package-relative unless its diagnostic establishes the checkout location.
+Raw reports and traces remain
 internal. Unsupported framing, ambiguous attribution, incomplete reports and
 capture loss state the diagnostic limitation rather than inventing a cause.
 These semantic facts may accompany an entitled proof-result read without
@@ -1271,7 +1516,9 @@ saved field keeps `test_runtime_test_entrypoints_invalid`.
  authenticated orchestrator, worker and reviewer sessions. Proof questions stay
 with `verify_proof`; ordinary commands grant no proof credit.
 
-**Worker request.** Use `{entrypoint, selection?, timeout?}` from the frozen
+#### Worker request
+
+Use `{entrypoint, selection?, timeout?}` from the frozen
 selected assignment. Omit selection only for an explicitly authored default.
 Each selection owns its entire cwd/argv/environment; no caller value is spliced
 into arguments. For a new focus, missing command or changed listed definition,
@@ -1289,14 +1536,18 @@ manager selection remains the installation owner's contract; naming Yarn, Bun,
 mise or another wrapper provisions nothing and grants nothing. Unsupported or
 missing executables retain their specific native/runtime failure.
 
-**Nonworker request.** Orchestrators and reviewers use `harness:{cwd,argv}`,
+#### Nonworker request
+
+Orchestrators and reviewers use `harness:{cwd,argv}`,
 optional `environment` and `timeout`. An orchestrator additionally names
 `source`; a reviewer runs only its bound source. The server resolves the unique
 repository from host configuration; requests accept no repository or root.
 Public `file`, `runner` and `selector` execution fields are removed. Internal
 native-file/proof/regression consumers retain their own current contract.
 
-**Read/retry.** `read:{result,view,failure?}` selects one of the eight retained
+#### Read/retry
+
+`read:{result,view,failure?}` selects one of the eight retained
 native views and executes nothing. `retry:{request,changes?,clear?}` reconstructs
 the effective execution and validates the current schema, role, run binding and
 listed definitions before source/runtime preparation. Missing and symlinked listed
@@ -1311,7 +1562,9 @@ retry. Timeout uses `short`, `medium` (default), `long` or `{seconds}`, sharing
 one total budget across candidate and comparison. Unknown/hybrid fields refuse
 with `run_test.request_invalid.v1` before preparation.
 
-**Repository harness (orchestrator/reviewer).** The complete repository command owns its invocation:
+#### Repository harness (orchestrator/reviewer)
+
+The complete repository command owns its invocation:
 
 ```json
 {
@@ -1380,7 +1633,9 @@ specification, fitted with explicit omitted bytes on bounded reads; the complete
 request and native invocation remain retained. Each response, including failures
 and reads after restart, stays within 1,024 UTF-8 bytes. Reads never rerun tests.
 
-**Source.** A worker runs its launcher-bound slice checkout, live uncommitted
+#### Source
+
+A worker runs its launcher-bound slice checkout, live uncommitted
 edits included, authenticated through its verified identity-store slice binding
 and the exact WK/slice binding pair of its run. A reviewer runs its frozen review
 materialization. Neither may name a source: the role-specific closed schema refuses it with
@@ -1457,7 +1712,9 @@ one no checkout holds. A publication head is such a commit until an owner
 materializes it; the integrated commit or the terminal candidate is never run
 in its place, even when their trees agree.
 
-**Execution scope.** The repository command owns test selection, including
+#### Execution scope
+
+The repository command owns test selection, including
 neighboring tests, hooks and setup. No test counts or file-only execution are
 inferred. One monotonic execution budget is
 minted from the timeout after input validation and before any source or runtime
@@ -1505,7 +1762,9 @@ observation's `status:"unknown"`, stage, code, message and detail. Unknown
 currentness is neither unchanged nor a demonstrated source change, and remains
 diagnostic for comparison eligibility.
 
-**Comparison.** An eligible failing candidate automatically runs the same request
+#### Comparison
+
+An eligible failing candidate automatically runs the same request
 at most once more, on the same budget, when the candidate's final test command ran and
 exited normally with a nonzero code (an assertion failure and a harness
 configuration failure alike). A succeeding, refused, unresolved, not-run,
@@ -1577,7 +1836,9 @@ results remain retained, and the comparison read states baseline
 `current:null` with the unknown observation and its cause. None of these
 failures reruns a completed test or substitutes another source.
 
-**Task-facing answers.** A successful command returns `ok:true` and an optional
+#### Task-facing answers
+
+A successful command returns `ok:true` and an optional
 `outcome` read call marked `recommended:false`. This finishes the testing step;
 the caller continues its assigned work without inspecting successful output or
 running another clean check merely because a reader is available. A material
@@ -1593,20 +1854,44 @@ that tests may have executed and preserves the executor's recovery; printed
 passing output establishes no completion. Comparison or observation limitations
 never displace an already-established candidate failure. Correct the reported
 problem within scope before explicitly running the relevant check again.
+When a launch fails, the known command, arguments and selected directory
+identify the attempted operation. A bare error such as `ENOENT` does not
+establish which launch prerequisite is absent; no unchanged retry or invented
+installation correction is offered.
 
-**Output and detail.** Every response, including refusals and reads, remains
+#### Output and detail
+
+Every response, including refusals and reads, remains
 within the existing 1,024 UTF-8 byte whole-response bound. Only this tool may
 return native captured stdout/stderr under the operator's exception, totaling
 at most 1,024 UTF-8 bytes per response across both sides, streams, diagnostics
 and repeated captured context. The ceiling is not a target. Successful streams
 and unrelated tails are not returned automatically. A failed phase's captured
 diagnosis is preferred over wrapper verdicts, passing test names and bookkeeping.
-A diagnosis is captured text, not proof of causality or a test-count oracle.
+A framed diagnosis supplies the selected failed subject, stated diagnostic and
+useful source location or assertion values. It establishes no test count or
+proof credit. A first diagnosis already delivered in the default answer needs
+no reread; a returned further failure selection names another independent
+diagnosis. Outcome and other detail reads remain conditional on a new question.
+Unframed captured text is not proof of causality or a test-count oracle.
+
+When established structured meaning or environment choices cannot fit this
+native route, an issued `get_run_result({result,native:{view,...}})` call delivers
+that complete selected meaning through the authenticated result reader.
+The same native result and caller authority are required; missing or altered
+bindings prevent the read. This route exposes neither streams nor excerpts,
+reruns nothing and grants no execution or proof authority. Complete environment
+choices keep the original correction seed, source and timeout; choosing a
+returned retry is a separate explicit execution. Historical reads keep their
+selected values after later corrections. Unattributed captured excerpts retain
+the native route's existing bound.
 When a failed result is indexed, its selected block takes precedence over an
 unscoped error printed before it or by a passing test in another stream.
 If no indexed failure attributes the captured error to a failed result,
 `attributed:false` marks that evidence limit. A nonzero exit alone cannot prove
 that a passing test's printed error caused the failure.
+
+##### Retained result selections
 
 Copy returned `workspace_run_test({read:{result,view,...}})` calls for a needed
 question. `outcome` states execution and the effective timeout; it supplies
@@ -1632,6 +1917,15 @@ proof/regression consumers.
 An exact selected diagnosis carries its selection, without inventorying other
 failures. Unavailable selections retain the valid diagnostic extent needed to
 correct that choice. Refusal classification remains server-owned.
+An explicit failure index does not turn unavailable evidence into a zero-failure
+result: the diagnosis keeps its missing-evidence reason and stopping condition.
+An out-of-range selection keeps any partial-report uncertainty. Its extent names
+only retained diagnostic entries, not a complete count of failed tests. A sole
+retained entry supplies an exact read-only correction; several entries require
+the caller to choose an index within the returned range. Neither case reruns a
+test or substitutes another entry for the requested diagnosis.
+
+##### Stream selections
 
 A stream selection returns one bounded captured excerpt, or explicitly states
 `empty` versus `not_attempted`. Clipping is stated with omitted UTF-8 bytes and
@@ -1643,7 +1937,9 @@ execute nothing and do not replace it with the current checkout's result.
 `get_run_result` may enter the native outcome reader when that route is offered;
 it grants no raw-output exception to that or any other tool.
 
-**Selection correction.** An unknown entrypoint or selection, or an omitted
+#### Selection correction
+
+An unknown entrypoint or selection, or an omitted
 selection without an authored default, states the specific refusal and relevant
 permitted command calls. Command purpose distinguishes choices; caller timeout
 is preserved. Several permitted calls remain a caller choice. These input
@@ -1660,7 +1956,9 @@ supply truthful completed/remaining-work testimony before submitting the proposa
 empty arrays in a proposal are incomplete testimony, not a claim that no work
 exists. Offering a proposal submits nothing and changes no frozen grant.
 
-**Explicit retries and unavailable recovery.** A returned correction seed is
+#### Explicit retries and unavailable recovery
+
+A returned correction seed is
 not a native-result reference. A caller-chosen `retry` of that seed revalidates
 the effective request, current schema, role/session and frozen command definitions
 before a new execution. Reads never retry; a failed command or interruption

@@ -36,8 +36,8 @@ export async function validateSaveRecordScopes({ repoRoot, record, targets, deps
       recordId: record.id, baseBranch: record.base_branch, deps });
     if (!prospective.ok) return [{ code: 'save_record_scope_not_evaluated', severity: 'error', path: target.inputPath,
       message: `Scope paths were not checked: ${prospective.reason}`, details: prospective,
-      next_calls: [{ tool: 'workspace_read_wiki', arguments: { subject: record.id,
-        select: { context: true, for_changes: ['base_branch'] } } }],
+      next_calls: [{ tool: 'workspace_read_wiki', arguments: { reads: [{ subject: record.id,
+        for_changes: ['base_branch'] }] } }],
       correction: 'Nothing was saved. Inspect the selected base_branch and resolution_failure. If the caller chooses a different existing local base, author changes.base_branch on the parent work record using its current revision; otherwise restore the reported repository/base source. Reacquire the intended unit current revision before retrying its scope save.' }];
     for (target of targets) validateWorkerScopePathsAtBase({ mainRepo, scopeBase: prospective.scope_existence_base,
       readScope: target.scope.read_scope ?? [], repoPaths: target.scope.repo_paths ?? [],

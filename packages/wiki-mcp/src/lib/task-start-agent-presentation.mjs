@@ -36,6 +36,12 @@ function failureMeaning(value) {
   if (assignment !== undefined) return { reason, detail: { correction_unit: assignment.unit,
     authored_field: assignment.authored_field } };
   const dependencies = detail?.originating_detail;
+  if (reason === 'saved_assignment_binding_stale' && dependencies?.binding_change !== undefined) return { reason,
+    code: dependencies.cause.code, detail: { changed: dependencies.binding_change.field,
+      record: dependencies.binding_change.record,
+      retained_work: "unchanged; no new worker authority or work transfer",
+      ...(dependencies.retained_delivery === undefined ? {} : { delivery: dependencies.retained_delivery }),
+      ...(dependencies.delivery_problem === undefined ? {} : { delivery_problem: dependencies.delivery_problem }) } };
   if (reason === 'scope_existence_base_unresolved' && dependencies?.resolution_failure) {
     const cause = dependencies.resolution_failure;
     return { reason, detail: { base_branch: dependencies.base_branch,
@@ -160,19 +166,27 @@ async function refusedMeaning(value, { request, requestContracts }) {
   const next = [], options = [];
   let correctionReadLimitation = null;
   for (const call of calls(value)) {
-    if (call.tool !== 'start_agent') { next.push(call); continue; }
+    if (call.tool !== 'start_agent') {
+      next.push(problem.reason === 'saved_assignment_binding_stale'
+        ? { tool: call.tool, arguments: call.arguments } : call);
+      continue;
+    }
     const changesRole = call.arguments.role !== value.role;
-    const changesSource = request.diff_base_sha !== undefined &&
-      (call.arguments.diff_base_sha !== request.diff_base_sha || call.arguments.reviewed_sha !== request.reviewed_sha);
+    const changesSource = call.arguments.diff_base_sha !== request.diff_base_sha ||
+      call.arguments.reviewed_sha !== request.reviewed_sha;
     if (changesRole || changesSource) {
       options.push({ action: changesRole ? 'separate_review' : 'different_source', authorization: 'required',
-        instruction: 'This is a separate action using the saved subject source at start time; it does not correct the original request.',
-        call: omit(call, ['recommended', 'success_predicate', 'prerequisite_predicate']) });
+        instruction: call.arguments.diff_base_sha === undefined
+          ? 'This is a separate action using the saved subject source at start time; it does not correct the original request.'
+          : problem.reason === 'saved_assignment_binding_stale'
+            ? 'Review the exact retained range as a separate authorized action. This does not rebind, integrate or resume the blocked worker.'
+            : 'This separate action uses the explicit range shown; it does not correct the original request.',
+        call: { tool: call.tool, arguments: call.arguments } });
     } else if (call.prerequisite_predicate !== undefined) {
 
       if (origin?.worker_scope_path !== undefined) {
         const read = await servedGuidanceRead({ kind: 'guidance', tool: 'workspace_read_wiki',
-          arguments: { subject: value.subject }, information: 'Read the current assignment and correct the named scope path before starting this same action.' }, requestContracts);
+          arguments: { reads: [{ subject: value.subject, for_changes: [origin.worker_scope_path.field] }] }, information: 'Read the current assignment and correct the named scope path before starting this same action.' }, requestContracts);
         if (read.call) next.push(read.call);
         else correctionReadLimitation = read.limitation;
       }
@@ -185,8 +199,8 @@ async function refusedMeaning(value, { request, requestContracts }) {
       ...(value.observation_limitation ? { observation_limitation: value.observation_limitation } : {}),
       ...(next.length === 0 ? { stopping_condition: 'The existing live attempt cannot be observed through this session. Do not start a replacement.' } : {}) };
   }
-  const result = { outcome: 'refused', ...selected(value), code: value.code,
-    failure: problem, effects: { child_started: request.preview === true || live || origin?.verdict !== undefined
+  const result = { outcome: 'refused', ...selected(value), code: problem.code ?? value.code,
+    failure: omit(problem, ['code']), effects: { child_started: request.preview === true || live || origin?.verdict !== undefined
       ? false : value.effects?.child_started ?? uncertainty }, next_calls: next };
   if (failure.refusal?.base_selection_save !== undefined) {
     result.code = failure.refusal.code;
@@ -215,6 +229,10 @@ async function refusedMeaning(value, { request, requestContracts }) {
   if (correctionReadLimitation) result.correction_limitation = correctionReadLimitation;
   if (next.length === 0) result.stopping_condition = options.length > 0
     ? 'The original start remains blocked; the separate action requires its own authorization.'
+    : problem.detail?.delivery === 'not_recorded'
+      ? 'No authenticated delivery exists for the retained tip and no supported work-transfer route is available. The commit and dirty edits are preserved; a review cannot authorize adoption.'
+    : problem.detail?.delivery === 'unavailable'
+      ? 'The retained delivery cannot be authenticated. The original worker remains blocked and its work is preserved; no transfer is authorized. Do not retry unchanged.'
     : value.serving_dependency ? 'This session cannot offer observation of the issued attempt; do not retry launch to obtain status.'
       : `No supported correction is available for ${problem.reason} on ${value.subject ?? 'the selected role'}.`;
   return result;

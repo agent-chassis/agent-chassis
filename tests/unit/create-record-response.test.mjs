@@ -46,9 +46,9 @@ test('maintenance exposes deciding failures but omits successful checks and clea
         warnings: [{ code: 'optional_metadata', message: 'Nonblocking warning' }] } }
     ] } };
   const maintenance = creationMaintenance(body);
-  assert.equal(maintenance.members.length, 1);
-  assert.equal(maintenance.members[0].check.findings[0].path, 'wiki/areas/broken.md');
-  assert.equal(maintenance.members[0].check.warnings, undefined);
+  assert.equal(maintenance.failures.length, 1);
+  assert.equal(maintenance.failures[0].findings[0].path, 'wiki/areas/broken.md');
+  assert.equal(maintenance.failures[0].warnings, undefined);
   const growth = structuredClone(body);
   growth.maintenance.members.push(...Array.from({ length: 100 }, () => ({ member: 'unrelated_clean', state: 'succeeded' })));
   growth.maintenance.members[1].check.warnings.push(...Array.from({ length: 100 }, () => ({ message: 'Unrelated' })));
@@ -91,8 +91,8 @@ test('cleanup failure after successful checks does not advertise an unchanged ma
     { member: 'generate_and_lint', state: 'succeeded', check: { cause_code: 'ECLEANUP', cause_message: 'cleanup failed' } }
   ] } };
   const maintenance = creationMaintenance(body);
-  assert.equal(maintenance.members[0].check.cause_code, 'ECLEANUP');
-  assert.equal(creationRecovery(body, maintenance).code, 'creation_maintenance_cleanup_incomplete');
+  assert.equal(maintenance.failures[0].cause.code, 'ECLEANUP');
+  assert.equal(creationRecovery(body, maintenance).code, 'creation_post_check_failure');
   assert.equal(creationMaintenance({ maintenance: { members: [{ member: 'check', state: 'succeeded' }] } }), null);
 });
 
@@ -107,6 +107,6 @@ test('unavailable forward observation and message-only post-check failures retai
     { member: 'generate_and_lint', state: 'succeeded', check: { cause_message: 'Native post-check failure without a code' } }
   ] } };
   const meaning = creationMaintenance(completed);
-  assert.equal(meaning.members[0].check.cause_message, completed.maintenance.members[0].check.cause_message);
-  assert.equal(creationRecovery(completed, meaning).code, 'creation_maintenance_cleanup_incomplete');
+  assert.equal(meaning.failures[0].cause.message, completed.maintenance.members[0].check.cause_message);
+  assert.equal(creationRecovery(completed, meaning).code, 'creation_post_check_failure');
 });

@@ -11,9 +11,15 @@ function causeLevels(level) {
   const detail = facts.detail ?? facts.details;
   if (typeof detail?.field === 'string') result.field = detail.field;
   if (typeof detail?.condition === 'string') result.condition = detail.condition;
+  for (const key of ['path', 'operation', 'expected_id', 'observed_id', 'initiative']) {
+    if (detail?.[key] !== undefined) result[key] = detail[key];
+  }
   if (detail?.prerequisite?.kind === 'persistent_wk_lifecycle_ref') result.ref = detail.prerequisite.ref;
   const nested = detail?.failure ?? detail?.cause ?? facts.failure;
-  return [result, ...(nested != null && typeof nested === 'object' ? causeLevels(nested) : [])];
+
+  const origins = [nested, level.cause ?? facts.cause].filter(value => value != null);
+  return [...(Object.keys(result).length ? [result] : []), ...origins.flatMap(value =>
+    typeof value === 'object' ? causeLevels(value) : [{ value }])];
 }
 
 function diagnosis(value) {
@@ -75,6 +81,8 @@ export function candidateInspectionView(body) {
       ...(review.subject == null ? {} : { subject: review.subject }),
       cause: comparisonFailed ? body.diagnostic.cause_chain[0]?.code ??
         body.diagnostic.cause_chain[0]?.name ?? body.diagnostic.condition : review.cause,
+      ...(review.missing_facts?.length ? { missing_facts: review.missing_facts } : {}),
+      ...(review.ambiguous_facts?.length ? { ambiguous_facts: review.ambiguous_facts } : {}),
       recovery: comparisonFailed ? {
         state: 'no_supported_route',
         prerequisite: 'The review comparison must complete before compatibility can be established.',

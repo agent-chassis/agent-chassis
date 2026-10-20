@@ -16,7 +16,7 @@ import {
   deepFreeze
 } from "./deterministic-projection-primitives.mjs";
 import { validateIntentArtifact } from "./proof-authoring-schemas.mjs";
-import { loadProofDiscoveryPopulation } from "./proof-discovery-scope.mjs";
+import { discoverySourceIdentity, loadProofDiscoveryPopulation } from "./proof-discovery-scope.mjs";
 import { VOCABULARY_DIGESTS, VOCABULARY_VERSION } from "./vocabulary-v1.mjs";
 
 export const PROOF_INTENT_METADATA_SCHEMA_VERSION =
@@ -411,7 +411,7 @@ export function readProofIntentMetadataFileIdentity() {
   return createHash("sha256").update(readMetadataBytes()).digest("hex");
 }
 
-function captureMetadata(selectionMeaning) {
+function captureMetadata(selectionMeaning, isolateDefinitions = false) {
   const bytes = readMetadataBytes();
   let document;
   try {
@@ -427,7 +427,46 @@ function captureMetadata(selectionMeaning) {
   const recorded = new Map(document.inputs.map(({ path, sha256 }) => [path, sha256]));
 
   const capturedBytes = selectionMeaning ? new Map() : undefined;
-  const current = currentMetadataInputs(capturedBytes);
+  const unavailable = new Map();
+  const discoveryReads = new Map();
+  let discoveryCatalog;
+  let current;
+  if (isolateDefinitions) {
+
+    const catalogBytes = readFileSync(new URL(PACK_CATALOG_PATH, packageRoot));
+    if (createHash('sha256').update(catalogBytes).digest('hex') !== recorded.get(PACK_CATALOG_PATH)) {
+      throw staleMetadata({ reason: 'inputs_changed', changed_inputs: [PACK_CATALOG_PATH] });
+    }
+    discoveryCatalog = JSON.parse(catalogBytes);
+    const owners = new Map(discoveryCatalog.packs.flatMap(entry =>
+      PACK_INPUT_FILES.map(name => [`${entry.path}/${name}`, entry])));
+    current = [...new Set([...metadataInputPaths(), ...recorded.keys()])].sort(compareCodeUnits).map(path => {
+      const owner = owners.get(path);
+      let failure;
+      let sha256;
+      try {
+        const value = readFileSync(new URL(path, packageRoot));
+        discoveryReads.set(path, { value });
+        sha256 = createHash('sha256').update(value).digest('hex');
+        if (owner && recorded.get(path) !== sha256) failure = {
+          code: 'proof_intent_metadata_stale', message: 'Definition input differs from its authenticated metadata.',
+          details: { path, reason: 'inputs_changed' } };
+      } catch (error) {
+        if (!owner) throw error;
+        discoveryReads.set(path, { error });
+        failure = { code: error.code ?? null, message: error.message, details: { path } };
+      }
+      if (failure) {
+        const key = packKey(owner);
+        if (!unavailable.has(key)) unavailable.set(key, { proof_name: owner.profile_id,
+          proof_version: owner.profile_version, failures: [] });
+        unavailable.get(key).failures.push(failure);
+
+        return { path, sha256: recorded.get(path) };
+      }
+      return { path, sha256 };
+    });
+  } else current = currentMetadataInputs(capturedBytes);
   const changed = [
     ...current.filter(({ path, sha256 }) => recorded.get(path) !== sha256).map(({ path }) => path),
     ...[...recorded.keys()].filter((path) => !current.some((entry) => entry.path === path))
@@ -437,13 +476,31 @@ function captureMetadata(selectionMeaning) {
       changed_inputs: changed.slice(0, LISTED_LIMIT),
       changed_inputs_omitted: Math.max(0, changed.length - LISTED_LIMIT) });
   }
+  const discoverySource = isolateDefinitions ? discoverySourceIdentity(document.discovery.catalog, discoveryCatalog, {
+        isolateDefinitions: true, read: url => {
+          const entry = discoveryReads.get(url.href.slice(packageRoot.href.length));
+          if (entry === undefined) throw new Error(`Discovery input was not captured: ${url.href}`);
+          if (entry.error) throw entry.error;
+          return entry.value;
+        }
+      })() : null;
+  if (isolateDefinitions && unavailable.size === 0 &&
+      discoverySource.discovery !== document.discovery.source_identity.discovery) {
+    throw staleMetadata({ reason: 'discovery_source_identity_mismatch' });
+  }
   return { document: deepFreeze(document),
     sha256: createHash("sha256").update(bytes).digest("hex"),
-    ...(selectionMeaning ? { loadedPacks: capturedSelectionMeaning(document, capturedBytes) } : {}) };
+    ...(selectionMeaning ? { loadedPacks: capturedSelectionMeaning(document, capturedBytes) } : {}),
+    ...(isolateDefinitions ? { unavailableDefinitions: deepFreeze([...unavailable.values()]),
+      discoverySource } : {}) };
 }
 
 export function capturePackagedProofIntentMetadata() {
   return captureMetadata(false);
+}
+
+export function capturePackagedProofDiscoveryMetadata() {
+  return captureMetadata(false, true);
 }
 
 export function capturePackagedProofIntentSelection() {

@@ -13,7 +13,10 @@ import { applyWorkRecordContractEdit, assignWorkRecordToInitiative,
   validateWorkRecordProseDestination, WORK_RECORD_EDIT_FIELD_REGISTRY } from "../lib/work-record-contract-edit-operations.mjs";
 import { cloneJson, finalizeEdit, jsonEqual } from "../lib/work-record-contract-edit-shared.mjs";
 import { acceptanceCriterionInventory } from "./controlled-contract/acceptance-criterion-coverage.mjs";
+import { projectRequirementMutationFailure } from './controlled-contract/proof-authoring-case-diagnosis.mjs';
 import { prepareProofAuthoringRequirementBatch } from "./controlled-contract/proof-authoring-contract-inputs.mjs";
+import { resolveRecordAuthoringSelections } from './record-authoring-public-selections.mjs';
+import { resolveRecordAuthoringLocalClaims } from './record-authoring-local-selections.mjs';
 import { projectAuthoredRequirements, requirementDescriptionEntities } from './controlled-contract/contract-requirement-projection.mjs';
 import { prepareRequirementDescriptionSources } from './controlled-contract/contract-requirement-description-sources.mjs';
 import { controlledContractIdentityScope } from './controlled-contract/contract-requirement-authoring.mjs';
@@ -21,7 +24,7 @@ import { recordAuthoringAvailability, recordAuthoringOperationDiagnostic, requir
 import { prepareProofAuthoringMutation } from "./controlled-contract/proof-authoring-preparation.mjs";
 import { reconcileProofAuthoringCandidate } from './controlled-contract/proof-authoring-candidate-reconciliation.mjs';
 import { prospectiveProofAuthoringSource } from "./controlled-contract/proof-authoring-targets.mjs";
-import { controlledContractContentDigest } from "../lib/controlled-contract-tools.mjs";
+import { ControlledContractToolError, controlledContractContentDigest } from "../lib/controlled-contract-tools.mjs";
 import { planWorkRecordDispositions } from "./work-record-dispositions.mjs";
 import { planWorkRecordEntryUpsert, validateWorkRecordEntryUpsertInput } from "./work-record-entries.mjs";
 import { resolveProseCarrier, inspectInitiativeAssignmentTarget } from "./work-record-contract-edit.mjs";
@@ -236,14 +239,14 @@ function planCriteria({ pkg, record, sliceId, changes, labels }) {
   const position = (identity, path) => {
     const found = before.find((entry) => entry.identity === identity);
     if (found === undefined) refuse("record_authoring_row_unknown", path,
-      `${path} names a criterion identity the selected unit does not currently have`);
+      `${path} selects a saved criterion unavailable in the prospective unit`);
     return found.position;
   };
   const criteria = cloneJson(unit.acceptance.criteria);
   const appended = [];
   rows.forEach((row, index) => {
     if (row.id === undefined) { appended.push({ key: row.key, at: criteria.push(row.text) - 1 }); return; }
-    const at = position(row.id, `changes.criteria[${index}].id`);
+    const at = position(row.id, `changes.criteria[${index}].target`);
     criteria[at] = typeof criteria[at] === "string" ? row.text : { ...criteria[at], text: row.text };
   });
   const dropped = new Set(removed.map((identity, index) => position(identity, `changes.remove.criteria[${index}]`)));
@@ -346,24 +349,38 @@ function planDispositions({ record, sliceId, changes, labels }) {
   return { record: planned.record, changed: planned.changedFields };
 }
 
-function semanticInput({ pkg, captured, record, changes, labels }) {
-  const retire = changes.remove?.requirements;
-  const removeRows = changes.remove?.requirement_rows;
+async function semanticInput({ pkg, captured, record, changes, labels, selected, moved }) {
+  const retire = selected.retireClaimIds;
+  const removeRows = selected.removeRowIds;
 
   let contractRequirements;
   let batch = null;
-  if (changes.requirements !== undefined || retire !== undefined || removeRows !== undefined) {
-    batch = prepareProofAuthoringRequirementBatch({ pkg, initial: { ...captured, record }, batch: changes.requirements ?? {},
-      removeRowIds: removeRows ?? [], retireClaimIds: retire ?? [], sourceText: record.sections?.user_requirements ?? null });
+  if (changes.requirements !== undefined || retire.length > 0 || removeRows.length > 0) {
+    try {
+      batch = prepareProofAuthoringRequirementBatch({ pkg, initial: { ...captured, record }, batch: selected.batch ?? {},
+        removeRowIds: removeRows ?? [], retireClaimIds: retire ?? [], sourceText: record.sections?.user_requirements ?? null,
+        selectionContext: selected.selectionContext });
+    } catch (error) {
+      await projectRequirementMutationFailure(error, captured, { captured, changes, rows: [], selections: selected });
+      throw error;
+    }
     contractRequirements = batch.answer;
     for (const row of batch.rows) {
-      labels.bind(row.key, Object.freeze({ row_id: row.row_id, state: row.state, constraint_ids: row.constraint_ids, claim_ids: row.claim_ids }));
+      const key = row.key ?? changes.requirements.requirements?.[row.index].replacement_key;
+      labels.bind(key, Object.freeze({ row_id: row.row_id, state: row.state, constraint_ids: row.constraint_ids, claim_ids: row.claim_ids }));
       labels.bind(row.verification_key, row.verification_claim_id);
     }
     for (const row of batch.collections) labels.bind(row.key, row.collection_row_id);
   }
+  const localClaims = await resolveRecordAuthoringLocalClaims({ pkg, captured, record, unit: selectUnit(record, captured.selectedUnit),
+    changes, batch, selections: selected });
 
   const claimsOf = (entry, path) => {
+    if (entry?.kind === 'claim' && typeof entry.requirement === 'string') {
+      if (!localClaims.has(entry)) refuse('selection_unavailable', path,
+        'The request-local assertion has no established prepared binding; no association was selected.');
+      return [localClaims.get(entry)];
+    }
     const resolved = labels.resolve(entry, ["requirement", "verification"], path);
     if (resolved === null || typeof resolved !== "object") return [resolved];
     if (resolved.claim_ids.length === 0) refuse("controlled_contract_requirement_association_population_empty", path,
@@ -375,7 +392,7 @@ function semanticInput({ pkg, captured, record, changes, labels }) {
     (entry.source?.content.obligations ?? []).map((row) => row.obligation_id)));
   const nextCase = allocator("case", captured.cases.map((definition) => definition.case_id));
   const known = new Set(captured.rows.map((row) => row.obligation_id));
-  const obligations = changes.obligations?.map((row, index) => {
+  const obligations = changes.obligations === undefined ? undefined : selected.obligations.map((row, index) => {
     const path = `changes.obligations[${index}]`;
     if (row.id !== undefined && !known.has(row.id)) refuse("record_authoring_row_unknown", `${path}.id`,
       `${path}.id names ${row.id}, which the selected unit does not have; a new obligation carries key`);
@@ -391,8 +408,14 @@ function semanticInput({ pkg, captured, record, changes, labels }) {
         ...body };
     })(authored);
     return { obligation_id: obligationId, ...rest,
-      ...(criteria === undefined ? {} : { acceptance_criteria: criteria.map((entry, at) =>
-        labels.resolve(entry, ["criterion"], `${path}.criteria[${at}]`)) }),
+      ...(criteria === undefined ? {} : { acceptance_criteria: criteria.map((entry, at) => {
+        if (selected.removedCriteria.includes(entry)) throw new ControlledContractToolError(
+          "record_authoring_criterion_removed", "This obligation selects a criterion removed by the same save.",
+          { changed: false, field: `${path}.criteria[${at}]`, target: changes.obligations[index].criteria[at],
+            correction: "Explicitly omit this association or preserve the selected criterion; no change was saved." });
+        return typeof entry === "string" && entry.startsWith("$") ? labels.resolve(entry, ["criterion"], `${path}.criteria[${at}]`)
+          : moved.find(change => change.prior === entry)?.current ?? entry;
+      }) }),
       ...(claims === undefined ? {} : { controlled_contract_node_ids: [...new Set(claims.flatMap((entry, at) =>
         claimsOf(entry, `${path}.claims[${at}]`)))] }),
       ...(proof?.name === undefined ? {} : { proof_name: proof.name }),
@@ -416,6 +439,7 @@ function declareLabels(changes, labels) {
     labels.declare(row.key, "disposition", `changes.dispositions[${index}].key`));
   (changes.requirements?.requirements ?? []).forEach((row, index) => {
     labels.declare(row.key, "requirement", `changes.requirements.requirements[${index}].key`);
+    labels.declare(row.replacement_key, 'requirement', `changes.requirements.requirements[${index}].replacement_key`);
     labels.declare(row.verification?.key, "verification", `changes.requirements.requirements[${index}].verification.key`);
   });
   (changes.requirements?.collections ?? []).forEach((row, index) =>
@@ -443,10 +467,10 @@ function exceptionReceipt({ exception, captured, candidate }) {
     criteria: (row.acceptance_criteria ?? []).map((entry) => entry.identity),
     proof_selected: row.selection !== undefined, case_id: row.case_id ?? null }))(
     candidate.content.obligations.find((row) => row.obligation_id === subject))
-    : kind === "grammar" ? ((entry) => ({ id: subject, ...(typeof entry === "string" ? { text: entry }
-      : { text: entry.text, ...(entry.reason === undefined ? {} : { reason: entry.reason }) }),
-    specification: "incomplete", compiled: false }))(
-      candidate.canonicalContract.authored_requirements.unresolved[Number(subject.slice(1)) - 1])
+    : kind === "grammar" ? ((entry) => {
+      const { grammar_exception: _exception, ...meaning } = typeof entry === "string" ? { text: entry } : entry;
+      return { ...meaning, specification: "incomplete", compiled: false };
+    })(candidate.canonicalContract.authored_requirements.unresolved[exception.selectedUnresolved.internal.unresolved_index])
       : { unit: captured.wkId, disposition: action === "apply" ? "opted_out" : "required" };
   return Object.freeze({ kind, action, subject, affected,
     ...(action === "apply" ? { rationale: exception.rationale, ...RECORD_AUTHORING_EXCEPTION_RATIONALE_PROVENANCE,
@@ -460,6 +484,10 @@ async function prepareWorkItemChange({ capturedSource: captured, changes, owners
   const labels = labelNamespace();
   declareLabels(changes, labels);
   let record = captured.record;
+  const selected = await resolveRecordAuthoringSelections({ captured, changes, exception });
+  exception = selected.exception;
+  const criterionChanges = { ...changes, criteria: selected.criteria,
+    remove: { ...changes.remove, criteria: selected.removedCriteria } };
   const changed = [];
   let moved = [];
   let entries = [];
@@ -467,7 +495,7 @@ async function prepareWorkItemChange({ capturedSource: captured, changes, owners
   const externalCaptures = [];
   for (const stage of [planSlices, planReadySlices, planOrdinaryMembers, planCriteria, planTasks, planEntries,
     planDispositions, planLifecycle]) {
-    const result = await stage({ pkg, captured, record, sliceId, changes, labels, repository, now,
+    const result = await stage({ pkg, captured, record, sliceId, changes: stage === planCriteria ? criterionChanges : changes, labels, repository, now,
       resolveExternalReference, externalCaptures });
     record = result.record;
     changed.push(...result.changed);
@@ -487,7 +515,7 @@ async function prepareWorkItemChange({ capturedSource: captured, changes, owners
     seen.add(id);
   });
 
-  const semantic = exception === null ? semanticInput({ pkg, captured, record, changes, labels })
+  const semantic = exception === null ? await semanticInput({ pkg, captured, record, changes, labels, selected, moved })
     : { batch: null, input: { exception } };
   const steps = [...removals.map((removal) => ({ remove: true,
     input: { obligationId: removal.id, removalScope: removal.scope } })),
@@ -496,7 +524,8 @@ async function prepareWorkItemChange({ capturedSource: captured, changes, owners
   let preparation;
   const prepared = [];
   for (const step of steps) {
-    preparation = await prepareProofAuthoringMutation({ pkg, ...step, now, initial: stepInitial });
+    preparation = await prepareProofAuthoringMutation({ pkg, ...step, now, initial: stepInitial,
+      authoringContext: { captured, changes, rows: semantic.batch?.rows ?? [], selections: selected } });
     prepared.push(preparation);
     stepInitial = { ...prospectiveProofAuthoringSource(stepInitial, preparation.candidate),
 

@@ -17,6 +17,7 @@ import { validateRecordAuthoringChanges } from '../lib/record-authoring-schema.m
 import { PROOF_REFRESH_CORRECTION } from './controlled-contract/proof-authoring-refresh.mjs';
 import { proofRefreshRecovery } from '../lib/proof-refresh-guidance.mjs';
 import { authoredSaveRecordScopes } from '../lib/work-record-save-scope.mjs';
+import { SidecarPathValidationError } from '../lib/sidecar-paths.mjs';
 
 export const SAVE_RECORD_RESULT_SCHEMA_VERSION = "save-record-result.v1";
 const KIND_RECORD_UNIT = /^(?:IN|DEC)-[0-9]{4}$/u;
@@ -29,6 +30,14 @@ const result = (fields) => ({ schema_version: SAVE_RECORD_RESULT_SCHEMA_VERSION,
 const refused = ({ unit, revision = null, diagnostics, effects = { published: false } }) => result({ outcome: "refused", unit,
   revision, diagnostics, effects: { ...effects, ...NOT_CAUSED } });
 const diagnostic = (code, path, message, extra = {}) => ({ code, severity: "error", path, message, ...extra });
+
+function authoredIdentityPaths(value, rejectedPath, at = 'changes') {
+  if (value === null || typeof value !== 'object') return [];
+  if (['repository_path', 'code_symbol'].includes(value.kind) && value.path === rejectedPath) return [`${at}.path`];
+  return Object.entries(value).flatMap(([key, child]) => authoredIdentityPaths(child, rejectedPath,
+    Array.isArray(value) ? `${at}[${key}]` : /^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(key)
+      ? `${at}.${key}` : `${at}[${JSON.stringify(key)}]`));
+}
 
 const publishedOwnerDetails = (value, guidanceCall) => Array.isArray(value)
   ? value.map((member) => publishedOwnerDetails(member, guidanceCall))
@@ -93,6 +102,14 @@ async function saveWorkItem({ repoRoot, unit, revision, changes, exception }, op
       ? await prepareRecordAuthoringException({ capturedSource: initial, exception, owners })
       : await prepareRecordAuthoringChange({ capturedSource: initial, changes, owners });
   } catch (error) {
+    if (error instanceof SidecarPathValidationError && changes !== undefined) {
+      const fields = authoredIdentityPaths(changes, error.inputPath);
+      if (fields.length > 0) return refused({ unit, revision, diagnostics: [diagnostic(error.code,
+        fields[0], error.message, { details: { subject: error.inputPath,
+          ...(fields.length === 1 ? {} : { additional_authored_fields: fields.slice(1) }),
+          ...(error.reason === undefined ? {} : { reason: error.reason }) },
+          correction: 'Nothing was saved. Correct the addressed source identity only if mistaken; preserve the intended meaning and other changes. Otherwise stop: access to that source is refused.' })] });
+    }
 
     if (typeof error?.code !== "string" || error.details?.changed !== false) throw error;
     if (error.code === 'obligation_coverage_prospective_incompatible' && changes?.refresh_proofs !== true &&
@@ -103,7 +120,8 @@ async function saveWorkItem({ repoRoot, unit, revision, changes, exception }, op
     }
     const root = exception !== undefined ? "exception" : "changes";
     return refused({ unit, revision, diagnostics: [diagnostic(error.code,
-      typeof error.details.path === "string" && error.details.path.startsWith(root) ? error.details.path : root, error.message,
+      typeof error.details.field === "string" && error.details.field.startsWith(root) ? error.details.field
+        : typeof error.details.path === "string" && error.details.path.startsWith(root) ? error.details.path : root, error.message,
       { details: publishedOwnerDetails(error.details, options.requirementGuidanceCall),
         correction: exception !== undefined
           ? "Nothing was saved. Correct the addressed exception using the owner details and request it against the current revision."
@@ -136,7 +154,7 @@ async function saveWorkItem({ repoRoot, unit, revision, changes, exception }, op
       return refused({ unit, effects, diagnostics: [diagnostic(error.details?.movement === 'revision'
         ? 'save_record_revision_stale' : error.code, error.details?.movement === 'revision' ? 'revision' : 'changes',
         error.message, { details: publishedOwnerDetails({ ...error.details,
-          next_calls: [{ tool: 'workspace_read_wiki', arguments: { subject: unit } }] }, options.requirementGuidanceCall),
+          next_calls: [{ tool: 'workspace_read_wiki', arguments: { reads: [{ subject: unit, ...(changes === undefined ? {} : { for_changes: Object.keys(changes) }) }] } }] }, options.requirementGuidanceCall),
           effects, correction: 'Read the unit again to inspect current state; do not reuse the failed request revision.' })] });
     }
     error.save_record = { unit, prior_revision: revision, effects: { ...effects, ...NOT_CAUSED },

@@ -23,11 +23,11 @@ export async function buildOpenCodeRuntime({ prepared, conduit, env, retainedSta
   await writeFile(path.join(configRoot, "opencode", ".gitignore"),
     "node_modules\npackage.json\npackage-lock.json\nbun.lock\nbun.lockb\n.gitignore\n", { mode: 0o600 });
   const config = buildOpenCodeNativeConfiguration({ conduitBinding: conduit, model: prepared.model,
-    guideDelivery: prepared.guideDelivery, effort: prepared.effort,
+    guideDelivery: prepared.guideDelivery, effort: prepared.effort, opencode: prepared.opencode,
     permissionFacts: createLauncherNativePermissionFacts({ ...prepared.nativePermissionContext,
       workerScopeAuthority, responseStateDir, managedWorktreeRoot, mcpToolNames: conduit.toolNames }) });
   await writeFile(configFile, JSON.stringify({ ...config,
-    ...(prepared.provider === null ? {} : { provider: prepared.provider }) }), { mode: 0o600 });
+    ...(prepared.provider === null ? {} : { provider: { ...config.provider, ...prepared.provider } }) }), { mode: 0o600 });
   const controls = { OPENCODE_CONFIG: configFile, OPENCODE_DISABLE_PROJECT_CONFIG: "true",
     OPENCODE_DISABLE_MODELS_FETCH: "true", OPENCODE_DISABLE_AUTOUPDATE: "true",
     ...(prepared.commandLine.nativePrompt === undefined ? {} : {

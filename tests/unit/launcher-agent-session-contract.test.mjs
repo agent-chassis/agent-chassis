@@ -16,11 +16,20 @@ import {
   canonicalSerializeLauncherAgentSessionContract,
   digestLauncherAgentSessionContract,
   mintLauncherAgentSessionContract,
-  mintTrustedStdioMcpConduitAuthority,
+  mintTrustedStdioMcpConduitAuthority as mintUnboundAuthority,
+  bindLauncherAgentSessionExecutionBackend,
   resolveLauncherAgentSessionContract,
   resolveLauncherAgentSessionContractFacts,
   authenticateLauncherAgentSessionContract
 } from "../../packages/agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
+import { createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn } from
+  "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-provenance.mjs";
+function mintTrustedStdioMcpConduitAuthority(input) {
+  const authority = mintUnboundAuthority(input);
+  bindLauncherAgentSessionExecutionBackend(authority,
+    createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn());
+  return authority;
+}
 import {
   bindAdvisoryReviewInputToRun,
   createAdvisoryReviewDescriptor,
@@ -112,7 +121,7 @@ test("assigned-unit parsing is exact and role-aware", () => {
     " IN-0038",
     "IN-0038 "
   ]) {
-    const minted = mintTrustedStdioMcpConduitAuthority({
+    const minted = mintUnboundAuthority({
       family: "codex",
       role: "worker",
       assignedUnit,
@@ -122,7 +131,7 @@ test("assigned-unit parsing is exact and role-aware", () => {
     assert.throws(() => resolveLauncherAgentSessionContract(minted), assignedUnit);
   }
   for (const role of ["worker", "reviewer", "redteam"]) {
-    const minted = mintTrustedStdioMcpConduitAuthority({
+    const minted = mintUnboundAuthority({
       family: "codex",
       role,
       assignedUnit: "IN-0038",
@@ -131,7 +140,7 @@ test("assigned-unit parsing is exact and role-aware", () => {
     });
     assert.throws(() => resolveLauncherAgentSessionContract(minted), `${role}/IN-0038`);
   }
-  const crossRole = mintTrustedStdioMcpConduitAuthority({
+  const crossRole = mintUnboundAuthority({
     family: "codex",
     role: "orchestrator",
     assignedUnit: "WK-2446",

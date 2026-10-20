@@ -308,14 +308,14 @@ export function closeoutReceiptSelectorSchema(schema = z) {
   }).strict();
 }
 
-const RECEIPT_REQUEST_SCHEMA = selectedResponseRequestSchema(z.object({
+const RECEIPT_REQUEST_SCHEMA = selectedResponseRequestSchema(z.object({ reads: z.array(z.object({
   reference: closeoutReceiptSelectorSchema(z)
-}).strict());
+}).strict()).length(1) }).strict());
 
 function receiptCall({ source, findingId = null }) {
   return buildNextCall({ tool: CLOSEOUT_RECEIPT_READ_ROUTE, recommended: true,
-    arguments: { reference: { ref_id: source.ref_id,
-      ...(findingId === null ? {} : { finding_id: findingId }) } } });
+    arguments: { reads: [{ reference: { ref_id: source.ref_id,
+      ...(findingId === null ? {} : { finding_id: findingId }) } }] } });
 }
 
 function receiptFindings(complete) {
@@ -331,7 +331,7 @@ function retainCloseoutReceipt({ complete, operation, repository, unit, jsonCont
         publication_state: complete.publication_state ?? null } },
     carrier: complete,
     ownerCall: (locator) => ({ tool: CLOSEOUT_RECEIPT_READ_ROUTE,
-      arguments: { reference: { ref_id: locator.ref_id } } }),
+      arguments: { reads: [{ reference: { ref_id: locator.ref_id } }] } }),
     ownerRequestSchema: RECEIPT_REQUEST_SCHEMA
   }, { responseOwner: jsonContent });
 }

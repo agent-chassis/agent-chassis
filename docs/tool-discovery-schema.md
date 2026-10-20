@@ -244,11 +244,11 @@ advertised):
 `workspace_read_wiki` reads a package document by
 `{reference:{tool_name,path}}`: `tool_name` is a tool the session can see and
 `path` one logical path that tool advertises. The answer is the compact
-`package_document` context — the logical path, scope, owning package, package
-version, digest and byte count — and one returned call. That call repeats the
-reference with `select:{field:"text"}` and returns the complete document text
-with the same identity. Both reads report
-`effects:{reads:["package_document"],writes:[]}`.
+`package_document` context with the requested reference and optional returned
+section or full-text selections. The full-text call repeats the reference with
+`select:{field:"text"}` and returns the complete document text. The serving
+package binding, version, digest and byte count remain internal; neither read
+resolves a workspace source or executes a write.
 
 A refused read answers with `tool-doc-read-refusal.v1`, naming `tool` as
 `workspace_read_wiki` and one of these codes:

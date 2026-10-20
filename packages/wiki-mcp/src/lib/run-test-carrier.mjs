@@ -21,6 +21,11 @@ export function runTestReadCall(locator, view, reason = undefined, failure = nul
     arguments: { read: { result: locatorOf(locator), view, ...(failure === null ? {} : { failure }) } } });
 }
 
+export function runTestSemanticReadCall(locator, view, failure = null) {
+  return buildNextCall({ tool: 'get_run_result', arguments: { result: locatorOf(locator),
+    native: { view, ...(failure === null ? {} : { failure }) } } });
+}
+
 export function runTestRetryCall(seed, { changes = null, clear = null } = {}, reason = undefined) {
   return buildNextCall({ tool: RUN_TEST_TOOL_NAME, ...(reason === undefined ? {} : { reason }),
     arguments: { retry: { request: locatorOf(seed), ...(changes === null ? {} : { changes }),

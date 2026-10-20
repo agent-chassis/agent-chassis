@@ -1300,13 +1300,15 @@ async function observeSelectedPublication({ mainRepo, wk, authorityContext, sele
         return unavailable("remote_candidate_state_unprovable", { observation: branchObservationFacts(observed) });
       }
       publicationHead = observed.kind === "present" ? observed.sha : null;
-      if (pullRequest.head_sha !== selection.head ||
-          !(pullRequest.merged === true || (pullRequest.state === "open" && publicationHead === selection.head))) {
+      if (pullRequest.head_sha !== selection.head) {
         return unavailable("selected_proposal_head_not_published_or_merged");
       }
       const exact = authenticateExactProposal([pullRequest], selection.head);
       if (!exact.ok) return exact;
       pullRequest = exact.pullRequest;
+      if (!(pullRequest.merged === true || (pullRequest.state === "open" && publicationHead === selection.head))) {
+        return unavailable("selected_proposal_head_not_published_or_merged");
+      }
     } else {
       const recorded = readLocalRef({ repo: mainRepo, ref: handoffRef, runGit: deps.runGit ?? defaultRunGit });
       if (recorded.kind === "unobservable") return gitTransportFailure("handoff_ref", "handoff_ref_unobservable", recorded);

@@ -4,6 +4,8 @@ export { servedGuidanceRead } from "./task-start-agent-guidance.mjs";
 import { readRecordAuthoringRevision, saveRecord } from "@agent-chassis/wiki-core/src/operations/save-record.mjs";
 import { WK_BASE_SELECTION } from
   "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate-exact-unit-identity.mjs";
+import { WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES } from
+  "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate.mjs";
 import { buildDispatchToolExceptionDetail, projectDispatchFailureDetail } from "./dispatch-tool-helpers.mjs";
 import { EXACT_SLICE_TARGET_REASON } from "./dispatch-tools/agent-dispatch-refusal-projection.mjs";
 import { INTEGRATE_WORK_TOOL_NAME } from "./task-integrate-work-schema.mjs";
@@ -15,7 +17,7 @@ const unknown = reason => ({ state: "unknown", reason });
 export async function startAgentBaseCorrection({ wkId, workspace, request }) {
   return { correction: { root_unit: wkId, revision: await readRecordAuthoringRevision({ repoRoot: workspace.dir, unit: wkId }),
     required_choice: "base_branch", save_tool: "save_record", retry: { ...request } },
-  call: { kind: "guidance", tool: "workspace_read_wiki", arguments: { subject: wkId },
+  call: { kind: "guidance", tool: "workspace_read_wiki", arguments: { reads: [{ subject: wkId, for_changes: ['base_branch'] }] },
     information: "Read the root's current revision for a caller-authored base_branch save; reading leaves the prerequisite unchanged." } };
 }
 
@@ -50,7 +52,8 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
   if (completed !== null && completed.detail.subject === request.subject) {
     const { parent, assignment_authoring: authoring, integrated_delivery_sha } = completed.detail;
     const served = await servedGuidanceRead({ kind: "guidance", tool: "workspace_read_wiki",
-      arguments: { subject: parent }, information: `Read ${parent} and its current revision, then author a new slice through save_record changes.ready_slices with caller-chosen contents. Start the newly saved slice.` }, requestContracts,
+      arguments: { reads: [{ subject: parent, select: { context: true }, for_changes: ['ready_slices'] }] },
+      information: `Read ${parent}'s current revision and ready_slices authoring contract, then author a new slice with caller-chosen contents. Start the newly saved slice.` }, requestContracts,
     { unavailableCode: "integrated_slice_parent_read_unavailable" });
     return { outcome: "refused", repository: workspace.repo, subject: request.subject, role: request.role ?? "worker",
       code: INTEGRATED_SLICE_REDISPATCH_CODE, reason: completed.reason,
@@ -65,7 +68,7 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
     ? value.blocker : refusal?.reason === "repository_test_definition_unavailable" ? refusal : null;
   if (definition !== null) {
     const served = await servedGuidanceRead({ kind: "guidance", tool: "workspace_read_wiki",
-      arguments: { subject: request.subject }, information: "Read this assignment and its current revision. " +
+      arguments: { reads: [{ subject: request.subject, for_changes: ['validation'] }] }, information: "Read this assignment and its current revision. " +
         "Correct changes.validation.repository_tests through save_record with caller-authored declarations whose definition files exist at the selected Git source, then retry this slice." }, requestContracts);
     return { outcome: "refused", repository: workspace.repo, subject: request.subject, role: "worker",
       code: value?.blocker?.code ?? refusal.code, failure: projectDispatchFailureDetail(value, { env: responseEnv }),
@@ -77,6 +80,18 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
   }
   const nextCalls = [];
   let guidanceLimitation = null;
+  const baseFailure = value?.blocker?.detail?.originating_detail;
+  if (correction === null && request.role === 'worker' &&
+      baseFailure?.reason === 'scope_existence_base_unresolved' &&
+      baseFailure.base_branch === null &&
+      baseFailure.resolution_failure?.code === WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_REF) {
+
+    const root = await startAgentBaseCorrection({ wkId: request.subject.split('#')[0], workspace, request });
+    correction = root.correction;
+    const served = await servedGuidanceRead(root.call, requestContracts);
+    if (served.limitation) guidanceLimitation = served.limitation;
+    else nextCalls.push(served.call);
+  }
   const controlledFailure = value?.blocker?.detail?.controlled_acceptance_failure ??
     value?.blocker?.detail?.originating_detail?.controlled_acceptance_failure ?? null;
   let controlledProjection = controlledFailure;
@@ -110,7 +125,8 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
       value?.readiness?.dispatchable === false && value?.blocker?.reason === "work_record_not_dispatchable"))) {
     for (const call of refusal.next_calls ?? []) {
       if (call.kind !== "guidance" || call.tool !== "workspace_read_wiki" ||
-          call.arguments?.subject !== guidanceSubject || Object.keys(call.arguments).length !== 1) continue;
+          call.arguments?.reads?.length !== 1 || call.arguments.reads[0].subject !== guidanceSubject ||
+          Object.keys(call.arguments).length !== 1) continue;
       const served = await servedGuidanceRead(call, requestContracts);
       if (served.limitation) guidanceLimitation = served.limitation;
       else nextCalls.push(served.call);
@@ -130,7 +146,10 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
   if (observes && correctionParent === request.subject?.split('#')[0]) {
     const proposal = dependencyDetail.recovery;
     const offered = (value.refusal.next_calls ?? []).find(call => call.kind === 'guidance' &&
-      call.tool === 'workspace_read_wiki' && call.arguments?.subject === correctionParent &&
+      call.tool === 'workspace_read_wiki' &&
+      Array.isArray(call.arguments?.reads) && call.arguments.reads.length > 0 &&
+      JSON.stringify(call.arguments) === JSON.stringify(proposal?.args) &&
+      call.arguments.reads[0].subject === correctionParent &&
       Object.keys(call.arguments).length === 1);
     if (proposal?.route === 'workspace_read_wiki' && offered) {
       const served = await servedGuidanceRead(offered, requestContracts);
@@ -164,7 +183,12 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
     else {
       const [call] = offered, args = call.arguments ?? {};
       if (args.subject !== request.subject) limit("start_correction_subject_foreign");
-      else if (typeof args.role !== "string" || Object.keys(args).some(key => key !== "role" && key !== "subject") ||
+      else if (typeof args.role !== "string" || Object.keys(args).some(key =>
+        !["role", "subject", "diff_base_sha", "reviewed_sha"].includes(key)) ||
+          ((args.diff_base_sha !== undefined || args.reviewed_sha !== undefined) &&
+            (!['reviewer', 'redteam'].includes(args.role) ||
+              !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(args.diff_base_sha ?? '') ||
+              !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(args.reviewed_sha ?? ''))) ||
           call.prerequisite_predicate === undefined) limit("start_correction_arguments_unclassified");
       else {
         const contract = requestContracts?.contractFor?.(START_TOOL);

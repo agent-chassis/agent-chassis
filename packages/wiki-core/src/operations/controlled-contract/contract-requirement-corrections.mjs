@@ -6,8 +6,6 @@ import {
   ControlledContractToolError
 } from "../../lib/controlled-contract-tools.mjs";
 
-const DEPENDENCY_DETAIL_LIMIT = 32;
-
 function fail(code, message, details = {}) {
   throw new ControlledContractToolError(code, message, { changed: false, ...details });
 }
@@ -158,7 +156,7 @@ function assertNoRetainedRetirementDependencies(content, removedClaims, retireme
     "a retained relation or collection still names a claim this retirement removes",
     { field: `retire_claim_ids[${selection.retire_index}]`, retire_claim_id: selection.claim_id,
       retired_claim_ids: retiredClaimIds, dependency_count: dependencies.length,
-      dependencies: dependencies.slice(0, DEPENDENCY_DETAIL_LIMIT), guidance_path: retirementGuidance() });
+      dependencies: dependencies, guidance_path: retirementGuidance() });
 }
 
 export function applyRequirementCorrections(content, requirements, compiled, targets,

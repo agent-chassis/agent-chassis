@@ -887,6 +887,7 @@ export function createLaunchFlow(deps = {}) {
 
     let executorResult;
     let sessionContract = null;
+    let workerTask = null;
     try {
 
       const ensuredValidatorCache = await prepareCompiledValidatorCache({ mode: "ensure" });
@@ -1148,6 +1149,7 @@ export function createLaunchFlow(deps = {}) {
       }));
       executorResult = captured.result;
       sessionContract = captured.sessionContract;
+      workerTask = captured.workerTask;
     } catch (error) {
       if (findingsLifecycle) {
         executorResult = Object.freeze({
@@ -1208,6 +1210,7 @@ export function createLaunchFlow(deps = {}) {
       reviewerLaunchIdentity,
       workerAdmissionDiagnostic,
       sessionContract,
+      workerTask,
       reviewerAttemptLineageOwner: null,
       findingsLifecycle
     });

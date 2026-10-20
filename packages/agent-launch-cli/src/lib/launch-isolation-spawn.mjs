@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn } from "./workspace-agent-dispatch-provenance.mjs";
 import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
   BUBBLEWRAP_LAUNCH_PLAN_SCHEMA_VERSION,
@@ -28,6 +29,7 @@ export const LAUNCHER_TERMINATION_ISSUER = "launcher_terminal_supervisor";
 
 export const LAUNCHER_TERMINATION_INITIATING_FACTS = Object.freeze({
   ASSIGNMENT_CHANGE_REQUESTED: "assignment_change_requested",
+  SESSION_BACKEND_BINDING_FAILED: "session_backend_binding_failed",
   CONDUIT_FAILURE_SETTLEMENT: "conduit_failure_settlement",
   SERVER_EXIT_EXPECTED_DRAIN: "server_exit_expected_drain",
   SERVER_EXIT_ABNORMAL: "server_exit_abnormal",
@@ -262,6 +264,27 @@ export function spawnIsolated(plan, stdioOptions = {}) {
     );
   }
   if (conduit !== null) {
+    let conduitFinalized = false;
+    const finalizeConduitLifecycle = () => {
+      if (conduitFinalized) return;
+      conduitFinalized = true;
+
+      recordLauncherObservedStdioMcpClientTerminal(conduit);
+      void settleStdioMcpConduitCleanup(conduit);
+    };
+    child.once("exit", finalizeConduitLifecycle);
+    child.once("close", finalizeConduitLifecycle);
+    child.once("error", finalizeConduitLifecycle);
+    if (Number.isInteger(child.pid)) {
+      try {
+        conduit.bindExecutionBackend(createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn());
+      } catch (error) {
+
+        terminateConfinedClientDirectly(conduit, child,
+          LAUNCHER_TERMINATION_INITIATING_FACTS.SESSION_BACKEND_BINDING_FAILED, error);
+        throw error;
+      }
+    }
 
     superviseConduitClientReadiness(conduit, child);
     if (conduit.assignmentChangeRequested instanceof Promise) {
@@ -281,18 +304,6 @@ export function spawnIsolated(plan, stdioOptions = {}) {
         void settleStdioMcpConduitCleanup(conduit);
       });
     }
-
-    let conduitFinalized = false;
-    const finalizeConduitLifecycle = () => {
-      if (conduitFinalized) return;
-      conduitFinalized = true;
-
-      recordLauncherObservedStdioMcpClientTerminal(conduit);
-      void settleStdioMcpConduitCleanup(conduit);
-    };
-    child.once("exit", finalizeConduitLifecycle);
-    child.once("close", finalizeConduitLifecycle);
-    child.once("error", finalizeConduitLifecycle);
 
     void conduit.serverExit.then((exit) => {
       const supervision = resolveServerExitTerminalSupervision(exit);

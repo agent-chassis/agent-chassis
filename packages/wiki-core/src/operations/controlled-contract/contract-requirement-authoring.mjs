@@ -857,22 +857,20 @@ export function controlledContractRequirementVerificationBundles({ compiled }) {
       } }));
 }
 
-export function attributeControlledContractRequirementDiagnostics(error, compilation) {
+export function attributeControlledContractRequirementDiagnostics(error, _compilation) {
   const diagnostics = error?.details?.diagnostics?.diagnostics;
-  if (!(error instanceof ControlledContractToolError) || !Array.isArray(diagnostics) ||
-      !Array.isArray(compilation?.compiled)) return error;
-  const requirementByClaim = new Map(compilation.compiled.map((entry, index) =>
-    [entry.claim_id, "requirements[" + index + "]"]));
-  const attributions = diagnostics.flatMap((diagnostic) => {
-    const requirement = requirementByClaim.get(diagnostic?.claim_id);
-    if (requirement === undefined || diagnostic.code !== "mandatory_behavior_unverified") {
-      return [];
+  if (!(error instanceof ControlledContractToolError) || !Array.isArray(diagnostics)) return error;
+  for (const diagnostic of diagnostics) if (diagnostic.code === 'mandatory_behavior_unverified') {
+    if (diagnostic.attribution?.status === 'mapped') diagnostic.attribution.field = 'verification';
+    for (const choice of diagnostic.attribution?.choices ?? []) choice.field = 'verification';
+    if (diagnostic.attribution?.status === 'unavailable') {
+      diagnostic.correction = 'Stop this correction: the failed mandatory behavior has no established authored location. Do not guess a target or retry unchanged.';
+    } else {
+      diagnostic.guidance_path = guidanceLocation('mandatory_verification');
+      diagnostic.correction = diagnostic.attribution?.status === 'ambiguous'
+        ? 'Establish the intended affected declaration from the supplied choices before authoring its verification. If that choice cannot be established, stop without guessing or retrying unchanged.'
+        : 'Supply the authored verification for the affected mandatory behavior, preserving its intended meaning and associations.';
     }
-    return [{ code: diagnostic.code, claim_id: diagnostic.claim_id,
-      field: requirement + ".verification",
-      guidance_path: guidanceLocation("mandatory_verification") }];
-  });
-  if (attributions.length === 0) return error;
-  error.details = { ...error.details, requirement_attributions: attributions };
+  }
   return error;
 }

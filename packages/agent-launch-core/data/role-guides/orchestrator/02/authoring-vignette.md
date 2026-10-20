@@ -96,23 +96,34 @@ Read the selected initiative:
 
 ```json request:read-initiative workspace_read_wiki
 {
-  "subject": "initiative"
+  "reads": [
+    {
+      "subject": "initiative"
+    }
+  ]
 }
 ```
 
 ```json response:read-initiative
 {
-  "subject": "<initiative>"
+  "results": [
+    {
+      "status": "ok",
+      "value": {
+        "subject": "<initiative>"
+      }
+    }
+  ]
 }
 ```
 
-Use the returned identity, shown here as `<initiative>`, in `changes.initiative`.
+Use `results[0].value.subject`, shown here as `<initiative>`, in `changes.initiative`.
 
 | Record | Purpose in this example |
 | --- | --- |
 | Criterion | State the two accepted outcomes: the specified negative rejection and zero acceptance. |
 | Requirement | State each outcome's condition and required behavior. R1 and R2 share one requirement; R3 has another. |
-| Claim | Use the requirement's returned claim IDs in an obligation's `claims` member. |
+| Claim | A behavioral statement within a requirement. Select the whole requirement when all its statements apply, or select the specific claim by its authored meaning. |
 | Verification | Identify the check, what it observes and what contradicts the requirement. It belongs to the requirement. |
 | Obligation | Link a criterion to its requirement and select its proof. |
 | Case | Identify the production component, concrete test, observation and falsifier for a verification. A falsifier introduces a deliberate fault to check whether the test detects it. |
@@ -136,50 +147,35 @@ In each obligation, name the criterion and requirement claims it supports. Check
 ```json response:create
 {
   "outcome": "created",
-  "unit": "<unit>"
+  "unit": "<unit>",
+  "revision": "<parent-revision>"
 }
 ```
 
-Read the created unit for its current revision. Each save uses the revision of the unit it changes.
-
-```json request:read-parent workspace_read_wiki
-{
-  "subject": "<unit>"
-}
-```
-
-```json response:read-parent
-{
-  "subject": "<unit>",
-  "revision": "<parent-revision>",
-  "reference": {
-    "ref_id": "<parent-ref>"
-  }
-}
-```
-
-Read the input schemas for the parent save and later slice assignment:
+Use the revision returned by creation in the first save. Read the schemas for the parent save and later slice assignment directly through the known unit:
 
 ```json request:parent-inputs workspace_read_wiki
 {
-  "reference": {
-    "ref_id": "<parent-ref>"
-  },
-  "select": {
-    "input_contract": {
-      "tool": "save_record",
-      "members": [
-        "initiative",
-        "controlled_acceptance",
-        "entries",
-        "criteria",
-        "validation",
-        "requirements",
-        "obligations",
-        "ready_slices"
-      ]
+  "reads": [
+    {
+      "subject": "<unit>",
+      "select": {
+        "input_contract": {
+          "tool": "save_record",
+          "members": [
+            "initiative",
+            "controlled_acceptance",
+            "entries",
+            "criteria",
+            "validation",
+            "requirements",
+            "obligations",
+            "ready_slices"
+          ]
+        }
+      }
     }
-  }
+  ]
 }
 ```
 
@@ -189,13 +185,17 @@ Read authoring guidance before writing the requirements:
 
 ```json request:guidance workspace_read_wiki
 {
-  "subject": {
-    "requirement_guidance": true
-  }
+  "reads": [
+    {
+      "subject": {
+        "requirement_guidance": true
+      }
+    }
+  ]
 }
 ```
 
-Follow its returned topic reads for `vocabulary`, `fields`, `save_record_inputs` and `case_authoring`. Use the schemas for exact syntax.
+Read the returned `authoring_vocabulary`, `fields` and `save_record_inputs` selections together. After choosing a test family, follow its returned `case_authoring` selection. Use the schemas for exact syntax.
 
 Find candidate proofs:
 
@@ -237,7 +237,7 @@ Use `negativeInput` and `zeroInput` as the requirement conditions. Use `negative
 
 Inspect delivered assertions for same-call input/results, rejection of throws and comparison of required fields. Saved declarations do not execute those checks.
 
-Cases name the component and test; `selector.nesting:0` selects a top-level test. In `criteria`, `"$negative-rejected"` refers to the criterion created in this save. In `claims`, `"$reject-negative"` refers to the claims created for that requirement. In later saves, use the returned IDs.
+Cases name the component and test; `selector.nesting:0` selects a top-level test. In `criteria`, `"$negative-rejected"` refers to the criterion created in this save. In `claims`, `"$reject-negative"` refers to the claims created for that requirement. These `$key` names apply only within that save. In later saves, select saved requirements and criteria by their authored meaning. Reuse returned obligation and case IDs where those fields call for them.
 
 Set each `user_requirement` to the exact passage the requirement represents. For each passage, check that its linked requirements together describe everything it asks for. A link alone does not show that the requested behavior has been described. Check that no part of the request is left out.
 
@@ -703,29 +703,9 @@ Check that the negative obligation links R1 and R2 to the negative test, and the
 ```json response:save-parent
 {
   "outcome": "saved",
+  "unit": "<unit>",
+  "revision": "<parent-revision-saved>",
   "bindings": {
-    "criterion": {
-      "negative-rejected": "<negative-criterion-id>",
-      "zero-accepted": "<zero-criterion-id>"
-    },
-    "requirement": {
-      "reject-negative": {
-        "claim_ids": [
-          "<negative-claim-id>"
-        ],
-        "row_id": "<negative-row-id>"
-      },
-      "accept-zero": {
-        "claim_ids": [
-          "<zero-claim-id>"
-        ],
-        "row_id": "<zero-row-id>"
-      }
-    },
-    "verification": {
-      "negative-test": "<negative-verification-id>",
-      "zero-test": "<zero-verification-id>"
-    },
     "obligation": {
       "negative-rejection": "<negative-obligation-id>",
       "zero-acceptance": "<zero-obligation-id>"
@@ -738,55 +718,41 @@ Check that the negative obligation links R1 and R2 to the negative test, and the
 }
 ```
 
-Later obligations use returned claim IDs; row reads/corrections use row IDs. For multi-claim rows, select the supported claims.
+Reuse the returned revision for the next parent save. The save response returns public obligation and case IDs; saved requirements and criteria are selected by meaning.
 
-## 4. Read back, assess and supply missing definitions
+## 4. Inspect the saved meaning, assess and supply missing definitions
 
-Refresh the parent revision after saving:
+Read the saved requirements and their verifications together with the original request and obligation links:
 
 ```json request:read-parent-saved workspace_read_wiki
 {
-  "subject": "<unit>"
-}
-```
-
-```json response:read-parent-saved
-{
-  "subject": "<unit>",
-  "revision": "<parent-revision-saved>",
-  "reference": {
-    "ref_id": "<parent-saved-ref>"
-  }
-}
-```
-
-Read the saved requirement row through its returned identity and the current reference:
-
-```json request:read-negative-source workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<parent-saved-ref>"
-  },
-  "select": {
-    "contract": "requirements",
-    "view": "row",
-    "row_id": "<negative-row-id>"
-  }
-}
-```
-
-```json response:read-negative-source
-{
-  "row": {
-    "row_id": "<negative-row-id>",
-    "source": {
-      "user_requirement": "readRetryConfig must reject a negative numeric retryLimit with retry_limit_negative."
+  "reads": [
+    {
+      "subject": "<unit>",
+      "select": {
+        "field": "sections.user_requirements"
+      }
+    },
+    {
+      "subject": "<unit>",
+      "select": {
+        "contract": "requirements",
+        "include": [
+          "verifications"
+        ]
+      }
+    },
+    {
+      "subject": "<unit>",
+      "select": {
+        "contract": "obligations"
+      }
     }
-  }
+  ]
 }
 ```
 
-Check the saved row's behavior and exact source passage. Repeat with `<zero-row-id>`, then assess the parent:
+Check each result's `status`. Requirements appear in `results[1].value.members`; each requirement's `declaration` contains its authored behavior and `user_requirement` passage. Compare both outcome requirements with the complete saved request. Check that the obligations link the intended requirements, criteria and tests. Then assess the parent:
 
 ```json request:assess-parent workspace_assess_contract
 {
@@ -798,46 +764,26 @@ Check the saved row's behavior and exact source passage. Repeat with `<zero-row-
 {
   "unit": "<unit>",
   "assessment": {
-    "authored": {
-      "status": "valid"
-    },
-    "specification": {
-      "status": "incomplete"
-    },
-    "acceptance_coverage": {
-      "status": "complete"
-    }
+    "authored": "valid",
+    "specification": "incomplete"
   }
 }
 ```
 
-Check specification completeness separately from criterion coverage. Here the specification is incomplete. Follow the assessment's returned diagnosis reads for both expected field records. The diagnoses identify `description_definition_missing`: neither expected field record has a value definition.
+Here `authored` is valid but `specification` is incomplete. Follow the returned diagnosis reads for both expected field records. The diagnoses identify `description_definition_missing`: neither expected field record has a value definition. `criterion_coverage` is returned when criterion coverage is incomplete; complete coverage does not make the specification complete.
 
-Before saving the definitions, refresh the parent revision:
-
-```json request:specification-read workspace_read_wiki
-{
-  "subject": "<unit>"
-}
-```
-
-```json response:specification-read
-{
-  "subject": "<unit>",
-  "revision": "<definition-revision>"
-}
-```
+Use the revision returned by `save-parent` for the definition save. If a correction read has already supplied a newer `contexts[unit].revision`, use that revision instead. Do not repeat a read merely to refresh a revision that is still current.
 
 Keep the outcome comparisons, conditions, exact source links and verification/case associations. Define the two expected field records using their existing entities in the specification, rather than identities of implementation symbols. Choose values from the request and inspected API, not from a convenient symbol.
 
 Use typed literals from the requirements input schema read in step 1 to define these expected field records. Here `int64Value: "0"` represents integer zero, not the string input `"0"`.
 
-New keyed rows append to the saved requirement rows. This save adds the two definitions; it does not replace the earlier requirements or their associations. Use a saved `row_id` to correct an existing row instead of appending a duplicate.
+New keyed rows append to the saved requirement rows. This save adds the two definitions; it does not replace the earlier requirements or their associations. To correct an existing requirement, put its semantic selector in `target` rather than appending a duplicate.
 
 ```json request:specification-save save_record
 {
   "unit": "<unit>",
-  "revision": "<definition-revision>",
+  "revision": "<parent-revision-saved>",
   "changes": {
     "requirements": {
       "requirements": [
@@ -920,20 +866,12 @@ New keyed rows append to the saved requirement rows. This save adds the two defi
 ```json response:specification-save
 {
   "outcome": "saved",
-  "bindings": {
-    "requirement": {
-      "define-rejection": {
-        "row_id": "<rejection-definition-row-id>"
-      },
-      "define-acceptance": {
-        "row_id": "<acceptance-definition-row-id>"
-      }
-    }
-  }
+  "unit": "<unit>",
+  "revision": "<parent-revision-defined>"
 }
 ```
 
-Reassess, then refresh the revision and reference:
+Reassess after the save:
 
 ```json request:specification-reassess workspace_assess_contract
 {
@@ -943,67 +881,37 @@ Reassess, then refresh the revision and reference:
 
 ```json response:specification-reassess
 {
+  "unit": "<unit>",
   "assessment": {
-    "authored": {
-      "status": "valid"
-    },
-    "specification": {
-      "status": "complete"
-    },
-    "acceptance_coverage": {
-      "status": "complete"
+    "authored": "valid",
+    "specification": "complete"
+  }
+}
+```
+
+For this example, inspect the saved requirements again to check the two new definitions and the retained outcome comparisons and verifications:
+
+```json request:read-defined-parent workspace_read_wiki
+{
+  "reads": [
+    {
+      "subject": "<unit>",
+      "select": {
+        "contract": "requirements",
+        "include": [
+          "verifications"
+        ]
+      }
     }
-  }
+  ]
 }
 ```
 
-```json request:definition-read-saved workspace_read_wiki
-{
-  "subject": "<unit>"
-}
-```
+Use the revision from `specification-save` for the next save. Assessment does not supply a write revision, and a successful save does not require a revision-refresh read.
 
-```json response:definition-read-saved
-{
-  "subject": "<unit>",
-  "revision": "<parent-revision-defined>",
-  "reference": {
-    "ref_id": "<parent-defined-ref>"
-  }
-}
-```
+Check expected field values and unchanged criterion links. Report any undefined value or condition and its affected requirement; it blocks readiness.
 
-Read each defining row by its returned identity. Check its expected values and source link:
-
-```json request:read-definition-source workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<parent-defined-ref>"
-  },
-  "select": {
-    "contract": "requirements",
-    "view": "row",
-    "row_id": "<rejection-definition-row-id>"
-  }
-}
-```
-
-```json response:read-definition-source
-{
-  "row": {
-    "row_id": "<rejection-definition-row-id>",
-    "source": {
-      "user_requirement": "readRetryConfig must reject a negative numeric retryLimit with retry_limit_negative."
-    }
-  }
-}
-```
-
-Repeat the definition-row read with `<acceptance-definition-row-id>` to check the zero definition too.
-
-Check expected field values and unchanged criterion links. Report any undefined value/condition and its affected requirement; it blocks readiness.
-
-Compare saved meaning with all three requested outcomes even after a gap-free assessment. Preserve positive/nonnumeric handling. Returning rather than throwing comes from the inspected API.
+Compare saved meaning with all three requested outcomes even after a gap-free assessment. Preserve positive and nonnumeric handling. Returning rather than throwing comes from the inspected API.
 
 ## 5. Prepare the worker's slice
 
@@ -1104,6 +1012,8 @@ The helper regression is `tests/unit/config-result.test.mjs`, outside write scop
 ```json response:save-slice
 {
   "outcome": "saved",
+  "unit": "<unit>",
+  "revision": "<parent-revision-sliced>",
   "bindings": {
     "slice": {
       "reject-negative-limit": "<slice-id>"
@@ -1114,89 +1024,69 @@ The helper regression is `tests/unit/config-result.test.mjs`, outside write scop
 
 ## 6. Give the slice its own coverage
 
-The slice address is `<unit>#<slice-id>`. Read it for its own revision and reference:
+The slice address is `<unit>#<slice-id>`. Read its saved assignment, validation, scopes and coverage in one call. Request its write context for `obligations` in that same call:
 
 ```json request:read-slice workspace_read_wiki
 {
-  "subject": "<unit>#<slice-id>"
-}
-```
-
-```json response:read-slice
-{
-  "subject": "<unit>#<slice-id>",
-  "revision": "<slice-revision>",
-  "reference": {
-    "ref_id": "<slice-ref>"
-  }
-}
-```
-
-Use the field inventory to read the saved assignment, validation and scopes before checking coverage:
-
-```json request:slice-fields workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "inventory": "fields"
-  }
-}
-```
-
-```json request:slice-assignment workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "field": "sections.summary"
-  }
-}
-```
-
-```json request:slice-validation workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "field": "acceptance.validation"
-  }
-}
-```
-
-```json response:slice-validation
-{
-  "value": [
+  "reads": [
     {
-      "operation": "repository_test",
-      "id": "retry-tests",
-      "purpose": "Validate retry limits and the unchanged helper",
-      "selections": [
-        {
-          "id": "focused",
-          "harness": {
-            "cwd": ".",
-            "argv": [
-              "node",
-              "--test",
-              "tests/unit/retry-config.test.mjs",
-              "tests/unit/config-result.test.mjs"
-            ]
-          },
-          "definition_paths": [
-            "package.json"
-          ]
-        }
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "field": "sections.summary"
+      },
+      "for_changes": [
+        "obligations"
       ]
+    },
+    {
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "field": "acceptance.validation"
+      }
+    },
+    {
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "field": "read_scope"
+      }
+    },
+    {
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "field": "repo_paths"
+      }
+    },
+    {
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "field": "write_scope"
+      }
+    },
+    {
+      "subject": "<unit>#<slice-id>",
+      "select": {
+        "contract": "coverage"
+      }
     }
   ]
 }
 ```
 
-The worker uses `retry-tests` as `entrypoint` and `focused` as `selection`. `cwd` is the working directory. `argv` contains the program and its arguments. `definition_paths` lists the files that define the command. No default selection is saved, so the worker must supply both names:
+The response excerpt shows only the write context:
+
+```json response:read-slice
+{
+  "contexts": {
+    "<unit>#<slice-id>": {
+      "revision": "<slice-revision>"
+    }
+  }
+}
+```
+
+The first five results contain the assignment, validation and scopes in request order. `summary.text` is read as `sections.summary`; saved validation is read as `acceptance.validation`. The last result contains the semantic contract members and `controlled_acceptance`. Check every result's status before using its value. In coverage, criteria have `kind: "criterion"`; obligations and cases have their own member kinds.
+
+The saved command uses `retry-tests` as `entrypoint` and `focused` as `selection`. `cwd` is the working directory. `argv` contains the program and its arguments. `definition_paths` lists the files that define the command. No default selection is saved, so the worker must supply both names:
 
 ```json unsent:worker-validation workspace_run_test
 {
@@ -1205,73 +1095,7 @@ The worker uses `retry-tests` as `entrypoint` and `focused` as `selection`. `cwd
 }
 ```
 
-```json request:slice-read-scope workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "field": "read_scope"
-  }
-}
-```
-
-```json request:slice-repo-paths workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "field": "repo_paths"
-  }
-}
-```
-
-```json request:slice-write-scope workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "field": "write_scope"
-  }
-}
-```
-
-```json request:slice-coverage workspace_read_wiki
-{
-  "reference": {
-    "ref_id": "<slice-ref>"
-  },
-  "select": {
-    "contract": "coverage"
-  }
-}
-```
-
-```json response:slice-coverage
-{
-  "members": {
-    "controlled_acceptance": {
-      "status": "required"
-    },
-    "acceptance_criteria": [
-      {
-        "identity": "<slice-negative-criterion-id>",
-        "text": "The extended test \"rejects negative retry limits\" demonstrates that readRetryConfig returns a rejection with ok=false and code=retry_limit_negative for negative numeric retryLimit."
-      },
-      {
-        "identity": "<slice-zero-criterion-id>",
-        "text": "The extended test \"accepts a valid retry limit\" demonstrates that readRetryConfig returns an acceptance with ok=true and retryLimit=0 for retryLimit 0."
-      }
-    ],
-    "obligations": [],
-    "cases": []
-  }
-}
-```
-
-Confirm that controlled acceptance is required for the slice. Create obligations for its own criteria, using the slice's returned criterion IDs and revision. Reuse the parent claims and cases here because they describe the same behavior and tests:
+Confirm that controlled acceptance is required for the slice. Create obligations for its own criteria. The selectors below match the saved criterion text and each parent requirement's subject and source passage. Reuse the parent case IDs because these obligations describe the same behavior and tests:
 
 ```json request:save-slice-coverage save_record
 {
@@ -1283,10 +1107,27 @@ Confirm that controlled acceptance is required for the slice. Create obligations
         "key": "slice-negative-rejection",
         "statement": "For numeric retryLimit < 0, readRetryConfig returns a rejection with ok=false and code=retry_limit_negative.",
         "criteria": [
-          "<slice-negative-criterion-id>"
+          {
+            "kind": "criterion",
+            "match": {
+              "text": "The extended test \"rejects negative retry limits\" demonstrates that readRetryConfig returns a rejection with ok=false and code=retry_limit_negative for negative numeric retryLimit."
+            }
+          }
         ],
         "claims": [
-          "<negative-claim-id>"
+          {
+            "kind": "requirement",
+            "match": {
+              "subject": {
+                "identity": {
+                  "kind": "profile_term",
+                  "term": "observed negative result fields"
+                }
+              },
+              "modality": "MUST",
+              "user_requirement": "readRetryConfig must reject a negative numeric retryLimit with retry_limit_negative."
+            }
+          }
         ],
         "proof": {
           "name": "proof.verification.test-validity"
@@ -1299,10 +1140,27 @@ Confirm that controlled acceptance is required for the slice. Create obligations
         "key": "slice-zero-acceptance",
         "statement": "For retryLimit = 0, readRetryConfig returns an acceptance with ok=true and retryLimit=0.",
         "criteria": [
-          "<slice-zero-criterion-id>"
+          {
+            "kind": "criterion",
+            "match": {
+              "text": "The extended test \"accepts a valid retry limit\" demonstrates that readRetryConfig returns an acceptance with ok=true and retryLimit=0 for retryLimit 0."
+            }
+          }
         ],
         "claims": [
-          "<zero-claim-id>"
+          {
+            "kind": "requirement",
+            "match": {
+              "subject": {
+                "identity": {
+                  "kind": "profile_term",
+                  "term": "observed zero result fields"
+                }
+              },
+              "modality": "MUST",
+              "user_requirement": "Zero must still be accepted."
+            }
+          }
         ],
         "proof": {
           "name": "proof.verification.test-validity"
@@ -1324,7 +1182,9 @@ Confirm that controlled acceptance is required for the slice. Create obligations
       "slice-negative-rejection": "<slice-negative-obligation-id>",
       "slice-zero-acceptance": "<slice-zero-obligation-id>"
     }
-  }
+  },
+  "unit": "<unit>#<slice-id>",
+  "revision": "<slice-revision-covered>"
 }
 ```
 
@@ -1340,15 +1200,8 @@ Confirm that controlled acceptance is required for the slice. Create obligations
 {
   "unit": "<unit>#<slice-id>",
   "assessment": {
-    "authored": {
-      "status": "valid"
-    },
-    "specification": {
-      "status": "complete"
-    },
-    "acceptance_coverage": {
-      "status": "complete"
-    }
+    "authored": "valid",
+    "specification": "complete"
   }
 }
 ```
@@ -1449,30 +1302,32 @@ This alternative branches after step 3; it is not a continuation after dispatch.
       "negative-case": "<draft-case-id>"
     }
   },
-  "assessment": {
-    "authored": {
-      "status": "invalid"
-    }
-  }
+  "unit": "<unit>",
+  "revision": "<draft-revision>"
 }
 ```
 
 Use the obligation and case IDs returned by the saved draft. Keep the other records, including the zero obligation. If the save was refused instead, follow its recovery; do not attempt to repair an unsaved case.
 
-Read the current parent revision:
+A successful save reports persistence, not validity. Assess this saved draft and follow its diagnosis:
 
-```json request:repair-read workspace_read_wiki
+```json request:repair-assess-draft workspace_assess_contract
 {
-  "subject": "<unit>"
+  "unit": "<unit>"
 }
 ```
 
-```json response:repair-read
+```json response:repair-assess-draft
 {
-  "subject": "<unit>",
-  "revision": "<draft-revision>"
+  "unit": "<unit>",
+  "assessment": {
+    "authored": "invalid",
+    "specification": "incomplete"
+  }
 }
 ```
+
+The case diagnosis identifies the missing test target and falsification input. Use the revision returned by the draft save for the repair. If the unit has changed, follow the returned current-context read and use its `contexts[unit].revision` instead.
 
 Update the existing obligation by its returned ID. A `case` with neither `key` nor `id` updates that obligation's own case. Supply the missing target and falsifier; omitted component and observation are retained:
 
@@ -1506,7 +1361,8 @@ Update the existing obligation by its returned ID. A `case` with neither `key` n
 ```json response:repair-save
 {
   "outcome": "saved",
-  "bindings": {}
+  "unit": "<unit>",
+  "revision": "<repaired-revision>"
 }
 ```
 
@@ -1522,40 +1378,38 @@ Confirm that the save succeeded, then reassess:
 {
   "unit": "<unit>",
   "assessment": {
-    "authored": {
-      "status": "valid"
-    },
-    "acceptance_coverage": {
-      "status": "complete"
-    }
+    "authored": "valid",
+    "specification": "incomplete"
   }
 }
 ```
 
-Read the repaired coverage. Find `<draft-obligation-id>` and `<draft-case-id>`. Check that their identities, statement, links, component and observation remain intact, and that the case now has its target and falsifier:
-
-```json request:repair-read-saved workspace_read_wiki
-{
-  "subject": "<unit>"
-}
-```
-
-```json response:repair-read-saved
-{
-  "reference": {
-    "ref_id": "<repaired-parent-ref>"
-  }
-}
-```
+The case is now valid; the expected field records still need the definitions from step 4. Read the repaired obligation and case together to check that their identities, statement, links, component and observation remain intact, and that the case now has its target and falsifier:
 
 ```json request:repair-saved-coverage workspace_read_wiki
 {
-  "reference": {
-    "ref_id": "<repaired-parent-ref>"
-  },
-  "select": {
-    "contract": "coverage"
-  }
+  "reads": [
+    {
+      "subject": "<unit>",
+      "select": {
+        "contract": "obligations",
+        "where": {
+          "kind": "obligation",
+          "id": "<draft-obligation-id>"
+        }
+      }
+    },
+    {
+      "subject": "<unit>",
+      "select": {
+        "contract": "cases",
+        "where": {
+          "kind": "case",
+          "id": "<draft-case-id>"
+        }
+      }
+    }
+  ]
 }
 ```
 

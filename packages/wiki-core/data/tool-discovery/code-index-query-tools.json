@@ -52,9 +52,10 @@
         "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
         "packages/wiki-core/src/lib/sidecar-status.mjs",
         "packages/wiki-mcp/src/lib/code-index-query-meaning.mjs",
-        "packages/wiki-mcp/src/lib/code-index-query-selection.mjs"
+        "packages/wiki-mcp/src/lib/code-index-query-selection.mjs",
+        "packages/wiki-mcp/src/lib/code-index-query-reviewed-source.mjs"
       ],
-      "notes": "Ask the code question directly for the bound repository: paths/patchText/diffRecords/liveGit:true select potential impact; symbol or path+line select navigation; relationship narrows to definition, references, callers or callees; path alone selects file context. Symbols are exact raw SCIP identities; locals require their document. Position resolution covers a whole line even with character. Small source is inline; returned calls read only task-relevant meaning from the same retained original without paging, decoding or reevaluation. Status:true alone passively answers availability and material limits. Ordinary questions preserve their existing background-refresh effects; status and detail request no refresh. Current index content does not establish alignment with an independently reviewed version.",
+      "notes": "Ask the code question directly for the bound repository: paths/patchText/diffRecords/liveGit:true select potential impact; symbol or path+line select navigation; relationship narrows to definition, references, callers or callees; path alone selects file context. Symbols are exact raw SCIP identities; locals require their document. Position resolution covers a whole line even with character. Authenticated findings questions check the bound review checkout. Matching content adds no provenance ritual; differing indexed meaning is supplemental, with small reviewed code inline or exact retained reviewed-source calls. Unavailable exact code limits dependent conclusions. Status:true is passive. Ordinary questions preserve existing background-refresh effects; status/detail request no refresh. No pagination, decoding or agent integrity work.",
       "use_when": [
         "Find potential affected code and relationship meaning for known paths or a diff.",
         "Inspect one file's source/context or a returned symbol's definition, references, callers or callees.",

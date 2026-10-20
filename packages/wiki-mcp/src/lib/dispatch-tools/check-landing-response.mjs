@@ -7,7 +7,8 @@ const CAUSE_FIELDS = new Set([
   "state", "object_format", "observation_reason", "failed_operation", "cause_code",
   "ref", "wk_ref", "candidate_ref", "proposal", "matched", "fields", "role", "required_roles",
   "expected", "observed", "expected_head", "observed_head",
-  "authored_base_branch", "captured_base_branch", "selector", "selectors", "remotes", "remote"
+  "authored_base_branch", "captured_base_branch", "selector", "selectors", "remotes", "remote",
+  "merged", "url"
 ]);
 
 function causeFacts(cause) {
@@ -73,7 +74,8 @@ export function checkLandingAction(body) {
   const handoff = body.handoff;
   if (body.transport === "hosted") {
     return { actor: body.landing_authority, proposal: handoff.pull_request_number,
-      base_branch: handoff.base_branch };
+      remote: handoff.destination.remote, head: handoff.commit, base_branch: handoff.base_branch,
+      ...(handoff.pull_request?.url == null ? {} : { url: handoff.pull_request.url }) };
   }
   return { actor: body.landing_authority, action: "land_exact_handoff_head",
     head: handoff.commit, base_branch: handoff.base_branch,
@@ -117,6 +119,11 @@ export function projectCheckLandingAnswer(body, { action = null, detail = false,
         : { landing_action: action } : {}),
       ...(later === null ? {} : { observe_later: later }) }),
     ...(recovery === undefined ? {} : { recovery }),
+    ...(body.observed_landing == null ? {} : { observed_landing: body.observed_landing }),
+    ...(body.state === "awaiting_human_landing" && body.transport === "hosted" &&
+      ["dirty", "blocked", "behind", "unstable", "draft"].includes(body.handoff?.pull_request?.mergeable_state)
+      ? { landing_impediment: { state: body.handoff.pull_request.mergeable_state,
+          url: body.handoff.pull_request.url } } : {}),
 
     ...(body.effects === null ? { effects: null }
       : body.effects?.object_cache_fetch === "uncertain" ||

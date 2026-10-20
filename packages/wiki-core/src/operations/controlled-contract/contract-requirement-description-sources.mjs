@@ -22,7 +22,7 @@ export function projectRequirementDescriptionSource(source) {
   const definition = value => pick(value, ['path', 'symbol', 'declaration_kind',
     'start_line', 'end_line', 'source_text', 'defined_meanings']);
   return { ...pick(source, ['state', 'code', 'identity', 'resolution', 'defined_meanings',
-    'path', 'repository', 'cause', 'source_basis', 'source_limitation']),
+    'path', 'repository', 'bound_repository', 'cause', 'source_basis', 'source_limitation']),
     ...(source.source_generation?.committed_source == null ? {} : { source_basis: 'committed_source' }),
     ...(source.definitions === undefined ? {} : { definitions: source.definitions.map(definition) }),
     ...(source.candidates === undefined ? {} : { candidates: source.candidates.map(definition) }),

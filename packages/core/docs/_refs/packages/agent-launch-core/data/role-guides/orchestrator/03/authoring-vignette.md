@@ -67,17 +67,28 @@ Read the selected initiative:
 
 ```json request:read-initiative workspace_read_wiki
 {
-  "subject": "initiative"
+  "reads": [
+    {
+      "subject": "initiative"
+    }
+  ]
 }
 ```
 
 ```json response:read-initiative
 {
-  "subject": "<initiative>"
+  "results": [
+    {
+      "status": "ok",
+      "value": {
+        "subject": "<initiative>"
+      }
+    }
+  ]
 }
 ```
 
-Use the returned identity, shown here as `<initiative>`, in `changes.initiative`.
+Use `results[0].value.subject`, shown here as `<initiative>`, in `changes.initiative`.
 
 ## Save written acceptance, then follow the selected branch
 
@@ -99,62 +110,45 @@ Follow the assignment's acceptance requirements. For this example, assume the au
 ```json response:create
 {
   "outcome": "created",
-  "unit": "<unit>"
+  "unit": "<unit>",
+  "revision": "<revision>"
 }
 ```
 
-Read the `ordinary_authoring` guidance before saving. Follow the returned topic read to get its complete instructions:
-
-```json request:ordinary-guidance workspace_read_wiki
-{
-  "subject": {
-    "requirement_guidance": true
-  }
-}
-```
-
-Read the created unit for its current revision and reference:
-
-```json request:read-ordinary workspace_read_wiki
-{
-  "subject": "<unit>"
-}
-```
-
-```json response:read-ordinary
-{
-  "subject": "<unit>",
-  "revision": "<revision>",
-  "reference": {
-    "ref_id": "<ordinary-ref>"
-  }
-}
-```
-
-Read the schemas for the shared written acceptance, both branch saves and the later slice:
+Use the revision returned by creation. Read the ordinary-authoring guidance and the schemas for the shared save, branch saves and later slice together:
 
 ```json request:ordinary-inputs workspace_read_wiki
 {
-  "reference": {
-    "ref_id": "<ordinary-ref>"
-  },
-  "select": {
-    "input_contract": {
-      "tool": "save_record",
-      "members": [
-        "user_requirements",
-        "initiative",
-        "controlled_acceptance",
-        "entries",
-        "criteria",
-        "validation",
-        "read_scope",
-        "write_scope",
-        "repo_paths",
-        "ready_slices"
-      ]
+  "reads": [
+    {
+      "subject": {
+        "requirement_guidance": true,
+        "topic": [
+          "ordinary_authoring"
+        ]
+      }
+    },
+    {
+      "subject": "<unit>",
+      "select": {
+        "input_contract": {
+          "tool": "save_record",
+          "members": [
+            "user_requirements",
+            "initiative",
+            "controlled_acceptance",
+            "entries",
+            "criteria",
+            "validation",
+            "read_scope",
+            "write_scope",
+            "repo_paths",
+            "ready_slices"
+          ]
+        }
+      }
     }
-  }
+  ]
 }
 ```
 
@@ -197,26 +191,13 @@ Save the full criteria, validation and planned scopes on the parent. Retain thes
 
 ```json response:save-written
 {
-  "outcome": "saved"
+  "outcome": "saved",
+  "unit": "<unit>",
+  "revision": "<current-revision>"
 }
 ```
 
-Read the current unit before saving either branch:
-
-```json request:read-acceptance workspace_read_wiki
-{
-  "subject": "<unit>"
-}
-```
-
-```json response:read-acceptance
-{
-  "revision": "<current-revision>",
-  "reference": {
-    "ref_id": "<acceptance-ref>"
-  }
-}
-```
+Reuse the revision returned by `save-written` in the selected branch. A separate context read is unnecessary while that revision remains current.
 
 ### If controlled acceptance remains required
 
@@ -245,7 +226,9 @@ Save the required disposition and the authoring blocker through the schemas read
 
 ```json response:save-compilation-blocker
 {
-  "outcome": "saved"
+  "outcome": "saved",
+  "unit": "<unit>",
+  "revision": "<blocked-revision>"
 }
 ```
 

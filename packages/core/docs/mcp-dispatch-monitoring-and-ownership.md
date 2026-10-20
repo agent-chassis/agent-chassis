@@ -53,10 +53,11 @@ and publication bookkeeping, character counts, schema summaries and repeated
 no-effect flags stay internal. Accepted
 nonterminal or original-publication-pending observations return an executable
 `get_run_result` call pinned to the server-selected subject and attempt. For a
-worker attempt that call carries `timeout_ms:1200000`, selected by the server, so
+live worker, reviewer or redteam attempt that call carries `timeout_ms:1200000`, selected by the server, so
 following it unchanged waits for the attempt instead of polling it; a caller's own
-timeout is never replayed. A review attempt's call and a worker's
-`{assigned:true}` call carry no timeout and stay immediate reads. Available
+timeout is never replayed. The wait is offered only while useful output is
+pending and its source is readable. A failed source or settled missing report
+offers no unchanged wait. A worker's `{assigned:true}` call stays immediate. Available
 originals take precedence. Refusals and failed publication offer no observation
 call, and no wait, as a publication repair.
 
@@ -263,6 +264,13 @@ durable attempt tuple.
 
 ## Durable substrate and integration
 
+Competing worker choices use the original task captured from the launcher's
+frozen assignment, never today's parent record or the order of attempts.
+Only facts needed to distinguish those tasks are presented. Live observations
+and retained originals preserve the same meaning; a missing or unreadable
+original states its limitation without changing another choice. The issued
+exact call selects that attempt and grants no execution authority.
+
 The existing crash-durable substrate, launcher process identity records and
 subject-partitioned attempt journal retain their ownership. Terminal original
 capture adds no second store, reservation authority or lifecycle engine. Attempt
@@ -294,5 +302,11 @@ transaction owner's recovery. When a committed retained delivery exists, only
 its incumbent receipt/checkout recovery is offered; no second commit is run.
 An intent with no retained delivery has no callable reconciliation here, and
 blind retries are not recovery. A coordinator decides revisions separately,
-starting with the returned `workspace_read_wiki({subject:<bound unit>})` call to
-obtain current authoring revision and schema. A later launch is a distinct action.
+starting with the returned `workspace_read_wiki({reads:[Read]})` call for the
+bound unit. Its `for_changes` belongs to that Read. Consume the ordered result
+for meaning and `contexts[unit]` for the current revision and selected save
+grammar calls; a retained handoff supplies no current write revision. A stale
+save follows its returned current-context correction while preserving the
+intended unit and edit. A successful correction may finish without a reread or
+reassessment. A later launch is a distinct authorized action, and neither a
+read nor a saved correction changes the original worker's frozen assignment.

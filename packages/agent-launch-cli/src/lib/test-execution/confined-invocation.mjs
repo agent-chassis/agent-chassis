@@ -25,6 +25,8 @@ import {
 } from "./confined-capture.mjs";
 import { NATIVE_COMPILER_CACHE_RELATIVE_PATH, isUnderSystemRoot } from "./runtime-inputs.mjs";
 import { ATTEMPT_SCRATCH_ROOT } from "../test-runtime-setup/ecosystems.mjs";
+import { authenticatedTestExecutionBackend } from "./authenticated-execution-context.mjs";
+import { buildDisposableTestLaunchPlan } from "../launch-isolation-plan.mjs";
 
 export const ATTEMPT_DRIVER_PATH = fileURLToPath(new URL("./attempt-driver.mjs", import.meta.url));
 
@@ -306,12 +308,23 @@ async function runHostTestInvocation({ checkout, runtime, invocation, timeoutMs,
   let executionRoot;
   let plan;
   let env;
+  let command;
   try {
     executionRoot = assertExecutionRoot(invocation.executionRoot);
     plan = buildAttemptPlan(invocation, executionRoot.scratch);
     env = { ...runtime.env, ...(invocation.env ?? {}) };
+    const backend = authenticatedTestExecutionBackend();
+    command = { command: process.execPath, args: [ATTEMPT_DRIVER_PATH], cwd: checkout };
+    if (backend.enforcement === "active") {
+      if (backend.identity !== "bwrap") throw Object.assign(new Error(
+        `active backend ${backend.identity} has no disposable test layer`),
+      { code: "test_execution_disposable_backend_unsupported" });
+      command = buildDisposableTestLaunchPlan({ ...command, source: invocation.sourceRoot ?? checkout,
+        cwd: invocation.cwd, executionRoot });
+    }
   } catch (error) {
-    return { status: "plan_failed", error, code: error.code ?? "validation_plan_build_failed",
+    return { status: "plan_failed", error,
+      code: error.detail?.refusal_code ?? error.code ?? "validation_plan_build_failed",
       executionRoot: invocation.executionRoot };
   }
   const pending = budget?.interruption() ?? null;
@@ -320,8 +333,9 @@ async function runHostTestInvocation({ checkout, runtime, invocation, timeoutMs,
   let processGroupId = null;
   let driverAcquired = false;
   try {
-    const capture = await spawnAndCapture({ command: process.execPath, args: [ATTEMPT_DRIVER_PATH], cwd: checkout }, {
+    const capture = await spawnAndCapture(command, {
       spawnIsolated: (command, options) => {
+        command.assertSourceCurrent?.();
         const child = spawnHost(command.command, command.args, { cwd: command.cwd, env: options.env,
           stdio: options.stdio, detached: options.detached, shell: false });
         driverAcquired = true;

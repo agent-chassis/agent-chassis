@@ -118,7 +118,7 @@ function connectFixedProbeMcp({ clientName, requestTimeoutMs = 15000,
 
 // WK-2570: a managed worker's startup text carries no assignment body; the
 // probe retrieves it exactly as a worker does -- workspace_read_wiki
-// {assignment:true}, then its returned complete guidance selection -- and consumes the
+// {reads:[{assignment:true}]}, then its returned complete guidance selection -- and consumes the
 // startup text followed by the retrieved guidance.
 async function readFixedProbeAssignment(mcp) {
   const page = result => {
@@ -128,16 +128,23 @@ async function readFixedProbeAssignment(mcp) {
       error.stage = "assignment_read";
       throw error;
     }
-    return result.structuredContent || JSON.parse(result.content[0].text);
+    const body = result.structuredContent || JSON.parse(result.content[0].text);
+    const selected = body.results?.[0];
+    if (body.results?.length !== 1 || selected?.status !== "ok") {
+      const error = new Error("assignment_selection_refused:" + JSON.stringify(body));
+      error.stage = "assignment_read";
+      throw error;
+    }
+    return { ...selected.value, next_calls: selected.next_calls || [] };
   };
-  const first = page(await mcp.callTool("workspace_read_wiki", { assignment: true }));
-  const next = first.next_calls?.find(call => call.arguments?.select?.field === "guidance");
+  const first = page(await mcp.callTool("workspace_read_wiki", { reads: [{ assignment: true }] }));
+  const next = first.next_calls?.find(call => call.arguments?.reads?.[0]?.select?.field === "guidance");
   if (!next || typeof next.tool !== "string" || typeof first.reference?.ref_id !== "string" ||
-      JSON.stringify(next.arguments.reference) !== JSON.stringify(first.reference)) {
+      next.arguments.reads.length !== 1 || JSON.stringify(next.arguments.reads[0].reference) !== JSON.stringify(first.reference)) {
     throw new Error("assignment_read_missing_guidance_selection:" + JSON.stringify(first));
   }
   const selected = page(await mcp.callTool(next.tool, next.arguments));
-  if (selected.complete !== true || selected.field !== "guidance" ||
+  if (selected.field !== "guidance" ||
       typeof selected.value !== "string") {
     throw new Error("assignment_read_invalid_guidance_selection:" + JSON.stringify(selected));
   }

@@ -378,7 +378,12 @@ export function createBackendScope(ctx) {
       authority_limb: failure.authority_limb,
       next_action: failure.next_action,
       ...(correction === undefined ? {} : { recovery: {
-        state: 'guidance', route: 'workspace_read_wiki', args: { subject: correction.unit },
+        state: 'guidance', route: 'workspace_read_wiki', args: { reads: detail.identity_correction === undefined
+          ? [{ subject: correction.unit,
+            ...(correction.authored_field === 'changes.ready_slices' ? { select: { inventory: 'slices' } } : {}),
+            for_changes: [correction.authored_field.slice('changes.'.length)] }]
+          : [{ subject: correction.unit, select: { inventory: 'slices' } },
+            { subject: detail.identity_correction.unit, for_changes: ['depends_on'] }] },
         information: correction.instruction,
         prerequisite: detail.identity_correction === undefined
           ? `Correct ${correction.authored_field} on ${correction.unit}.`

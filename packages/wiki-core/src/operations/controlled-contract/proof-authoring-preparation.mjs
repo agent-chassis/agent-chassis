@@ -1,5 +1,6 @@
 import { resolveExceptionSourcePassages } from './contract-requirement-source-links.mjs';
 
+import { projectRequirementMutationFailure } from './proof-authoring-case-diagnosis.mjs';
 import { compileProofAuthoringCases } from './proof-authoring-case.mjs';
 import { planProofAuthoringRequirementRebinding } from './proof-authoring-requirement-rebinding.mjs';
 import { planProofAuthoringRequirementRetirement } from './proof-authoring-requirement-retirement.mjs';
@@ -18,7 +19,7 @@ import { RECORD_AUTHORING_EXCEPTION_CODES } from '../../lib/record-authoring-exc
 import { prepareProofAuthoringRefresh } from './proof-authoring-refresh.mjs';
 
 export const unitAddress = value => value.selectedUnit === null ? value.wkId : `${value.wkId}#${value.selectedUnit}`;
-const caseReferenceIds = (cases, obligations = []) => [...new Set([
+export const caseReferenceIds = (cases, obligations = []) => [...new Set([
   ...cases.map(definition => definition.component?.reference_id),
   ...obligations.map(item => item.case?.component?.reference_id)
 ].filter(Boolean))];
@@ -55,7 +56,7 @@ function assertProspectiveCaseContract(pkg, candidate) {
         `${candidate.record.id}#${source.selectedUnit}`, obligation_id: row.obligation_id })))
       .sort((left, right) => left.unit.localeCompare(right.unit) ||
         left.obligation_id.localeCompare(right.obligation_id));
-    return [{ case_id: definition.case_id, verification_id: verificationId,
+    return [{ case_id: definition.case_id,
       authored_field_paths: authoredFieldPaths, uses }];
   }).sort((left, right) => left.case_id.localeCompare(right.case_id));
   if (affectedCases.length === 0) return assertPackageValidContract(validation, candidate.contract);
@@ -75,7 +76,7 @@ function assertProspectiveCaseContract(pkg, candidate) {
     explanation, {
       changed: false,
       explanation,
-      ...packageValidationDiagnostics(validation),
+      ...packageValidationDiagnostics(validation, candidate.contract),
       authored_field_paths: authoredFieldPaths,
       null_corrections: nullCorrections,
       affected_cases: affectedCases,
@@ -90,7 +91,7 @@ function exceptionInput({ initial, exception }) {
   const sourcePassages = resolveExceptionSourcePassages({ wkId: initial.wkId,
     text: initial.record?.sections?.user_requirements, passages: exception.source_passages });
   if (exception.kind === 'grammar') {
-    const prepared = prepareGrammarException({ contract: initial.contract?.content ?? null, subject: exception.subject,
+    const prepared = prepareGrammarException({ contract: initial.contract?.content ?? null, selected: exception.selectedUnresolved,
       action: exception.action, ...(exception.action === 'apply' ? { rationale: exception.rationale, sourcePassages } : {}) });
     return { contractRequirements: prepared.answer };
   }
@@ -106,7 +107,7 @@ function exceptionInput({ initial, exception }) {
   return {};
 }
 
-export async function prepareProofAuthoringMutation({ pkg, initial, input, remove, now }) {
+export async function prepareProofAuthoringMutation({ pkg, initial, input, remove, now, authoringContext = null }) {
   if (input.refreshProofs === true) return prepareProofAuthoringRefresh({ pkg, initial, now,
     prepare: prepareProofAuthoringMutation });
   if (remove && !['selection', 'obligation'].includes(input.removalScope)) {
@@ -175,12 +176,18 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
         ...error.details, next_calls: proofCatalogDiscoveryRecovery() };
       throw error;
     })) : source;
-  let contractInputs = compileProofAuthoringContractInputs({
-    pkg, initial, input,
-    baseContract: initial.contract?.content ?? null,
-    retainedReferenceIds: caseReferenceIds(initial.cases, obligations),
-    now: now
-  });
+  let contractInputs;
+  try {
+    contractInputs = compileProofAuthoringContractInputs({
+      pkg, initial, input,
+      baseContract: initial.contract?.content ?? null,
+      retainedReferenceIds: caseReferenceIds(initial.cases, obligations),
+      now: now
+    });
+  } catch (error) {
+    await projectRequirementMutationFailure(error, authoringContext?.captured ?? initial, authoringContext);
+    throw error;
+  }
   let contractInputState = contractInputs.contract === null ? null : {
     content: contractInputs.contract,
     content_digest: controlledContractContentDigest(contractInputs.contract)
@@ -195,6 +202,7 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
   const requirementCorrections = contractInputs.requirementCompilation?.corrections ?? [];
   const rebinding = editsRequirements ? planProofAuthoringRequirementRebinding({
     corrections: requirementCorrections,
+    compiled: contractInputs.requirementCompilation?.compiled ?? [],
     requirements: input.contractRequirements.requirements ?? [] }) : null;
 
   const requirementRetirements = contractInputs.requirementCompilation?.retirements ?? [];
@@ -205,8 +213,8 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
   const compileCases = editsObligations || initial.cases.length > 0 ||
     (rebinding?.selections.length ?? 0) > 0 || retirement !== null;
   let candidate = compileCases
-    ? compileProofAuthoringCases({ pkg, initial: candidateInitial,
-      content: structuredClone(authoredContent), obligations, rebinding, retirement })
+    ? await compileProofAuthoringCases({ pkg, initial: candidateInitial,
+      content: structuredClone(authoredContent), obligations, rebinding, retirement }, initial, authoringContext)
     : { contract: contractInputs.contract, canonicalContract: contractInputs.contract,
       record: contractInputs.record, unit: contractInputUnit, content: initial.source?.content ?? null,
       rootContent: initial.caseSource?.content ?? null, cases: initial.cases,
@@ -244,14 +252,14 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
         controlledContractContentDigest([requirementCorrections, requirementRetirements])) {
       throw new Error('requirement compilation passes disagree on retirement facts');
     }
-    candidate = compileProofAuthoringCases({
+    candidate = await compileProofAuthoringCases({
       pkg,
       initial: candidateInitial,
       content: structuredClone(authoredContent),
       obligations,
       rebinding,
       retirement
-    });
+    }, initial, authoringContext);
   }
   candidate.nativeChanged = controlledContractContentDigest(candidate.canonicalContract) !==
     controlledContractContentDigest(initial.contract?.content ?? null);

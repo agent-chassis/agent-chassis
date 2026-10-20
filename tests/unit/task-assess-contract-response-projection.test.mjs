@@ -9,18 +9,25 @@ function captured(diagnoses = [], extra = {}) {
     assessment: { authored: { status: 'valid' }, specification: { status: 'complete' }, owner_failures: [],
       acceptance_coverage: { status: 'complete', correction: null },
       parent_source_accounting: { accounting_status: 'complete' } },
-    diagnosis_inventory: { diagnoses, corrections: {}, unselectable_findings: [],
+    diagnosis_inventory: { diagnoses, public_subjects: Object.fromEntries(diagnoses.filter(row => row.family === 'authoring').map(row => [row.diagnostic_group_id, row.subjects])), corrections: {}, unselectable_findings: [],
       families: { authoring: { status: 'complete' }, semantic: { status: 'complete' } }, complete: true }, ...extra },
     original: { locator: { ref_id: 'assessmentA' } } };
 }
-const project = (read, original) => projectContractAssessmentResponse(read,
+const project = (read, original) => projectContractAssessmentResponse({ ...read, carrier: { ...read.carrier,
+  diagnosis_inventory: { ...read.carrier.diagnosis_inventory,
+    public_subjects: Object.fromEntries(read.carrier.diagnosis_inventory.diagnoses.filter(row => row.family === 'authoring')
+      .map(row => [row.diagnostic_group_id, row.subjects])) } } },
   original ? { original } : { unit: read.carrier.unit }, { tier: 'paid_cce', responseEnv: {}, normalize: () => {} });
 const diagnosis = (id, subject, extra = {}) => ({ diagnostic_group_id: `diagnostic-group-${id.toString(16).padStart(64, '0')}`,
   family: 'authoring', code: 'obligation_coverage_statement_missing', category: 'author_input', effect: 'blocking',
   meaning: 'Author an obligation statement.', subjects: [{ obligation_id: subject, field: 'statement' }], ...extra });
 
 test('a complete assessment finishes without successful-check or retention inventories', () => {
-  assert.deepEqual(project(captured()), { unit: 'WK-9000', assessment: { authored: 'valid', specification: 'complete' }, next_calls: [] });
+  for (const status of ['complete', 'not_applicable']) {
+    const read = captured();
+    read.carrier.assessment.acceptance_coverage.status = status;
+    assert.deepEqual(project(read), { unit: 'WK-9000', assessment: { authored: 'valid', specification: 'complete' }, next_calls: [] });
+  }
 });
 
 test('a missing or rejecting receiving contract is an explicit stopping condition', async () => {
@@ -97,6 +104,26 @@ test('findings authority and focused limitations contain no save imperative or u
   }
 });
 
+test('unknown membership cannot turn complete known declarations into a complete scoped specification', () => {
+  const d = diagnosis(1, 'OBL-A', { code: 'obligation_coverage_node_unknown', meaning: 'A saved association does not resolve.' });
+  for (const known of ['complete', 'incomplete']) {
+    const read = captured([d]);
+    read.carrier.assessment.authored.status = 'invalid';
+    read.carrier.assessment.specification.status = known;
+    const summary = project(read);
+    assert.equal(summary.assessment.authored, 'invalid');
+    assert.equal(summary.assessment.specification, known === 'complete' ? 'unavailable' : 'incomplete');
+    assert.deepEqual(summary.unassessed[0].obligation_ids, ['OBL-A']);
+    assert.match(summary.unassessed[0].cause, /saved association does not resolve/u);
+    assert.deepEqual(project(read, { source: read.original.locator, view: 'diagnoses' }).unassessed, summary.unassessed);
+    read.selected_diagnosis = { diagnosis_id: d.diagnostic_group_id, diagnosis: d, corrections: {} };
+    assert.deepEqual(project(read, { source: read.original.locator }).unassessed, summary.unassessed);
+    assert.equal(read.carrier.assessment.specification.status, known, 'native classification is preserved');
+  }
+  assert.equal(project(captured([diagnosis(2, 'OBL-B')])).assessment.specification, 'complete',
+    'an independent statement defect does not imply unavailable requirement membership');
+});
+
 test('selected recovery does not inherit unrelated criterion work and retains original reassessment scope', () => {
   const d = diagnosis(1, 'OBL-A');
   const read = captured([d], { unit: 'WK-9000#SLICE-001' });
@@ -106,7 +133,7 @@ test('selected recovery does not inherit unrelated criterion work and retains or
   assert.equal(detail.selected_diagnosis.save_guidance.criterion_coverage, undefined);
   assert.deepEqual(detail.selected_diagnosis.save_guidance.after_save.arguments,
     { unit: read.carrier.unit, obligation_id: 'OBL-A' });
-  assert.equal(detail.next_calls[0].arguments.subject, read.carrier.unit);
+  assert.equal(detail.next_calls[0].arguments.reads[0].subject, read.carrier.unit);
   assert.equal(detail.next_calls[0].purpose, 'current_correction_context');
 });
 
@@ -119,7 +146,7 @@ test('stale integrity pins use the existing root-only refresh form and disclose 
   read.selected_diagnosis = { diagnosis_id: d.diagnostic_group_id, diagnosis: d, corrections: {} };
   const selected = project(read, { source: read.original.locator });
   const recovery = selected.selected_diagnosis.recovery;
-  assert.deepEqual(selected.next_calls[0].arguments, { subject: 'WK-9000' });
+  assert.deepEqual(selected.next_calls[0].arguments, { reads: [{ subject: 'WK-9000', for_changes: ['refresh_proofs'] }] });
   assert.equal(recovery.then.executable, false);
   assert.deepEqual(recovery.then.known_arguments, { unit: 'WK-9000', changes: { refresh_proofs: true } });
   assert.deepEqual(recovery.then.missing_caller_input, ['revision']);
@@ -157,8 +184,8 @@ test('large choice compaction preserves independent failures, corrections and hi
   assert.equal(summary.observation, 'historical_source_changed');
   const gap = summary.gaps[0];
   assert.equal(gap.code, 'controlled_acceptance_disposition_missing');
-  assert.deepEqual(gap.next_calls[0].arguments, { subject: read.carrier.unit,
-    select: { context: true, for_changes: ['controlled_acceptance'] } });
+  assert.deepEqual(gap.next_calls[0].arguments, { reads: [{ subject: read.carrier.unit,
+    select: { context: true }, for_changes: ['controlled_acceptance'] }] });
   assert.deepEqual(gap.save_guidance.after_save.arguments, { unit: read.carrier.unit });
   const inventory = project(read, summary.next_calls[0].arguments.original);
   assert.deepEqual(inventory.unassessed, summary.unassessed);
@@ -193,7 +220,7 @@ test('foreign repository facts describe a scope limit without inventing an ident
   const d = diagnosis(1, 'OBL-A', { family: 'definition', category: 'canonical_source',
     code: 'description_repository_unavailable', meaning: 'Resolve the exact object in its owning repository.',
     subjects: [{ obligation_id: 'OBL-A', finding: { code: 'description_repository_unavailable',
-      source: { code: 'description_repository_unavailable', repository: 'foreign/repository' } },
+      source: { code: 'description_repository_unavailable', repository: 'foreign/repository', bound_repository: 'bound/repository' } },
       object: { entity: { type_term: 'cc:runtime_component', identity: { kind: 'repository_path',
         repository: 'foreign/repository', path: 'dependency.mjs' } } } }] });
   const read = captured([d], { repository: 'bound/repository' });
@@ -208,4 +235,43 @@ test('foreign repository facts describe a scope limit without inventing an ident
   assert.equal(detail.selected_diagnosis.recovery.status, 'repository_outside_assessment_scope');
   assert.equal(detail.selected_diagnosis.save_guidance, undefined);
   assert.deepEqual(detail.next_calls, []);
+});
+
+test('unavailable and ambiguous authored targets preserve meaning without an executable identity correction', () => {
+  for (const status of ['ambiguous', 'unavailable']) {
+    const d = diagnosis(1, 'OBL-A', { family: 'definition', category: 'canonical_source',
+      code: 'description_symbol_missing', meaning: 'The selected declaration is absent.', subjects: [{
+        obligation_id: 'OBL-A', authored_identity_correction: true,
+        finding: { code: 'description_symbol_missing', source: { code: 'description_symbol_missing', path: 'source.mjs' } },
+        object: { entity: { type_term: 'cc:operation', identity: { kind: 'code_symbol', repository: 'bound',
+          path: 'source.mjs', symbol: 'missing' } } },
+        requirements: [{ targeting: { status, issue: { code: `selection_${status}`,
+          cause: `${status} authored target` } } }], uses: [], required_uses: []
+      }] });
+    const read = captured([d]);
+    read.selected_diagnosis = { diagnosis_id: d.diagnostic_group_id, diagnosis: d, corrections: {} };
+    const selected = project(read, { source: read.original.locator });
+    assert.equal(selected.selected_diagnosis.save_guidance, undefined);
+    assert.equal(selected.selected_diagnosis.recovery.code, 'definition_target_unresolved');
+    assert.equal(selected.selected_diagnosis.recovery.targeting[0].status, status);
+    assert.deepEqual(selected.next_calls, []);
+    assert.equal(selected.selected_diagnosis.diagnosis.meaning, 'The authored code symbol is absent from its captured source.');
+    assert.equal(selected.selected_diagnosis.diagnosis.subject_definitions['definition-1'].entity.identity.path, 'source.mjs');
+    assert.equal(selected.selected_diagnosis.diagnosis.code, d.code);
+    assert.equal(JSON.stringify(selected).includes('row_id'), false);
+  }
+});
+
+test('retained diagnoses without public associations stop rather than exposing native identities', () => {
+  const read = captured([diagnosis(1, 'OBL-A', { subjects: [{ obligation_id: 'OBL-A', node_id: 'private-compiler-node' }] })]);
+  delete read.carrier.diagnosis_inventory.public_subjects;
+  assert.throws(() => projectContractAssessmentResponse(read, { original: { source: read.original.locator } },
+    { tier: 'paid_cce', responseEnv: {}, normalize: () => {} }), error => {
+    assert.equal(error.code, 'assessment_authored_selection_unavailable');
+    assert.deepEqual(error.details.subject, { unit: 'WK-9000', obligation_ids: ['OBL-A'] });
+    assert.deepEqual(error.details.next_calls, []);
+    assert.equal(error.details.effects.assessment, 'completed');
+    assert.doesNotMatch(JSON.stringify(error.details), /private-compiler-node|node_id/u);
+    return true;
+  });
 });

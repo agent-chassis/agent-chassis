@@ -70,6 +70,44 @@ again. The public retained-reader projection and its selection limitations are
 owned separately; the initiating answer does not redefine that reader's schema
 or permit another role to read an executor-bound native result.
 
+When a diagnosis establishes an authored correction, its `workspace_read_wiki`
+call uses `reads` and public selections in the exact source unit. An
+obligation-specific repair acquires that obligation and its associated authored
+requirements, verifications and needed definitions together. `for_changes`
+belongs on the Read requesting `obligations` edit context, including corrections
+to the nested saved case. `cases` is a read population, not a save member.
+Ordered results carry the selected meaning;
+`contexts[unit]` carries a requested current revision and schema navigation once.
+A historical result cannot grant a current write revision or execute correction.
+The immutable original retains the recovery's selected source and execution
+intent. Each direct or retained answer separately checks its receiving role and
+registered reader before offering that correction; a worker's unavailable
+authoring route does not erase an entitled coordinator's continuation.
+Worker assignment and frozen review sources are not current authoring contexts;
+their unavailable correction states that boundary without changing role grants.
+Ambiguous verification diagnostics name the obligation, authored field, cause
+and competing count, without compiler verification identities or positional paths.
+An ambiguity correction is offered only when the authenticated current source
+establishes the competing verifications' correspondence to uniquely selectable
+authored meaning. The shared semantic-selection resolver owns that association;
+native identities alone cannot establish it. Missing or unavailable correspondence
+preserves the proof failure and returns a specific stopping cause with no
+authoring read or unchanged retry. An empty requirement population is not a
+correction. The retained original, execution choices and role grants stay intact.
+
+An unavailable or refused selected-test observation preserves the affected
+proof, provider, precise observation code and any validated diagnostic facts.
+Known native execution and exit status remain separate from the unknown
+selected-test outcome. A candidate whose inventory is missing retains its
+actual run, stage and provider facts through worker and coordinator reads.
+Missing run facts establish unknown effects, rather than an unstarted process;
+they never authorize replay. The inventory refusal supplies no unchanged retry.
+Unless the failure establishes a specific supported
+correction, recovery stops at `resolve_the_selected_test_observation_limit`,
+names the observation provider's correction boundary and offers no unchanged
+verification retry. Retained detail may explain the same result but cannot
+restore missing evidence.
+
 ## Execution validity and requirement satisfaction
 
 A selected test's execution and a linked requirement's satisfaction are

@@ -31,11 +31,6 @@ export const READ_WIKI_INPUT_CONTRACT_REASONS = Object.freeze({
 });
 const REASONS = READ_WIKI_INPUT_CONTRACT_REASONS;
 
-const COVERAGE = Object.freeze({
-  structural: "Complete selected members, object constraints and reachable definitions, unchanged from the registered owner.",
-  semantic: "Schema establishes no saved-state or cross-member validity; save_record validates the full request and its owners decide planning rules."
-});
-
 const NO_ROUTE = (missingCapability, owner, reason) => ({ state: "no_supported_route", caller_correctable: false,
   missing_capability: missingCapability, owner, reason });
 
@@ -91,28 +86,20 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     } catch (error) {
       if (error.code?.startsWith("requirements_capability_") || error.code === INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_INVALID) {
         throw invalid(error.code, { subject, cause: error.message, effects: { reads: [], writes: [] },
-          next_calls: [ { tool: readTool, arguments: { reference, select: { input_contract: { tool, members, view: "choices" } } } } ] });
+          next_calls: [ { tool: readTool, arguments: { reads: [{ reference, select: { input_contract: { tool, members, view: "choices" } } }] } } ] });
       }
       if (error.code !== INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_MEMBER_UNKNOWN) throw error;
       const unknown = members.filter((member) => !source.members.includes(member));
       throw refuse(REASONS.MEMBER_NOT_APPLICABLE, { subject, record_kind: kind, tool, reads: [],
         requested_members: members, not_applicable: unknown, valid_members: source.members,
         selection_context: { tool: readTool, reference,
-          binding: `Choose needed valid_members[i]; call {reference,select:{input_contract:{tool:"${tool}",members:[...chosen members]}}} unchanged.` },
+          binding: `Choose needed valid_members[i]; call {reads:[{reference,select:{input_contract:{tool:"${tool}",members:[...chosen members]}}}]} unchanged.` },
         cause: `${unknown.join(", ")} ${unknown.length === 1 ? "is" : "are"} not ${unknown.length === 1 ? "a member" : "members"} of the initial object ${tool} takes for a ${kind}`,
         choice: "select members from valid_members; kind and title are the request's own and are not selected here" });
     }
     return {
-
-      revision: selected.digest,
       input_contract: { tool, record_kind: kind, variant: kind, members: selected.members,
-        owner_schema_digest: selected.digest, ...(selected.branches ? { branches: selected.branches } : {}), schema: selected.schema },
-      coverage: { structural: selected.branches
-        ? "complete for the selected initial members within the explicitly returned effective capabilities; excluded features were not delivered"
-        : COVERAGE.structural.replace("change object's", "initial object's"),
-        semantic: `not established by this schema: ${tool} validates the whole request and its owners decide ` +
-          "cross-member and planning rules when the record is created" },
-      guidance: selected.guidance,
+        ...(selected.branches ? { branches: selected.branches } : {}), schema: selected.schema },
       next_calls: await guidanceCalls(selected.guidance)
     };
   }
@@ -131,12 +118,15 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
           ...(error.envelope === undefined ? {} : { refusal: error.envelope }),
           ...(error.details === undefined ? {} : { details: error.details }) } };
     }
-    const obligations = Array.isArray(saved.obligations) ? saved.obligations : [];
-    const unresolved = Array.isArray(saved.authored_requirements?.unresolved)
-      ? saved.authored_requirements.unresolved.filter((entry) => typeof entry?.id === "string") : [];
-    const declined = obligations.filter((row) => row.proof_opt_out === true);
-    const excepted = unresolved.filter((entry) => entry.grammar_exception !== undefined);
-    const acceptance = saved.controlled_acceptance ?? null;
+    const { resolvePublicSelections, projectPublicSelection } = await import('@agent-chassis/wiki-core/src/operations/controlled-contract/public-selection.mjs');
+    const coverage = saved.coverage;
+    const obligations = coverage.obligations;
+    const projected = projectPublicSelection((await resolvePublicSelections({ source: saved, population: 'requirements', intent: 'read' })).results[0]);
+    if (projected.status !== 'ok') return { available: false, cause: projected.issue };
+    const unresolved = projected.value.members.filter(entry => entry.kind === 'unresolved');
+    const declined = obligations.filter(row => row.proof_opt_out === true);
+    const excepted = unresolved.filter(entry => entry.grammar_exception !== undefined);
+    const acceptance = coverage.controlled_acceptance ?? null;
     const rationaleOf = (value) => (typeof value === "string" ? { rationale: value } : { rationale: null, rationale_state: "not_recorded" });
     return { available: true,
       proof: { obligations: obligations.length,
@@ -145,8 +135,8 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
         undecided: obligations.filter((row) => row.proof_opt_out !== true && typeof row.selection?.proof_name !== "string").length,
         recorded: declined.map((row) => ({ subject: row.obligation_id, ...rationaleOf(row.proof_opt_out_rationale) })) },
       grammar: { unresolved_meanings: unresolved.length, exceptions: excepted.length,
-        recorded: excepted.map((entry) => ({ subject: entry.id, text: entry.text, ...rationaleOf(entry.grammar_exception.rationale),
-          ...(entry.grammar_exception.source_passages === undefined ? {} : { source_passages: entry.grammar_exception.source_passages }) })) },
+        choices: unresolved.map(entry => ({ subject: entry.selector,
+          ...(entry.grammar_exception === undefined ? {} : { exception: entry.grammar_exception }) })) },
       controlled_acceptance: { disposition: acceptance?.disposition ?? null, status: acceptance?.status ?? "unset",
         ...(acceptance?.disposition === "opted_out" ? { ...rationaleOf(acceptance.rationale),
           ...(acceptance.proof_posture?.controlled_contract?.source_passages === undefined ? {}
@@ -224,9 +214,9 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
         decided_by: "the session role save_record is registered for, and the request's own revision and subject",
         eligibility: "not decided here: no rationale is read, classified or assessed" },
       next_calls: typeof readSavedContract !== 'function' ? [] : [
-        ...(kinds.includes('proof') ? [{ tool: readTool, arguments: { reference, select: { contract: 'obligations' } } }] : []),
-        ...(kinds.includes('grammar') ? [{ tool: readTool, arguments: { reference,
-          select: { contract: 'requirements', view: 'unresolved' } } }] : [])]
+        ...(kinds.includes('proof') ? [{ tool: readTool, arguments: { reads: [{ reference, select: { contract: 'obligations' } }] } }] : []),
+        ...(kinds.includes('grammar') ? [{ tool: readTool, arguments: { reads: [{ reference,
+          select: { contract: 'requirements' } }] } }] : [])]
     };
   }
 
@@ -246,7 +236,7 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     const repeated = [...new Set(members.filter((member, index) => members.indexOf(member) !== index))];
     if (repeated.length > 0) {
       throw refuse(REASONS.MEMBER_REPEATED, { subject, requested_members: members, repeated,
-        next_calls: [{ tool: readTool, arguments: { reference, select: { input_contract: { ...selector, members: [...new Set(members)] } } } }],
+        next_calls: [{ tool: readTool, arguments: { reads: [{ reference, select: { input_contract: { ...selector, members: [...new Set(members)] } } }] } }],
         cause: `${repeated.join(", ")} ${repeated.length === 1 ? "is" : "are"} named more than once`,
         choice: "name each member once" });
     }
@@ -291,8 +281,8 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     const source = exposure.source(variant.name);
     if (members.includes("exception") && variant.kind === "work_item") {
 
-      const replacement = { tool: readTool, arguments: { reference,
-        select: { input_contract: { tool, operation: INPUT_CONTRACT_EXCEPTION_OPERATION } } } };
+      const replacement = { tool: readTool, arguments: { reads: [{ reference,
+        select: { input_contract: { tool, operation: INPUT_CONTRACT_EXCEPTION_OPERATION } } }] } };
       if (await requestContracts?.contractFor(readTool)?.acceptsArguments(replacement.arguments) === true) {
         throw selectedResponseCorrectableError(readTool, REASONS.EXCEPTION_IS_OPERATION, { subject, unit, tool,
           effects: { reads: [carrier.source_kind], writes: [] },
@@ -313,14 +303,14 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     } catch (error) {
       if (error.code?.startsWith("requirements_capability_") || error.code === INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_INVALID) {
         throw invalid(error.code, { subject, cause: error.message, effects: { reads: [], writes: [] },
-          next_calls: [ { tool: readTool, arguments: { reference, select: { input_contract: { tool, members, view: "choices" } } } } ] });
+          next_calls: [ { tool: readTool, arguments: { reads: [{ reference, select: { input_contract: { tool, members, view: "choices" } } }] } } ] });
       }
       if (error.code !== INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_MEMBER_UNKNOWN) throw error;
       const unknown = members.filter((member) => !source.members.includes(member));
       throw refuse(REASONS.MEMBER_NOT_APPLICABLE, { subject, unit, variant: variant.name, tool, reads: [carrier.source_kind],
         requested_members: members, not_applicable: unknown, valid_members: source.members,
         selection_context: { tool: readTool, reference,
-          binding: `Choose needed valid_members[i]; call {reference,select:{input_contract:{tool:"${tool}",members:[...chosen members]}}} unchanged.` },
+          binding: `Choose needed valid_members[i]; call {reads:[{reference,select:{input_contract:{tool:"${tool}",members:[...chosen members]}}}]} unchanged.` },
         cause: `${unknown.join(", ")} ${unknown.length === 1 ? "is" : "are"} not ${unknown.length === 1 ? "a member" : "members"} of the ${variant.name} changes ${tool} takes for ${unit}`,
         choice: "select members from valid_members; no member is chosen or dropped for the caller" });
     }
@@ -330,15 +320,10 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
 
       revision: current,
       input_contract: { tool, unit, variant: variant.name, members: selected.members,
-        owner_schema_digest: selected.digest, ...(selected.branches ? { branches: selected.branches } : {}), schema: selected.schema },
-      coverage: selected.branches ? { ...COVERAGE, structural: "complete for the selected members within the explicitly returned effective capabilities; excluded features were not delivered" } : COVERAGE,
-      guidance: selected.guidance,
+        ...(selected.branches ? { branches: selected.branches } : {}), schema: selected.schema },
       next_calls: await guidanceCalls(selected.guidance),
-      ...(observed === current ? {} : { recovered: { code: "source_moved",
-        applied: "current_schema_of_same_unit_variant_and_members", attempts: 1,
-        observed_revision: observed, current_revision: current,
-        unchanged: { unit, variant: variant.name, members: selected.members },
-        effects: "none: no save was retried and no authored value was applied" } })
+      ...(observed === current ? {} : { recovered: { code: 'source_moved',
+        cause: 'The current schema of the same unit and requested members was served; no save was retried or authored value changed.' } })
     };
   };
 }

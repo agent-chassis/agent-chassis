@@ -472,7 +472,9 @@ export function authenticateExactProposal(matches, authenticatedHead) {
     return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT, {
       stage: "pull_request",
       reason: "closed_unmerged_or_unknown_pull_request_state",
-      state: pullRequest.state
+      state: pullRequest.state,
+      merged: pullRequest.merged,
+      url: pullRequest.url
     });
   }
   return { ok: true, pullRequest };

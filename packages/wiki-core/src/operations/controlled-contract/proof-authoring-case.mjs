@@ -7,6 +7,7 @@ import { projectWorkRecordTestProofValidation, amendWorkRecordTestProofTarget, r
 import { projectSavedProofCase, resolveUnselectedCaseAssociation } from './saved-proof-source.mjs';
 import { proofAuthoringRebindingIntents, remapProofAuthoringObligationLinks } from './proof-authoring-requirement-rebinding.mjs';
 import { reconcileProofAuthoringRequirementRetirement } from './proof-authoring-requirement-retirement.mjs';
+import { caseAuthoringFailureMeaning } from './proof-authoring-case-diagnosis.mjs';
 
 const fail = (code, message, details = {}) => { throw new ControlledContractToolError(
   `obligation_coverage_${code}`, message, { changed: false, limb: 'mechanical_failure', ...details }); };
@@ -43,12 +44,12 @@ const caseAssociationRouting = initial => ({
 
 const UNLINKED_VERIFICATION_FIELD = 'requirements[].verification';
 const UNLINKED_VERIFICATION_CODES = new Set(['obligation_coverage_case_verification_unlinked']);
-const RETIREMENT_CONFLICT_LIMIT = 32;
 const unitArguments = initial => ({
   unit: initial.selectedUnit === null ? initial.wkId : `${initial.wkId}#${initial.selectedUnit}`,
   ...(initial.focus ? { focus: initial.focus } : {}) });
 const queryCall = initial => ({ tool: 'workspace_read_wiki',
-  arguments: { subject: unitArguments(initial).unit } });
+  arguments: { reads: [{ subject: unitArguments(initial).unit,
+    select: { contract: 'requirements', include: ['verifications'] }, for_changes: ['requirements', 'obligations'] }] } });
 const saveCall = (initial, field) => ({ tool: 'save_record',
   fixed_arguments: { unit: unitArguments(initial).unit, revision: initial.authoringIdentity },
   required_authored_fields: [field] });
@@ -84,13 +85,14 @@ function assertCaseComponentIdentities(pkg, contract, preparedChanges) {
       reference.reference_id !== referenceId && same(reference.identity, requested.identity));
     if (existing.length === 0) continue;
     const conflict = conflicts.get(definition.case_id) ?? { case_id: definition.case_id, obligation_ids: [],
-      requested: structuredClone(requested), existing: structuredClone(existing) };
+      requested: { type_term: requested.type_term, identity: requested.identity },
+      existing: existing.map(reference => ({ type_term: reference.type_term, identity: reference.identity })) };
     conflict.obligation_ids = [...new Set([...conflict.obligation_ids, item.obligation_id])].sort();
     conflicts.set(definition.case_id, conflict);
   }
   if (conflicts.size === 0) return;
   try {
-    assertPackageValidContract(pkg.validateNativeTestProofAuthoringContract(contract));
+    assertPackageValidContract(pkg.validateNativeTestProofAuthoringContract(contract), contract);
   } catch (error) {
     error.details = { ...error.details, field: CASE_COMPONENT_FIELD, field_path: CASE_COMPONENT_FIELD_PATH,
       guidance_path: componentGuidance(),
@@ -233,7 +235,7 @@ function assertReplacementRuntimeMeaning(pkg, initial, rebinding, cases, derived
   const bindings = new Map((content?.test_proofs ?? []).map(proof => [proof.verification_claim_id, proof]));
   const derivedBoundaries = new Map((derived?.test_proofs ?? []).map(proof =>
     [proof.verification_claim_id, proof.system_under_test_boundary]));
-  for (const selection of rebinding.selections) {
+  for (const selection of rebinding.runtimeSelections) {
     const authored = selection.authored_runtime_test;
     if (authored === null || selection.verification_claim_id === null) continue;
     const binding = bindings.get(selection.verification_claim_id);
@@ -268,14 +270,14 @@ function assertReplacementRuntimeMeaning(pkg, initial, rebinding, cases, derived
             verification_id: selection.verification_claim_id, path: casePath, requirement_index: selection.requirement_index,
             values: [{ source: `case:${definition.case_id}${casePath}`, value: caseValue },
               { source: requirementPath, value: requirementValue }],
-            field: selection.field, guidance_path: rebindingGuidance() });
+            field: requirementPath, guidance_path: rebindingGuidance() });
       }
     }
   }
 }
 
 export { projectSavedProofCase as projectProofAuthoringCase } from './saved-proof-source.mjs';
-export function compileProofAuthoringCases({ pkg, initial, content: authored, obligations, rebinding = null,
+function compileCases({ pkg, initial, content: authored, obligations, rebinding = null,
   retirement = null }) {
   const changes = obligations.filter(item => item.case !== undefined);
   const maximum = pkg.STABLE_TEST_PROOF_AUTHORING_LIMITS.replacement_operations;
@@ -417,23 +419,20 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
         affected_uses: correctionUses, affected_cases: correctionCases,
         recovery: {
           caller_decision_required: true,
-          single_claim: 'For a saved row with one claim, resubmit the intended statement using id equal to its prior_claim_ids[0] instead of row_id. ' +
+          single_claim: 'For a saved row with one claim, resubmit the intended statement using a claim target matching that assertion. ' +
             'List every retained affected case in rebind_case_ids when its verification changes. The existing explicit rebinding owner preserves obligation and case identities across units.',
-          amendment: 'For grouped or ambiguous corrections, first save the intended replacement verification on the unchanged saved row: row_id and unchanged behavior, with the chosen verification and its request-local key. ' +
-            'Use that saved verification binding; do not guess unsaved IDs. Amend affected obligations by id to that verification and explicitly select case.verification through the case target\'s owning unit, preserving case.id and unchanged fields. ' +
-            'For shared cases, first include both old and chosen verification links on their uses across units, change the case selection, then remove changed old claim/verification links. ' +
-            'Retry the row_id correction, then use its saved claim bindings to restore the intended requirement associations. ' +
-            'With no replacement verification, explicitly clear only changed claim associations before correction and restore them from saved bindings afterwards; a retained bound case needs an authored valid test_execution verification. ' +
-            'Unchanged associations stay. No mapping or proof credit is inferred.'
+          amendment: 'Keep the saved whole-requirement target and declare replacement_key for the submitted assertions. In explicit claims use that $key for the complete population, or {kind:"claim",requirement:"$key",match:{...}} for each intended submitted part. ' +
+            'Use verification.key and its separate $key for the intended check and case.verification. Preserve case.id, complete runtime meaning and unrelated associations. ' +
+            'Ordinary requirement/claim selectors still bind saved assertions. Other units keep their associations; a retiring assertion still required there refuses this amendment. No cross-unit grouped mapping or write authority is inferred. Do not clear required associations to bypass the refusal.'
         },
         guidance_path: rebindingGuidance(),
         next_calls: [...new Set([unitAddress(initial.selectedUnit), ...correctionUses.map(use => use.unit)])]
-          .map(unit => ({ tool: 'workspace_read_wiki', arguments: { subject: unit } }))
+          .map(unit => ({ tool: 'workspace_read_wiki', arguments: { reads: [{ subject: unit, select: { contract: 'obligations' }, for_changes: ['obligations'] }] } }))
       });
     if (retired.conflicts.length > 0) fail('requirement_retirement_use_conflict',
       'A retired requirement is still used by an obligation that supports remaining meaning or that this save amends', {
         field: 'retire_claim_ids', conflict_count: retired.conflicts.length,
-        conflicts: retired.conflicts.slice(0, RETIREMENT_CONFLICT_LIMIT), guidance_path: retirementGuidance(),
+        conflicts: retired.conflicts, guidance_path: retirementGuidance(),
         next_calls: [queryCall(initial)] });
     content = retired.contents.get(initial.selectedUnit);
     rootContent = initial.selectedUnit === null ? content : retired.contents.get(null);
@@ -468,6 +467,9 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
       error.details = { ...error.details, changed: false, phase: 'admission', limb: 'mechanical_failure',
         field: UNLINKED_VERIFICATION_FIELD, guidance_path: verificationGuidance() };
     }
+
+    if (error?.code === 'obligation_coverage_case_verification_conflict' || CASE_ASSOCIATION_CODES.has(error?.code) ||
+        UNLINKED_VERIFICATION_CODES.has(error?.code)) throw new ControlledContractToolError(error.code, error.message, error.details);
     throw error;
   }
   assertCaseComponentIdentities(pkg, contract, preparedChanges);
@@ -607,4 +609,14 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
     affected: content.obligations.map(row => row.obligation_id), saved, unchanged: obligations.length - saved,
     retirement: retired === null ? null : { retired_uses: retired.retiredUses,
       retired_case_ids: [...retired.retiredCaseIds].sort() } };
+}
+
+export async function compileProofAuthoringCases(input, captured, authoringContext = null) {
+  try { return compileCases(input); }
+  catch (error) {
+    if (!(error instanceof ControlledContractToolError)) throw error;
+    error.details = await caseAuthoringFailureMeaning(error, authoringContext?.captured ?? captured,
+      { authoringContext, prospective: input.initial, rebinding: input.rebinding });
+    throw error;
+  }
 }

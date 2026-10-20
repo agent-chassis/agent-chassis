@@ -289,6 +289,9 @@ const SAVE_TOOL = 'save_record';
 const DERIVED_VALUES_NOT_AUTHORED = 'The native test binding and every parameter read from it are derived from the authored case; supply neither directly.';
 export const OCCURRENCE_CORRECTION_CLAUSES = deepFreeze({
   component: { field: CASE_COMPONENT_FIELD, guidance: 'case_authoring.component' },
+  target: { field: 'obligations[].case.target', guidance: 'case_authoring.target_variants' },
+  observation: { field: 'obligations[].case.observation', guidance: 'case_authoring' },
+  falsification: { field: 'obligations[].case.falsification', guidance: 'case_authoring' },
   association: { field: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
     guidance: 'case_authoring.verification_association' },
   case_content: { field: 'obligations[].case', guidance: 'case_authoring' },
@@ -328,10 +331,17 @@ export function occurrenceRecoveryFacts(diagnostic) {
     path === '/verification_claim_id' || path.endsWith('/proposition_id'));
   const moduleSource = failures.some(({ keyword, path }) =>
     keyword === 'required' && path === RUNTIME_MODULE_PATH);
-  const corrections = failures.length === 0 ? [] : [
-    ...(moduleSource ? ['component'] : []),
-    ...(association ? ['association'] : []),
-    ...(moduleSource || association ? [] : ['case_content'])];
+
+  const fields = new Set(failures.map(({ path }) =>
+    path === '/verification_claim_id' || path.endsWith('/proposition_id') ? 'association'
+      : path === '/system_under_test_boundary' || path.startsWith('/system_under_test_boundary/') ? 'component'
+        : path === '/observable_result' || path.startsWith('/observable_result/') ? 'observation'
+          : ['/candidate_execution_provider', '/falsifiers', '/traversal_provider', '/prohibited_shortcuts']
+            .some(field => path === field || path.startsWith(`${field}/`)) ? 'falsification'
+            : ['/test_provider', '/test_selector'].some(field => path === field || path.startsWith(`${field}/`))
+              ? 'target' : 'case_content'));
+  const corrections = ['component', 'target', 'observation', 'falsification', 'association', 'case_content']
+    .filter(field => fields.has(field));
   const unselected = diagnostic.problem?.cause?.case_association;
   return deepFreeze({ failed_fields: failedFields, association_correction: association,
     module_source_correction: moduleSource, corrections,

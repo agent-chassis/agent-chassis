@@ -10,6 +10,14 @@ function projectConfig(hostProjectDir, projectDir) {
   return name === undefined ? [] : ["--config", path.join(projectDir, name)];
 }
 
+function testImportInvocation({ runtime, projectDir, offline }) {
+  const lock = denoLockSelection(projectDir);
+  return { command: runtime.executables.deno, cwd: projectDir,
+    args: ["test", "--no-run", "--no-check", ...(offline ? ["--cached-only"] : []),
+      ...(!lock.disabled ? ["--frozen"] : []), "--no-prompt", "--permit-no-files",
+      ...projectConfig(projectDir, projectDir)] };
+}
+
 function lockFailure(code, message) {
   return Object.assign(new Error(message), { code });
 }
@@ -48,12 +56,17 @@ function lockedDependencies(file) {
 export default Object.freeze({
   runner_id: "runner.deno",
 
+  dependencyPreparation: ({ runtime, projectDir }) => {
+    if (![runtime.executables?.deno, projectDir, runtime.env?.DENO_DIR]
+      .every((value) => typeof value === "string" && path.isAbsolute(value))) return null;
+    return { ...testImportInvocation({ runtime, projectDir, offline: false }),
+      env: { DENO_DIR: runtime.env.DENO_DIR, DENO_NO_UPDATE_CHECK: "1", NO_COLOR: "1" } };
+  },
+
   setupProbe: ({ runtime, projectDir }) => {
     const lock = denoLockSelection(projectDir);
     if (lock.disabled) {
-      return { command: runtime.executables.deno, cwd: projectDir,
-        args: ["test", "--no-run", "--no-check", "--cached-only", "--no-prompt", "--permit-no-files",
-          ...projectConfig(projectDir, projectDir)] };
+      return testImportInvocation({ runtime, projectDir, offline: true });
     }
     const dependencies = lockedDependencies(lock.file);
     return { command: runtime.executables.deno, cwd: projectDir,

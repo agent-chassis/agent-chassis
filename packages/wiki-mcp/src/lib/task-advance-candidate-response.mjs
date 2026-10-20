@@ -2,15 +2,20 @@
 
 import { resolveObligationCoverageQueryContext } from "./controlled-contract-query-context.mjs";
 import { readSelectedResponseProjection, retainSelectedResponseSource } from "./selected-response-snapshot.mjs";
+import { distillCapturedCauses } from "./dispatch-tool-helpers.mjs";
 
 function diagnosis(level) {
-  const answer = Object.fromEntries(["message", "code", "value", "path", "syscall", "errno", "status", "signal"]
+  const answer = Object.fromEntries(["message", "code", "value", "operation", "path", "syscall", "errno", "status", "signal"]
     .filter(key => Object.hasOwn(level, key)).map(key => [key, level[key]]));
   if (typeof level.detail?.condition === "string") answer.condition = level.detail.condition;
 
   for (const key of ["cause", "write_failure", "reobservation_failure"]) {
     const child = level.detail?.[key];
-    if (child !== null && typeof child === "object") answer[key] = diagnosis(child);
+    if (child !== null && typeof child === "object") {
+
+      const [failure, ...causes] = distillCapturedCauses({ value: child }, { nested: true }).map(diagnosis);
+      answer[key] = { ...failure, ...(causes.length === 0 ? {} : { causes }) };
+    }
   }
   if (level.process_failure !== undefined) {
     answer.process_failure = Object.fromEntries(["message", "errors", "code", "path", "syscall", "errno", "status", "signal"]

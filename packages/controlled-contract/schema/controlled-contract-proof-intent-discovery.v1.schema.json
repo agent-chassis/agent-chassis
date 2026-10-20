@@ -23,7 +23,8 @@
     "candidates",
     "source_identity",
     "candidate_count",
-    "provider_context"
+    "provider_context",
+    "availability"
   ],
   "additionalProperties": false,
   "properties": {
@@ -73,7 +74,8 @@
     "status": {
       "enum": [
         "match",
-        "no_match"
+        "no_match",
+        "partial"
       ]
     },
     "catalog_intent_count": {
@@ -155,6 +157,72 @@
     },
     "provider_context": {
       "$ref": "#/$defs/provider_context"
+    },
+    "availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "available",
+        "unavailable",
+        "definitions"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        },
+        "available": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "unavailable": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "definitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/unavailable_definition"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "complete"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "unavailable": {
+                "const": 0
+              },
+              "definitions": {
+                "maxItems": 0,
+                "type": "array"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "unavailable": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "definitions": {
+                "minItems": 1,
+                "type": "array"
+              }
+            }
+          }
+        }
+      ]
     }
   },
   "$defs": {
@@ -418,6 +486,50 @@
           "items": {
             "type": "string",
             "minLength": 1
+          }
+        }
+      }
+    },
+    "unavailable_definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proof_name",
+        "proof_version",
+        "failures"
+      ],
+      "properties": {
+        "proof_name": {
+          "$ref": "#/$defs/identifier"
+        },
+        "proof_version": {
+          "$ref": "#/$defs/semver"
+        },
+        "failures": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message",
+              "details"
+            ],
+            "properties": {
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object"
+              }
+            }
           }
         }
       }

@@ -115,7 +115,7 @@ test("duplicate role tables hard-error while loading agent-launch.toml", () => {
 
   assert.throws(
     () => readRoleDefaultModel("worker", { dir }),
-    /duplicate \[roles\.worker\] table/
+    /invalid TOML/
   );
 });
 
@@ -129,7 +129,7 @@ test("duplicate role keys hard-error while loading agent-launch.toml", () => {
 
   assert.throws(
     () => readRoleDefaultModel("worker", { dir }),
-    /duplicate model for role worker/
+    /invalid TOML/
   );
 });
 
@@ -143,7 +143,7 @@ test("duplicate effort keys hard-error while loading agent-launch.toml", () => {
 
   assert.throws(
     () => readRoleEffort("worker", { dir }),
-    /duplicate effort for role worker/
+    /invalid TOML/
   );
 });
 
@@ -187,4 +187,36 @@ test("unknown role effort hard-errors while loading agent-launch.toml", () => {
     () => readRoleEffort("worker", { dir }),
     /effort turbo is not in low\|medium\|high\|xhigh\|max/
   );
+});
+
+test("native OpenCode TOML preserves nested values and accepts unfamiliar native settings", () => {
+  const config = parseAgentLaunchRoleConfigSource(`
+[roles.worker]
+model = 'local/example-model'
+[opencode.provider.local]
+npm = '@ai-sdk/openai-compatible'
+[opencode.provider.local.options]
+baseURL = 'http://127.0.0.1:8000/v1#literal'
+headers = { Authorization = 'fixture-secret', 'X-Custom' = 'yes' }
+unfamiliar = [{ enabled = true, weights = [1, 2.5] }]
+notes = """first
+second"""
+[opencode.provider.local.models.'example-model']
+name = 'Example local model'
+`, { rejectExplicitRouting: true });
+  const options = config.opencode.provider.local.options;
+  assert.equal(options.baseURL, 'http://127.0.0.1:8000/v1#literal');
+  assert.equal(options.headers.Authorization, 'fixture-secret');
+  assert.deepEqual(options.unfamiliar[0].weights, [1, 2.5]);
+  assert.equal(options.notes, 'first\nsecond');
+  assert.equal(Object.isFrozen(options.unfamiliar[0]), true);
+  assert.throws(() => { options.baseURL = 'other'; }, TypeError);
+
+  assert.equal(parseAgentLaunchRoleConfigSource('[opencode]\nprovider = 42').opencode.provider, 42);
+});
+
+test("invalid native TOML reports syntax location without secret-bearing source excerpts", () => {
+  assert.throws(() => parseAgentLaunchRoleConfigSource('[opencode]\napiKey = "private-key"\nbroken = ['),
+    error => error.code === 'role_config.invalid_toml' && error.detail.line_number > 0
+      && !JSON.stringify(error).includes('private-key') && !error.message.includes('private-key'));
 });

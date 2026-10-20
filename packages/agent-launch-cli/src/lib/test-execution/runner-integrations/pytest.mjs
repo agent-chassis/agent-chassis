@@ -1,9 +1,11 @@
 
 
 import { bindPythonInvocation } from '../python-source-binding.mjs';
+import { pythonDependencyPreparation } from './python-preparation.mjs';
 
 export default Object.freeze({
   runner_id: "runner.pytest",
+  dependencyPreparation: pythonDependencyPreparation,
   setupProbe: ({ runtime, projectDir }) => ({ command: runtime.executables.python,
     args: ["-m", "pytest", "--version"], cwd: projectDir }),
   ordinaryInvocation: ({ runtime, repositoryRoot, checkout, projectDir, file, selector, proof = null }) => ({

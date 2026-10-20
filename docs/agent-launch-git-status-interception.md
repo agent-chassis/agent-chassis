@@ -10,8 +10,8 @@ read-only mount. An ordinary `git status` inside a confined session therefore
 reports each hidden contract as a deletion. Those rows describe the overlay, not
 the working tree, and they bury the session's real changes.
 
-Supported Claude and Codex orchestrator launches correct the output. The shared
-orchestrator composition asks the planner to intercept Git in the namespace
+Confined Codex, Claude, Agy, and OpenCode orchestrator launches correct the
+output. The shared orchestrator composition asks the planner to intercept Git in the namespace
 itself: one launcher-owned executable, a package-local asset, is bound read-only
 over every supported Git executable entrypoint, and each original Git is kept at
 a launcher-owned read-only location that the executable delegates to.

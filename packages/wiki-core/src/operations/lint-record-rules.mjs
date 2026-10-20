@@ -11,8 +11,7 @@ import {
   formatAllocatedId,
   isCanonicalWorkRecordReference,
   isLegacyMarkdownWorkRecordDirectory,
-  normalizeDiagnosticPath,
-  parseAllocatedId
+  normalizeDiagnosticPath
 } from "./lint-shared.mjs";
 
 export function lintDuplicateIds({ canonicalPages, addFinding }) {
@@ -195,11 +194,14 @@ export async function lintRecordFiles({
         const highestMaterialized =
           materializedValues.length > 0 ? Math.max(...materializedValues) : 0;
         const materializedSet = new Set(materializedValues);
-        const missingIds = [];
+        let missingCount = 0, firstMissing = null, lastMissing = null, interiorGap = false;
 
         for (let value = 1; value <= rawStateValue; value += 1) {
           if (!materializedSet.has(value)) {
-            missingIds.push(formatAllocatedId(definition, value));
+            missingCount += 1;
+            firstMissing ??= formatAllocatedId(definition, value);
+            lastMissing = formatAllocatedId(definition, value);
+            interiorGap ||= value <= highestMaterialized;
           }
         }
 
@@ -211,15 +213,14 @@ export async function lintRecordFiles({
           );
         }
 
-        if (missingIds.length > 0) {
-          const interiorGaps = missingIds.filter(
-            (id) => parseAllocatedId(id) <= highestMaterialized
-          );
+        if (missingCount > 0) {
           const gapKind =
-            interiorGaps.length > 0 ? "interior gaps" : "trailing unused reservations";
+            interiorGap ? "interior gaps" : "trailing unused reservations";
+          const population = missingCount === 1 ? `1 missing identity: ${firstMissing}`
+            : `${missingCount} missing identities spanning ${firstMissing} to ${lastMissing}`;
           addFinding(
             "error",
-            `Allocator inconsistency for ${type}: ${gapKind} detected (${missingIds.join(", ")})`,
+            `Allocator inconsistency for ${type}: ${gapKind} detected (${population})`,
             { code: "allocator_gap", path: definition.directory }
           );
         }

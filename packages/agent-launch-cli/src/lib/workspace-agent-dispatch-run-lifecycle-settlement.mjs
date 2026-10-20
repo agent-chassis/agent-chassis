@@ -378,6 +378,7 @@ export async function finalizeLaunchOutcome(params) {
     reviewerLaunchIdentity,
     workerAdmissionDiagnostic,
     sessionContract = null,
+    workerTask = null,
     findingsLifecycle = false
   } = params;
   const publishManagedRunResult = params.publishManagedRunResult ?? null;
@@ -523,6 +524,9 @@ export async function finalizeLaunchOutcome(params) {
       configurable: false,
       writable: false
     });
+  }
+  if (role === 'worker' && workerTask !== null) {
+    Object.defineProperty(record, 'worker_task', { value: workerTask, enumerable: false });
   }
   if (reviewerLaunchIdentity !== null) {
 
@@ -970,6 +974,8 @@ export function buildRunStatusEnvelope(record, reviewResult) {
 }
 
 export function attachAdvisoryReviewTarget(source, envelope) {
+  if (source?.worker_task != null) Object.defineProperty(envelope, 'worker_task', {
+    value: source.worker_task, enumerable: false });
   const input = source?.advisory_review_input ?? null;
   const target = source?.advisory_review_target ?? (
     input !== null && typeof input.reviewed_sha === "string" && typeof input.base_sha === "string"

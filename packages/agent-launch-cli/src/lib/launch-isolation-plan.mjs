@@ -22,7 +22,10 @@ import {
   prepareBubblewrapPlanMounts,
   resolveDecisionsReadOnlyCarveout
 } from "./launch-isolation-plan-mounts.mjs";
-import { buildBubblewrapArgs } from "./launch-isolation-bwrap-args.mjs";
+import { buildBubblewrapArgs, buildDisposableTestBubblewrapArgs } from "./launch-isolation-bwrap-args.mjs";
+import { realpathSync, statSync } from "node:fs";
+import { assertBubblewrapDisposableOverlayAvailable } from "./launch-isolation-bwrap.mjs";
+
 import {
   resolveAgentRoleGuideDirectory,
   resolveAgentRoleGuidePath,
@@ -48,6 +51,29 @@ import {
 } from "./launch-isolation-findings-git-metadata.mjs";
 
 import { assertTrustedStdioMcpConduitBinding } from "./stdio-mcp-conduit-contract.mjs";
+
+export function buildDisposableTestLaunchPlan({ source, cwd, executionRoot, command, args }) {
+  const within = (child, parent) => child === parent || child.startsWith(`${parent}/`);
+  if (realpathSync(source) !== source || !statSync(source).isDirectory() ||
+      realpathSync(cwd) !== cwd || !within(cwd, source) || within(executionRoot.root, source)) {
+    throw Object.assign(new Error("disposable test source/cwd identity or observation-root separation is invalid"),
+      { code: "test_execution_disposable_source_invalid" });
+  }
+  const identity = statSync(source);
+  const cwdIdentity = statSync(cwd);
+  const binary = assertBubblewrapDisposableOverlayAvailable();
+  return Object.freeze({ command: binary,
+    args: Object.freeze(buildDisposableTestBubblewrapArgs({ source, cwd, command, args })), cwd,
+    assertSourceCurrent() {
+      const current = statSync(source);
+      const currentCwd = statSync(cwd);
+      if (realpathSync(source) !== source || current.dev !== identity.dev || current.ino !== identity.ino ||
+          realpathSync(cwd) !== cwd || currentCwd.dev !== cwdIdentity.dev || currentCwd.ino !== cwdIdentity.ino) {
+        throw Object.assign(new Error(`disposable source identity moved: ${source}`),
+          { code: "test_execution_disposable_source_invalid" });
+      }
+    } });
+}
 
 const LAUNCH_ROLE_GUIDES = Object.freeze({
   worker: "managed-worker",

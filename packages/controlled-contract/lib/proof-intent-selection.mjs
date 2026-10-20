@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { compiledValidatorCacheAvailability } from "./compiled-validator-cache.mjs";
 import {
   ProofIntentSelectionError,
+  capturePackagedProofDiscoveryMetadata,
   capturePackagedProofIntentSelection,
   normalizeIntentArtifact,
   normalizeProofPackCatalog
@@ -49,19 +50,27 @@ function packKey({ profile_id: profileId, profile_version: version }) {
   return `${profileId}@${version}`;
 }
 
-const { document: packagedMetadata, loadedPacks } = capturePackagedProofIntentSelection();
+const initialMetadata = capturePackagedProofDiscoveryMetadata();
+const packagedMetadata = initialMetadata.document;
 const PROOF_INTENT_ARTIFACT = deepFreeze(structuredClone(packagedMetadata.selection.intent_artifact));
 const PROOF_INTENT_DIGESTS = deepFreeze(structuredClone(packagedMetadata.selection.digests));
 const validatorCache = compiledValidatorCacheAvailability();
-const packByIdentity = new Map(loadedPacks.map((pack) => [packKey({
-  profile_id: pack.profile.profile_id,
-  profile_version: pack.profile.profile_version
-}), pack]));
+let selectionPopulation;
 
 function admittedPacks() {
 
   if (!validatorCache.available) throw validatorCache.cause;
-  return { loadedPacks, packByIdentity };
+  if (selectionPopulation === undefined) {
+    const captured = capturePackagedProofIntentSelection();
+    if (captured.sha256 !== initialMetadata.sha256) throw new ProofIntentSelectionError(
+      'proof_intent_metadata_stale', 'Selection metadata changed after this module loaded.',
+      { reason: 'loaded_metadata_changed' });
+    const loadedPacks = captured.loadedPacks;
+    selectionPopulation = { loadedPacks, packByIdentity: new Map(loadedPacks.map(pack => [packKey({
+      profile_id: pack.profile.profile_id, profile_version: pack.profile.profile_version
+    }), pack])) };
+  }
+  return selectionPopulation;
 }
 
 function requiredInput(inputId) {

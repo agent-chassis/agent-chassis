@@ -2,7 +2,7 @@
 
 const REBIND_FIELD = "rebind_case_ids";
 
-export function planProofAuthoringRequirementRebinding({ corrections = [], requirements = [] }) {
+export function planProofAuthoringRequirementRebinding({ corrections = [], requirements = [], compiled = [] }) {
   const requirementLinks = new Map();
   const verificationLinks = new Map();
   const retiredVerificationIds = new Set();
@@ -34,6 +34,12 @@ export function planProofAuthoringRequirementRebinding({ corrections = [], requi
   ]);
   return Object.freeze({
     selections: Object.freeze(selections),
+
+    runtimeSelections: Object.freeze(compiled.map((entry, index) => Object.freeze({
+      requirement_index: index, verification_claim_id: entry.verification_claim_id,
+      field: `requirements[${index}].verification.runtime_test`,
+      authored_runtime_test: requirements[index]?.verification?.runtime_test ?? null
+    }))),
     retiredVerificationIds,
     exactLinks,
     ambiguousLinks: new Map([...verificationLinks]

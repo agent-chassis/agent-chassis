@@ -10,6 +10,7 @@ import { selectedResponseDeliveryBound } from "./selected-response-snapshot.mjs"
 import { createDeliveryOriginals } from "./task-deliver-work-result.mjs";
 import {
   resolveLauncherRunCredential,
+  resolveLauncherAgentSessionContract,
   resolveAssignedUnit,
   WIKI_MCP_ASSIGNED_UNIT_ENV_VAR,
   WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR,
@@ -560,7 +561,13 @@ export function createWorkspaceCommitExecution({
           }
         });
         observations.scope_verification = { state: "returned", result: scope };
-        if (scope.contained !== true) {
+        const session = resolveLauncherAgentSessionContract(env);
+        const pureMutationScopeMismatch = scope.refusal?.reasons.length === 1 &&
+          scope.refusal.reasons[0] === "out_of_scope" && !scope.changed_paths.some(
+          entry => entry === CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT ||
+            entry.startsWith(`${CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT}/`));
+        if (scope.contained !== true && !(session.execution_backend.enforcement === "inactive" &&
+            pureMutationScopeMismatch)) {
 
           const released = recordManagedCompletion({ mainRepo, subject: rawAssignedUnit,
             sliceBinding: identityStoreBinding, completion: { alternative: "delivery",

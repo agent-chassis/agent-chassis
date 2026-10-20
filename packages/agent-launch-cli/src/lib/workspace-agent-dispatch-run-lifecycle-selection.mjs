@@ -14,7 +14,8 @@ import {
   resolveDispatchedRoleModel,
   resolveExplicitOverrideSelection,
   resolveModelOverrideBindingPermission,
-  resolveRoleModelSelection
+  resolveRoleModelSelection,
+  resolveConfiguredModel
 } from "./agent-launch-profiles.mjs";
 import { readAgentLaunchConfigSnapshot } from "./agent-launch-role-config.mjs";
 import { resolveModelRuntime } from "./agent-launch-model-registry.mjs";
@@ -96,7 +97,7 @@ export function resolveDispatchModelSelection({ role, app, model, workspaceDir,
     snapshot = readAgentLaunchConfigSnapshot({ dir: modelConfigDir });
 
     roleSelection = modelToken !== null
-      ? resolveExplicitOverrideSelection({ role, app: appToken, model: modelToken })
+      ? resolveExplicitOverrideSelection({ role, app: appToken, model: modelToken, snapshot })
       : resolveDispatchedRoleModel({ role, dir: modelConfigDir, snapshot });
   } catch (error) {
       const refusalRole = role;
@@ -136,13 +137,15 @@ export function resolveDispatchModelSelection({ role, app, model, workspaceDir,
   }
 
   const roleValue = roleSelection.value ?? roleSelection;
-  let runtime = resolveModelRuntime(roleValue?.model);
+  const spec = resolveConfiguredModel(roleValue?.model, snapshot, modelRegistry);
+  const runtime = spec === null ? null : { model: roleValue.model, app: spec.app, backend: spec.backend,
+    backend_profile: spec.backend_profile, default_effort: spec.default_effort, model_spec: spec };
   if (!runtime) {
     return { ok: false, reason: "role_model_unknown", detail: refusalDetail({ role, model: roleValue?.model }) };
   }
 
   if (appToken !== null && modelToken === null) {
-    const override = resolveExplicitOverrideSelection({ role, app: appToken, model: modelToken });
+    const override = resolveExplicitOverrideSelection({ role, app: appToken, model: modelToken, snapshot });
     if (!override || override.ok !== true) return override;
     if (appToken !== null && override.app !== runtime.app) {
       return {

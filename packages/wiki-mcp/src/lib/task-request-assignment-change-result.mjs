@@ -10,6 +10,12 @@ import { readSelectedResponseEvidence, selectedResponseQueryInvalidError } from 
 
 export const ASSIGNMENT_CHANGE_TOOL = "request_assignment_change";
 
+export function assignmentChangeAssignmentMeaning(assignment) {
+  return typeof assignment?.presentation?.guidance === 'string'
+    ? { guidance: assignment.presentation.guidance }
+    : { state: 'unavailable', cause: 'The accepted handoff has no readable frozen assignment guidance.' };
+}
+
 export function retainAssignmentChange({ workspace, session, binding, responseEnv, request, assignment }) {
   const originals = createDeliveryOriginals({ workspace, binding, credential: session.credential,
     assignedUnit: session.assignedUnit, responseEnv, producer: ASSIGNMENT_CHANGE_TOOL });

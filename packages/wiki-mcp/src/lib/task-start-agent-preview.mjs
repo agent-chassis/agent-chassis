@@ -72,7 +72,7 @@ export async function previewStartAgent({ request, context, workspace }) {
     }
     if (readiness.dispatchable === false && baseSelection === null && initiative === null && controlledRecovery === null) {
       authoredRecovery = await servedGuidanceRead({ kind: "guidance", tool: "workspace_read_wiki",
-        arguments: { subject: args.subject },
+        arguments: { reads: [{ subject: args.subject, for_changes: ['criteria', 'validation'] }] },
         information: "Read this assignment's current correction context and revision. Reading changes no readiness." }, context.requestContracts);
     }
     controlledFailure = readiness.controlled_acceptance_failure === undefined ? null

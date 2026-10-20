@@ -27,11 +27,14 @@ agent-launch review   --app <app> <unit>   # dispatch a findings-only reviewer
 agent-launch redteam  --app <app> <unit>   # dispatch a findings-only redteam
 ```
 
-`<app>` is `codex` or `claude`, and `<unit>` is a `WK-####[#slice]` address (or
-`IN-####` for an initiative-scoped redteam). Agy and Gemini have no supported
-confined operator path and fail closed, including dry-run planning. `--spark`
-selects the Codex Spark profile; `--dry-run-json` emits the structured plan
-without launching.
+For these direct role commands, `<app>` is `codex` or `claude`, and `<unit>` is a
+`WK-####[#slice]` address (or `IN-####` for an initiative-scoped redteam).
+Agy and OpenCode support managed roles and operator orchestrator start/resume;
+that support does not enable direct live worker/review/redteam commands. Agy
+direct role commands remain planning-only, and OpenCode roles use managed
+dispatch. The separate Gemini family has no supported confined operator path.
+`--spark` selects the Codex Spark profile; `--dry-run-json` emits the structured
+plan without launching.
 
 The direct live Codex worker route is retired. `agent-launch worker` for a
 launch that resolves to Codex (by `--app codex`, by a Codex profile such as
@@ -66,7 +69,7 @@ replace each with the supported `agent-launch` command below.
 | `claude-worker` | `agent-launch worker --app claude <unit>` |
 | `claude-review` | `agent-launch review --app claude <unit>` |
 | `claude-redteam` | `agent-launch redteam --app claude <unit-or-IN>` |
-| `agy-*` | unsupported — no operator path |
+| `agy-*` | retired wrappers; use managed dispatch for roles and the model-driven `agent-launch orchestrator` / `resume` commands for orchestrators; direct role commands remain planning-only |
 | `gemini-*` | unsupported — no operator path |
 
 ## Package bin entries (operator install state)
@@ -114,6 +117,15 @@ otherwise through the ordinary route, regardless of the route an earlier
 session of the same conversation used (see
 [env reference](env-reference.md#per-model-litellm-routing-modelsid-vertexai)).
 Codex history, thread names and native resume are unchanged.
+
+The registered orchestrator families are Codex, Claude, Agy, and OpenCode. Agy
+and OpenCode require an explicit registered model/effort and
+`high_priority_role_guide = true` in the applicable role table. Their resume
+paths validate the retained exact native session identity; they do not select
+the latest global conversation. See [family runtime state and operator
+commands](agent-launch-family-runtime-state.md#family-runtime-state) for
+configuration prerequisites and native qualification limits.
+
 `agent-launch orchestrator list` is the
 read-only listing companion and supports `--json`. Agents must not launch
 orchestrator sessions; structured agent dispatch refuses orchestrator launch

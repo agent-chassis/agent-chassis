@@ -3,7 +3,7 @@
 import { lstatSync, readdirSync, readlinkSync, realpathSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 
-import { NPM_LOCK, NPM_MANIFEST, PNPM_LOCK, directoryReader, npmManifestFacts, resolveNpmWorkspace } from
+import { NPM_CONFIG, NPM_LOCK, NPM_MANIFEST, PNPM_LOCK, directoryReader, npmManifestFacts, resolveNpmWorkspace } from
   "./npm-workspace.mjs";
 import { TestRuntimeSetupError } from "./toolchains.mjs";
 import { npmExecutableEntries } from "./npm-executable-entries.mjs";
@@ -237,7 +237,8 @@ export const NPM_ECOSYSTEM = Object.freeze({
         input: manifest, cause: "JSON parse failure", action: `correct ${manifest}, then rerun setup` });
     }
     if (members.length === 0 && !workspace.manifest.declaresDependencies) {
-      return { status: "none", files: { [NPM_MANIFEST]: manifest } };
+      return { status: "none", files: { [NPM_MANIFEST]: manifest,
+        ...(workspace.lockless ? { [NPM_CONFIG]: path.join(projectDir, NPM_CONFIG) } : {}) } };
     }
     const files = { [NPM_MANIFEST]: manifest,
       ...Object.fromEntries(workspace.inputs.map((name) => [name, path.join(projectDir, name)])),
@@ -245,7 +246,8 @@ export const NPM_ECOSYSTEM = Object.freeze({
         .map((member) => [`${member}/${NPM_MANIFEST}`, path.join(projectDir, member, NPM_MANIFEST)])
         .filter(([, file]) => existsSync(file))) };
 
-    if (workspace.lock === null && workspace.ambiguous.length === 0) {
+    if (workspace.lock === null && workspace.ambiguous.length === 0 &&
+        !(workspace.lockless && members.length === 0)) {
       return { status: "lock_missing", required: `${NPM_LOCK} or ${PNPM_LOCK}`, files };
     }
     return { status: "present", files };

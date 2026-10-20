@@ -352,7 +352,7 @@ export function missingInitiativeAuthoring(readiness) {
     values: "caller_chosen_existing_initiative" };
 }
 export function missingInitiativeRead(authoring) {
-  return { tool: "workspace_read_wiki", arguments: { subject: authoring.unit },
+  return { tool: "workspace_read_wiki", arguments: { reads: [{ subject: authoring.unit, for_changes: ['initiative'] }] },
     information: `The parent ${authoring.unit} and its current revision, for a caller-authored ` +
       `${authoring.placement} save naming an existing canonical IN-#### initiative; reading leaves the blocker unchanged.` };
 }
@@ -491,11 +491,14 @@ export function backendRefusalCarrier(backendClassification, {
 
   const identity = backendClassification?.diagnostics?.identity_correction;
   const identityRead = identity?.unit === subject && identity.parent === subject?.split('#')[0] &&
-    classifiedRecovery?.route === 'workspace_read_wiki' && classifiedRecovery.args?.subject === identity.parent &&
+    classifiedRecovery?.route === 'workspace_read_wiki' && classifiedRecovery.args?.reads?.length === 2 &&
+    classifiedRecovery.args.reads[0].subject === identity.parent &&
+    classifiedRecovery.args.reads[1].subject === subject &&
     Object.keys(classifiedRecovery.args).length === 1;
   const assignment = backendClassification?.diagnostics?.assignment_correction;
   const assignmentRead = assignment?.requested_unit === subject && assignment.unit === subject?.split('#')[0] &&
-    classifiedRecovery?.route === 'workspace_read_wiki' && classifiedRecovery.args?.subject === assignment.unit &&
+    classifiedRecovery?.route === 'workspace_read_wiki' && classifiedRecovery.args?.reads?.length === 1 &&
+    classifiedRecovery.args.reads[0].subject === assignment.unit &&
     Object.keys(classifiedRecovery.args).length === 1;
   if (classifiedRecovery?.state === "guidance" &&
       (classifiedRecovery.route === EXISTING_ATTEMPT_READ_TOOL || identityRead || assignmentRead)) {
@@ -708,8 +711,12 @@ export async function authoredReadinessGuidance({ subject, readiness, code,
   const controlled = readiness?.controlled_acceptance_failure;
   const selected = controlled === undefined ? null : await servedControlledAcceptanceRecovery(controlled, requestContracts);
   if (selected?.limitation) return { limitation: selected.limitation };
-  const tool = selected?.call.tool ?? "workspace_read_wiki", callArguments = selected?.call.arguments ?? { subject };
   const parentRead = initiative === null ? null : missingInitiativeRead(initiative);
+  const tool = selected?.call.tool ?? "workspace_read_wiki", callArguments = selected?.call.arguments ??
+    parentRead?.arguments ?? { reads: [{ subject,
+      ...(assignment?.placement === 'changes.ready_slices' ? { select: { inventory: 'slices' } } : {}),
+      for_changes: assignment === null
+      ? ['criteria', 'validation'] : [assignment.placement.slice('changes.'.length)] }] };
   const capability = guidanceCapability({ tool, requestSchemaAuthority });
   if (!capability.available) return { limitation: {
     code: "readiness_guidance_unavailable", ...capability

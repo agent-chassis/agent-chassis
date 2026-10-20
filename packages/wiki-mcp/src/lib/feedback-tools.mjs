@@ -4,7 +4,7 @@ import { bindRepositoryLocalStateRoot } from '@agent-chassis/wiki-core/src/lib/r
 import { shouldExposeTool } from './tool-profile.mjs';
 import { guardToolHandler, jsonContent } from './mcp-response.mjs';
 import { registeredToolRequestContracts } from './registered-tool-request-contracts.mjs';
-import { buildGuidanceCall } from '@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs';
+import { buildGuidanceCall, requestContractErrors } from '@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs';
 
 export function registerFeedbackTools({ registerTool, z, workspace, sessionRole, responseEnv, packageDocsCarrier = null, docsCarrier = null }) {
   const recordInput = feedbackSubmissionInputSchema(z);
@@ -24,10 +24,11 @@ export function registerFeedbackTools({ registerTool, z, workspace, sessionRole,
       'There is no agent rebind or restart call. Stop reporting and continue the original work.';
 
     const reader = requestContracts?.contractFor('workspace_read_wiki');
-    const args = { reference: { tool_name: 'workspace_record_feedback', path: 'docs/agent-feedback.md' },
-      select: { field: 'text' } };
+    const args = { reads: [{ reference: { tool_name: 'workspace_record_feedback', path: 'docs/agent-feedback.md' },
+      select: { field: 'text' } }] };
     if (error.code === 'feedback_input_invalid' && reader && await reader.acceptsArguments(args) &&
-        docsCarrier?.bound === true && docsCarrier.servesLogicalPath(args.reference.path)) {
+        requestContractErrors(reader.toolName, args, reader.publishedRequestSchema()).length === 0 &&
+        docsCarrier?.bound === true && docsCarrier.servesLogicalPath(args.reads[0].reference.path)) {
       result.next_calls = [buildGuidanceCall({
         tool: 'workspace_read_wiki', arguments: args, information: 'Optional submission and correction rules; read only.'
       }, { requestSchema: reader.publishedRequestSchema(), registeredTools: name => name === reader.toolName })];

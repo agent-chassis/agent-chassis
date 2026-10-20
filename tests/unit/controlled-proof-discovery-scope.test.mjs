@@ -144,8 +144,8 @@ test('bounded-state scope preserves strict interior, nonempty population, baseli
 test('selected canonical pair never denies descriptor population equality or exact shared counts', () => {
   const candidate = discoverProofIntents({ query: 'canonical value pair arbitrary' }).candidates
     .find(x => x.proof_name === 'proof.result-shape.cross-representation-parity');
-  assert.match(candidate.matching_assertion, /one explicitly selected canonical value pair/);
-  assert.match(candidate.matching_assertion, /equal complete populations of typed member descriptors/);
+  assert.match(candidate.matching_assertion, /one explicitly selected equal canonical value pair/);
+  assert.match(candidate.matching_assertion, /equal complete declared typed-descriptor populations by mutual subset/);
   assert.match(candidate.matching_assertion, /shared exact nonnegative member count/);
   assert.match(candidate.essential_limitation, /automatic or arbitrary multi value pairing/);
 });
@@ -218,4 +218,25 @@ test('every exact candidate requires complete usage without an editorial protoco
   }
   result.candidates[0].usage.fits.example = 'Long explanation. '.repeat(300);
   assert.equal(validateProofIntentDiscoveryResult(result), true);
+});
+
+test('isolated definition read failures remain identity-bearing while strict source observations still refuse', () => {
+  const catalog = { intents: [{ capable_packs: [{ profile_id: 'proof.example', profile_version: '1.0.0' }] }] };
+  const admitted = { packs: [{ profile_id: 'proof.example', path: 'profiles/proof.example/1.0.0' }] };
+  let failure = Object.assign(new Error('definition read failed'), { code: 'EISDIR' });
+  const read = url => {
+    if (url.href.endsWith('/profile.json') && failure !== null) throw failure;
+    return Buffer.from(url.pathname);
+  };
+  assert.throws(discoverySourceIdentity(catalog, admitted, { read }), error => error === failure);
+  const observe = discoverySourceIdentity(catalog, admitted, { read, isolateDefinitions: true });
+  const failed = observe();
+  assert.deepEqual(observe(), failed);
+  failure = Object.assign(new Error('definition read denied'), { code: 'EACCES' });
+  assert.notDeepEqual(observe(), failed, 'a different actual cause changes the captured generation');
+  failure = null;
+  assert.notDeepEqual(observe(), failed, 'restoration cannot relabel the unavailable generation current');
+  const rootFailure = discoverySourceIdentity(catalog, admitted, { isolateDefinitions: true,
+    read: () => { throw Object.assign(new Error('catalogue unreadable'), { code: 'EISDIR' }); } });
+  assert.throws(rootFailure, { code: 'EISDIR' }, 'a global source failure is never an individual definition');
 });

@@ -12,6 +12,16 @@ function unsupported(message, detail) {
 
 export default Object.freeze({
   runner_id: "runner.go-test",
+
+  dependencyPreparation: ({ runtime, projectDir }) => {
+    if (![runtime.executables?.go, projectDir, runtime.env?.GOMODCACHE]
+      .every((value) => typeof value === "string" && path.isAbsolute(value)) ||
+      !(runtime.env?.GOWORK === "off" || (typeof runtime.env?.GOWORK === "string" &&
+        path.isAbsolute(runtime.env.GOWORK)))) return null;
+    return { command: runtime.executables.go, args: ["mod", "download", "all"], cwd: projectDir,
+      env: { GOMODCACHE: runtime.env.GOMODCACHE, GOWORK: runtime.env.GOWORK,
+        GOTOOLCHAIN: "local", GOTELEMETRY: "off", GOENV: "off" } };
+  },
   setupProbe: ({ runtime, projectDir }) => ({ command: runtime.executables.go,
     args: ["list", "-m", "all"], cwd: projectDir }),
   ordinaryInvocation: async ({ runtime, projectDir, file, selector, metadata, proof = null }) => {

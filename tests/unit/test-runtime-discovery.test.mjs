@@ -33,6 +33,49 @@ const discover = (files) => discoverRuntimeEnvironments({
 const pkg = (body) => JSON.stringify(body);
 const rows = ({ environments }) => environments.map(({ id, members, runners }) => ({ id, members, runners }));
 const LOCK = pkg({ lockfileVersion: 3 });
+
+test("intentional lockless npm requires the standalone project's literal .npmrc declaration", () => {
+  const base = { "package.json": pkg({ name: "ink-shaped", devDependencies: { ava: "^5.1.1" } }) };
+  const resolve = (files) => resolveNpmWorkspace(".", (file) => files[file] ?? null);
+  for (const text of ["package-lock=false\n", "# project choice\n package-lock = false ; explicit\r\n",
+    "package-lock=true\npackage-lock=false\n", "package-lock=false\n[other]\npackage-lock=true\n"]) {
+    const facts = resolve({ ...base, ".npmrc": text });
+    assert.deepEqual([facts.lockless, facts.manager, facts.lock, facts.install, [...facts.inputs]],
+      [true, "npm", null, "npm install", [".npmrc"]]);
+  }
+  for (const text of [null, "# package-lock=false\n", "package-lock=true\n", "package-lock=false\npackage-lock\n",
+    "package-lock=false\npackage-lock=invalid\n", "package-lock=false\npackage-lock[]=false\n",
+    "[other]\npackage-lock=false\n", "package-lock=${DISABLE_LOCK}\n"]) {
+    assert.equal(resolve({ ...base, ".npmrc": text }).lockless, false, String(text));
+  }
+  assert.equal(resolve({ ...base, "node_modules/.package-lock.json": LOCK }).lockless, false,
+    "hidden metadata never opts a project in");
+  assert.deepEqual(rows(discover({ ...base, ".npmrc": "package-lock=false\n" })),
+    [{ id: "npm@.", members: [], runners: ["ava", "node-test"] }]);
+});
+
+test("root locks and conflicting installation declarations exclude lockless npm", () => {
+  const base = { "package.json": pkg({ name: "standalone", dependencies: { dep: "1" } }),
+    ".npmrc": "package-lock=false\n" };
+  const resolve = (extra) => resolveNpmWorkspace(".", (file) => ({ ...base, ...extra })[file] ?? null);
+  for (const name of ["package-lock.json", "pnpm-lock.yaml"]) {
+    const facts = resolve({ [name]: LOCK });
+    assert.deepEqual([facts.lockless, facts.lock, [...facts.inputs]], [false, name, [name]]);
+  }
+  const ambiguous = resolve({ "package-lock.json": LOCK, "pnpm-lock.yaml": LOCK });
+  assert.deepEqual([ambiguous.lockless, [...ambiguous.ambiguous]],
+    [false, ["package-lock.json", "pnpm-lock.yaml"]]);
+  for (const extra of [
+    { "package.json": pkg({ workspaces: [] }) },
+    { "package.json": pkg({ workspaces: ["packages/*"] }) },
+    { "package.json": pkg({ packageManager: "pnpm@10.0.0" }) },
+    { "package.json": pkg({ packageManager: "yarn@4.0.0" }) },
+    { "pnpm-workspace.yaml": "packages: []\n" },
+    { "node_modules/.modules.yaml": "layoutVersion: 5\n" },
+    { "npm-shrinkwrap.json": LOCK }, { "yarn.lock": "" }
+  ]) assert.equal(resolve(extra).lockless, false, pkg(extra));
+  assert.equal(resolve({ "package.json": pkg({ packageManager: "npm@11.0.0" }) }).lockless, true);
+});
 const automatic = (files) => selectAutomaticTestEnvironments({ inventory: discover(files),
   testSources: Object.keys(files).filter((file) => /\.[cm]?[jt]sx?$/u.test(file)),
   readFile: (file) => files[file] ?? null });

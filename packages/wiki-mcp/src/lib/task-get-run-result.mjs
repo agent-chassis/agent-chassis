@@ -1,7 +1,7 @@
 
 
 import { buildDispatchToolExceptionDetail, projectRecordedFailureDetail, DISPATCH_FAILURE_ORIGINALS } from "./dispatch-tool-helpers.mjs";
-import { jsonContent, selectedFullContent, measureMcpInlineResultBytes, activeMcpInlineByteLimit } from "./mcp-response.mjs";
+import { jsonContent, selectedFullContent, completeProducedContent, measureMcpInlineResultBytes, activeMcpInlineByteLimit } from "./mcp-response.mjs";
 import { observeRunProofVerification, projectCompactRunProofVerification,
   projectPublicVerifyProofRefusal } from "./dispatch-run-proof-verification.mjs";
 import { readVerifyProofOriginal } from "./verify-proof-result-reader.mjs";
@@ -18,7 +18,8 @@ import { readAssignmentChange } from "./task-request-assignment-change-result.mj
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
-import { createGetRunResultObservation, GET_RUN_RESULT_INVENTORY_INPUT_SCHEMA } from "./task-get-run-result-observation.mjs";
+import { createGetRunResultObservation, GET_RUN_RESULT_INVENTORY_INPUT_SCHEMA,
+  projectRunObservationFailure } from "./task-get-run-result-observation.mjs";
 import { createCandidateVerificationObservation } from "./task-get-run-result-candidate-verification.mjs";
 import { isManagedAttemptSelectionRefusal, managedObservationFailureFacts } from
   "../../../agent-launch-core/src/lib/managed-run-observation.mjs";
@@ -29,7 +30,7 @@ import { proofAuthoringFocusInputSchema, proofAuthoringUnitInputSchema } from ".
 import { verifyProofExecutionCall } from "./task-verify-proof.mjs";
 import { shippedVerifyProofCalls, projectVerifyProofRecoveryForRegisteredTools } from "./verify-proof-delivery.mjs";
 import { resolveObligationCoverageQueryContext } from "./controlled-contract-query-context.mjs";
-import { RUN_TEST_TOOL_NAME } from "./run-test-input.mjs";
+import { RUN_TEST_TOOL_NAME, RUN_TEST_STRUCTURED_VIEWS } from "./run-test-input.mjs";
 import { runTestViewSelection } from "./run-test-result.mjs";
 import { createRunTestResultReader } from "./run-test-tool.mjs";
 import { isCurrentSelectedResponseLocator, readSelectedResponseSource, selectedResponseDetailSchema,
@@ -48,7 +49,10 @@ const proofSchema = z.union([z.object({ subject: z.string().min(1).max(512) }).s
   z.object({ source: z.object({ unit: proofAuthoringUnitInputSchema(z),
     focus: proofAuthoringFocusInputSchema(z).optional() }).strict() }).strict()]);
 export const GET_RUN_RESULT_RETAINED_INPUT_SCHEMA = z.object({ result: selectedResponseDetailSchema(z).shape.source,
-  proof: proofSchema.optional(), detail: GET_RUN_RESULT_DETAIL_INPUT_SCHEMA.optional() }).strict();
+  proof: proofSchema.optional(), detail: GET_RUN_RESULT_DETAIL_INPUT_SCHEMA.optional(),
+  native: z.object({ view: z.enum(RUN_TEST_STRUCTURED_VIEWS),
+    failure: z.number().int().positive().optional() }).strict().optional()
+    .describe('Issued structured native-result selection. Complete semantic meaning only; no captured streams.') }).strict();
 export const GET_RUN_RESULT_RECORDED_INPUT_SCHEMA = z.object({ assigned: z.literal(true),
   recorded_invocation: verifyProofRecordedInvocationInputSchema(z), proof: proofSchema.optional() }).strict();
 export const GET_RUN_RESULT_COORDINATOR_RECORDED_INPUT_SCHEMA = z.object({
@@ -125,19 +129,24 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
     const state = authenticateSession();
     const parsed = parseRequest(GET_RUN_RESULT_RETAINED_INPUT_SCHEMA, request, "read_names_exactly_one_retained_result");
     const result = { ref_id: parsed.result.ref_id };
+    if (parsed.native !== undefined && (parsed.proof !== undefined || parsed.detail !== undefined ||
+        parsed.native.failure !== undefined && parsed.native.view !== 'failure')) refuse('native_selection_names_one_structured_view');
     const assignmentOriginal = ["worker", "orchestrator"].includes(state.role)
       ? readAssignmentChange({ workspace, sessionEnv, responseEnv, result, allowMissing: true }) : null;
     if (assignmentOriginal !== null) {
+      if (parsed.native !== undefined) refuse('native_selection_requires_native_original');
       if (parsed.proof !== undefined) refuse("proof_selection_requires_proof_original");
       return parsed.detail !== undefined ? delivery.detail(assignmentOriginal.binding, parsed, assignmentOriginal.responseEnv)
         : admitResultContinuations({ subject: assignmentOriginal.carrier.identity.unit, accepted: true,
           request: assignmentOriginal.carrier.request,
           next_calls: [...delivery.memberCalls(result, { assignment: assignmentOriginal.carrier.assignment }, assignmentOriginal.binding.route),
-            ...(state.role === "orchestrator" ? [buildNextCall({ tool: "workspace_read_wiki", arguments: { subject: assignmentOriginal.carrier.identity.unit } })] : [])] }, requestContracts);
+            ...(state.role === "orchestrator" ? [buildNextCall({ tool: "workspace_read_wiki", arguments: { reads: [{ subject: assignmentOriginal.carrier.identity.unit,
+              for_changes: ['notes', 'read_scope', 'write_scope', 'material_refs'] }] } })] : [])] }, requestContracts);
     }
     const routed = resolveDeliveryReceiptEnvironment({ workspace, sessionEnv, responseEnv, result });
     const { binding } = readSelectedResponseSource(routed.receipt?.result ?? result, { env: routed.env,
       expected: { repository: workspace.repo }, route: GET_RUN_RESULT_TASK });
+    if (parsed.native !== undefined && binding.route !== RUN_TEST_TOOL_NAME) refuse('native_selection_requires_native_original');
     if (parsed.detail !== undefined && (parsed.proof !== undefined || ![DELIVERY_ORIGINAL_PRODUCER,
       INTEGRATION_ORIGINAL_PRODUCER, OBSERVATION_ORIGINAL_PRODUCER].includes(binding.route))) {
       refuse("detail_requires_delivery_original_without_proof");
@@ -153,7 +162,8 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
       case RUN_TEST_TOOL_NAME:
         nativeReader ??= createRunTestResultReader({ z, responseEnv, jsonContent: (value) => value,
           errorContent: (error) => { throw error; } });
-        return nativeReader.read(runTestViewSelection(result, "outcome"), { workspace, state });
+        return nativeReader.read(runTestViewSelection(result, parsed.native?.view ?? "outcome", parsed.native?.failure),
+          { workspace, state }, { completeSemantic: parsed.native !== undefined });
       case VERIFY_PROOF_TOOL_NAME:
         return readProof(result, binding, parsed.proof);
       case INTEGRATION_ORIGINAL_PRODUCER:
@@ -184,7 +194,8 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
     const source = routed.receipt?.result ?? request.result;
     const original = readSelectedResponseSource(source, { env: routed.env,
       expected: { repository: workspace.repo }, route: GET_RUN_RESULT_TASK });
-    if (![DELIVERY_ORIGINAL_PRODUCER, INTEGRATION_ORIGINAL_PRODUCER, VERIFY_PROOF_TOOL_NAME, OBSERVATION_ORIGINAL_PRODUCER]
+    if (![DELIVERY_ORIGINAL_PRODUCER, INTEGRATION_ORIGINAL_PRODUCER, VERIFY_PROOF_TOOL_NAME, OBSERVATION_ORIGINAL_PRODUCER,
+      RUN_TEST_TOOL_NAME]
       .includes(original.binding.route)) return jsonContent(value, { env: responseEnv });
     return selectedFullContent({ source, retained: original, projection: value });
   }
@@ -224,9 +235,13 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
     const page = await observeRun({ subject: parsed.subject, attempt_id: parsed.attempt_id },
       { kind: "proof_verification", complete: true,
         ...(parsed.recorded_invocation === undefined ? {} : { invocation_id: parsed.recorded_invocation.invocation_id }) });
-    if (!page.ok) refuse(page.code ?? page.refusal?.code ?? "proof_verification_record_unavailable",
-      { subject: parsed.subject, attempt_id: parsed.attempt_id, stage: "journal_selection", ...page.refusal,
-        ...(parsed.recorded_invocation === undefined ? {} : { requested_invocation_id: parsed.recorded_invocation.invocation_id }) });
+    if (!page.ok) {
+      const failure = projectRunObservationFailure(page);
+      refuse(page.code ?? page.refusal?.code ?? "proof_verification_record_unavailable",
+        { subject: parsed.subject, attempt_id: parsed.attempt_id, stage: "journal_selection", ...failure.cause.refusal,
+          ...(page.refusal == null ? { cause: failure.cause } : {}),
+          ...(parsed.recorded_invocation === undefined ? {} : { requested_invocation_id: parsed.recorded_invocation.invocation_id }) });
+    }
     if (parsed.recorded_invocation === undefined) return selectedFullContent({ ...page.verified_source,
       projection: { member: "proof_verifications",
         value: page.items.map(item => ({ invocation_id: item.invocation_id,
@@ -287,12 +302,14 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
   async function observe(request) {
 
     let observation = await observeRun(request);
+    const failed = observation.observation_detail ?? (observation.ok === false &&
+      !isManagedAttemptSelectionRefusal(observation) ? observation : null);
+    if (failed !== null) return { ...observation, observation_failure: projectRunObservationFailure(failed) };
     if (request.assigned !== true) {
       const verification = await observeCandidateVerification(request, observation);
       if (verification !== undefined) observation = { ...observation, candidate_verification: verification };
 
-      const page = observation.proof_detail ?? (observation.ok === false &&
-        !isManagedAttemptSelectionRefusal(observation) ? observation : null);
+      const page = observation.proof_detail ?? null;
 
       if (page !== null) observation = { ...observation,
         proof_verification: projectCompactRunProofVerification(await observeRunProofVerification({
@@ -355,6 +372,7 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
     const value = await presentObservation(observation, request);
     if (measureMcpInlineResultBytes(value) <= selectedResponseDeliveryBound(responseEnv)) return jsonContent(value, { env: responseEnv });
     if (observation.verified_source !== undefined) return selectedFullContent({ ...observation.verified_source, projection: value });
+    if (value.attempt_choices?.length > 0 || value.delivery?.choices?.length > 0) return completeProducedContent(value);
     return jsonContent({ subject: value.subject, attempt_id: value.attempt_id, complete: false,
       code: 'authenticated_observation_source_unavailable', no_supported_route: true,
       cause: 'The complete attempt or delivery choices exceed compact admission and this observation has no authenticated whole-selection source.',

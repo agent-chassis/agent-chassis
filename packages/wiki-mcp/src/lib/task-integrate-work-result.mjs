@@ -3,13 +3,18 @@
 import { projectPublishedIntegrationReceipt } from "./dispatch-run-status-integration-receipt-projection.mjs";
 import { describeRetainedArtifactFile, describeRetentionFailure, jsonContent }
   from "./mcp-response.mjs";
-import { readSelectedResponseSource, retainSelectedResponseSource,
+import { findSelectedResponseSources, readSelectedResponseSource, retainSelectedResponseSource,
   selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
 import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { distillCapturedCauses } from "./dispatch-tool-helpers.mjs";
+import { isDeepStrictEqual } from "node:util";
 import { COMMITTED_SLICE_REVIEW_ADMISSION_CODES }
   from "@agent-chassis/agent-launch-cli/src/lib/committed-slice-review-admission.mjs";
+import { defaultTerminalCandidateRunGit } from
+  "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
+import { classifyAncestryObservation, mintGitFailure, TERMINAL_WK_CANDIDATE_CODES } from
+  "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate-ref-publication.mjs";
 
 export const INTEGRATION_ORIGINAL_PRODUCER = "workspace_integrate_committed_slice";
 export const INTEGRATION_ORIGINAL_SUMMARY_SCHEMA_VERSION = "integration-original-summary.v1";
@@ -126,7 +131,8 @@ export function createIntegrationOriginals({ workspace, sessionEnv = process.env
     let locator;
     try {
       locator = retainSelectedResponseSource({ carrier: original, binding: {
-        route: INTEGRATION_ORIGINAL_PRODUCER, repository: workspace.repo, unit: subject } }, { responseOwner });
+        route: INTEGRATION_ORIGINAL_PRODUCER, repository: workspace.repo, unit: subject,
+        query_identity: null } }, { responseOwner });
     } catch (error) {
 
       if (!isPersistenceFailure(error)) throw error;
@@ -153,7 +159,53 @@ export function createIntegrationOriginals({ workspace, sessionEnv = process.env
     return project === null ? summary : project({ binding, carrier, summary });
   }
 
-  return Object.freeze({ retain, read });
+  async function unfinishedPreparation({ units, candidate = null, delivery: requestedDelivery = null }) {
+    authenticateSession();
+    const accounts = new Map();
+    for (const unit of units) {
+      const sources = findSelectedResponseSources({ env: responseEnv, expected: {
+        route: INTEGRATION_ORIGINAL_PRODUCER, repository: workspace.repo, unit,
+        query_identity: null, authority_identity: undefined } });
+      for (const { carrier, current } of sources) {
+        const delivery = carrier.request?.delivery;
+        const result = carrier.result;
+        const approved = carrier.approved_delivery;
+        if (!current || typeof delivery?.ref_id !== 'string' || result?.integrated !== true ||
+            requestedDelivery !== null && requestedDelivery.ref_id !== delivery.ref_id ||
+            approved?.subject !== unit || approved.commit !== result.delivery_sha ||
+            !COMMIT_RE.test(result.wk_sha ?? '')) continue;
+        const account = accounts.get(delivery.ref_id) ?? { complete: false, pending: [] };
+        if (result.candidate_preparation?.state === 'complete' && result.recovery_failure === undefined) account.complete = true;
+        else if ((result.review_target != null || result.integrated_state === 'final') &&
+            result.record_reconciliation?.state !== 'pending' && result.record_reconciliation?.state !== 'blocked') {
+          account.pending.push({ unit, delivery, integrated: result.wk_sha, result });
+        }
+        accounts.set(delivery.ref_id, account);
+      }
+    }
+    const choices = [];
+    for (const account of accounts.values()) {
+      if (account.complete) continue;
+      for (const pending of account.pending) {
+        if (candidate === null) {
+          if (!choices.some(row => row.delivery.ref_id === pending.delivery.ref_id)) choices.push(pending);
+          continue;
+        }
+        const compared = await defaultTerminalCandidateRunGit({ repo: workspace.dir,
+          args: ['merge-base', '--is-ancestor', pending.integrated, candidate.wk_tip], env: null });
+        const ancestry = classifyAncestryObservation(compared);
+        if (ancestry === 'failed') throw mintGitFailure(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
+          'could not compare the selected candidate with its integrated implementation', compared,
+          { args: ['merge-base'], path: candidate.wk_ref });
+        if (ancestry === 'ancestor' && !choices.some(row => row.delivery.ref_id === pending.delivery.ref_id)) choices.push(pending);
+      }
+    }
+    if (choices.length !== 1) return null;
+    if (candidate === null) return choices[0];
+    return { tool: 'integrate_work', arguments: { delivery: choices[0].delivery,
+      candidate_version: candidate.version_decision.version_identity } };
+  }
+  return Object.freeze({ retain, read, unfinishedPreparation });
 }
 
 function failureMeaning(value) {
@@ -162,11 +214,21 @@ function failureMeaning(value) {
     code: value.code, reason: value.detail.reason,
     message: "The selected immutable delivery conflicts with the current WK tip." };
 
-  const evidence = value?.evidence ?? value?.cause;
-  const [origin] = distillCapturedCauses(evidence?.schema_version ===
+  const evidence = value?.recovery_failure ?? value?.evidence ?? value?.cause;
+  const [origin, ...nested] = distillCapturedCauses(evidence?.schema_version ===
     "agent_launch.post_worker_lifecycle_failure_evidence.v1" ? evidence.thrown : evidence);
+
+  const describe = cause => ({
+    ...(cause?.code == null ? {} : { code: cause.code }),
+    ...(cause?.message == null && cause?.reason == null ? {} : { message: cause.message ?? cause.reason }),
+    ...(cause?.process_failure?.errors?.length > 0 ? { diagnostics: cause.process_failure.errors } : {})
+  });
+  const primary = describe(origin);
+  const causes = nested.map(describe).filter(cause => Object.keys(cause).length > 0);
   return { code: value?.code ?? origin?.code ?? null,
-    message: value?.message ?? origin?.message ?? value?.reason ?? null };
+    message: primary.message ?? value?.message ?? value?.reason ?? null,
+    ...(primary.diagnostics === undefined ? {} : { diagnostics: primary.diagnostics }),
+    ...(causes.length === 0 ? {} : { causes }) };
 }
 
 export async function prepareIntegrateWorkResponse({ result, original, request,
@@ -211,7 +273,8 @@ export async function prepareIntegrateWorkResponse({ result, original, request,
         result.cleanup?.managed_identity_retirement, result.cleanup?.slice_checkout].filter(isOutstandingEffect),
       { code: retentionFailure?.cause_code, message: retentionFailure?.message },
       { code: original?.evidence?.code, evidence: original?.evidence }].map(failureMeaning);
-    body.cause = failures.find(value => value.code !== null || value.message !== null) ?? { code: null, message: null };
+    body.cause = failures.find(value => value.code !== null || value.message !== null || value.causes !== undefined)
+      ?? { code: null, message: null };
 
     body.remaining = Object.entries({
       record: result.record_reconciliation,
@@ -219,10 +282,12 @@ export async function prepareIntegrateWorkResponse({ result, original, request,
       checkout: result.cleanup?.wk_checkout, slice_checkout: result.cleanup?.slice_checkout
     }).filter(([, value]) => isOutstandingEffect(value))
       .map(([effect, value]) => {
-        const { code, message } = failureMeaning(value);
-        return { effect, state: value.state, owner: INTEGRATION_REMAINDER_OWNERS[effect],
+        const { code, message, causes, diagnostics } = failureMeaning(value);
+        return { effect, state: value.state,
           ...(code == null || code === body.cause.code ? {} : { code }),
-          ...(message == null || message === body.cause.message ? {} : { message }) };
+          ...(message == null || message === body.cause.message ? {} : { message }),
+          ...(diagnostics === undefined || isDeepStrictEqual(diagnostics, body.cause.diagnostics) ? {} : { diagnostics }),
+          ...(causes === undefined || isDeepStrictEqual(causes, body.cause.causes) ? {} : { causes }) };
       });
     if (body.remaining.length === 0) delete body.remaining;
     if (result.recovery !== undefined) body.recovery = result.recovery;
@@ -247,12 +312,10 @@ export async function prepareIntegrateWorkResponse({ result, original, request,
       result.recovery_failure !== undefined && result.cleanup?.state !== "complete" ||
       result.cleanup?.state === "pending");
   if (repairable && request?.delivery !== undefined) {
-    body.recovery = { state: "after_correction", message: "Integration stands. This result supplies no correction call for the reported " +
-      "remaining cause. Stop while it persists; after that condition changes, the exact-selection call recovers only unfinished effects." };
+    body.recovery = { state: "after_correction", message: "Integration stands. The reported condition must be corrected before " +
+      "the returned integration call can finish the remaining work. No correction call is available here." };
     body.next_calls.push({ tool: "integrate_work", arguments: request, recommended: false,
-      condition: result.cleanup?.wk_checkout?.state === "superseded"
-        ? "after the reported record, retirement or slice cleanup cause is corrected; explicit recovery only"
-        : "after the reported record, retirement, checkout or slice cleanup cause is corrected; explicit recovery only" });
+      condition: "after the reported remaining condition is corrected" });
   }
 
   if (integrated === true && typeof result.wk_sha === "string" && COMMIT_RE.test(result.wk_sha) &&
@@ -270,6 +333,12 @@ export async function prepareIntegrateWorkResponse({ result, original, request,
         ? "Integration stands; a newer integration owns the checkout. Repeating this delivery cannot restore it."
         : "Stop this integration request at the reported cause. No supported in-session correction is available; " +
           "do not retry unchanged or replace the selected source." };
+  if (request?.candidate_version !== undefined && result.candidate_preparation?.state === 'complete') {
+    body.candidate_preparation = result.candidate_preparation;
+    body.next_calls.push({ ...buildNextCall({ tool: 'workspace_publish_work',
+      arguments: { subject: subject.split('#')[0] } }), recommended: false,
+      condition: 'if publication remains intended and authorized; preparation grants no publication authority' });
+  }
   const permitted = [], limitations = [];
   for (const call of body.next_calls) {
     const contract = requestContracts?.contractFor(call.tool);
@@ -291,13 +360,6 @@ export async function prepareIntegrateWorkResponse({ result, original, request,
       "Stop this selection correction; do not retry the rejected approval or choose a replacement source." };
   return Object.freeze({ registered: false, body, approval: request, source: locator });
 }
-
-const INTEGRATION_REMAINDER_OWNERS = Object.freeze({
-  record: "canonical work-record persistence owner",
-  retirement: "managed worker identity owner",
-  checkout: "owned WK checkout synchronization owner",
-  slice_checkout: "exact-slice checkout reaper"
-});
 
 function isOutstandingEffect(value) {
   return ["pending", "blocked", "superseded", "failed"].includes(value?.state);

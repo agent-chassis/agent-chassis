@@ -4,8 +4,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { parseDocument } from "yaml";
+import { TestRuntimeSetupError } from "./toolchains.mjs";
 
 export const NPM_MANIFEST = "package.json";
+export const NPM_CONFIG = ".npmrc";
 export const NPM_LOCK = "package-lock.json";
 export const PNPM_LOCK = "pnpm-lock.yaml";
 export const PNPM_WORKSPACE = "pnpm-workspace.yaml";
@@ -84,8 +86,21 @@ export function npmManifestFacts(text) {
     runners: Object.freeze(Object.entries(NPM_RUNNER_PACKAGES).filter(([name]) => declared.includes(name))
       .map(([, runner]) => runner)),
     workspaces: Object.freeze(workspaces.filter((pattern) => typeof pattern === "string")),
+    workspaceDeclared: manifest !== null && Object.hasOwn(manifest, "workspaces"),
+    packageManagerDeclared: manifest !== null && Object.hasOwn(manifest, "packageManager"),
     packageManager: manager
   });
+}
+
+function npmLockDisabled(text) {
+  let disabled = false;
+  for (const raw of (text ?? "").split(/\r?\n/u)) {
+    const line = raw.replace(/\s*[#;].*$/u, "").trim();
+    if (line.startsWith("[")) break;
+    const setting = /^package-lock(\[\])?\s*(?:=(.*))?$/u.exec(line);
+    if (setting !== null) disabled = setting[1] === undefined && setting[2]?.trim() === "false";
+  }
+  return disabled;
 }
 
 export function pnpmWorkspacePatterns(text) {
@@ -194,7 +209,13 @@ export function resolveNpmWorkspace(project, readFile) {
       (installed.length === 1 ? installed[0] : null);
     if (selected === null) ambiguous = existing.map(({ name }) => name);
   }
-  const manager = selected?.manager ?? manifest.packageManager ?? (pnpmWorkspaceText === null ? null : "pnpm");
+
+  const lockless = existing.length === 0 && !manifest.workspaceDeclared &&
+    (!manifest.packageManagerDeclared || manifest.packageManager === "npm") && pnpmWorkspaceText === null &&
+    read("node_modules/.modules.yaml") === null && read("npm-shrinkwrap.json") === null &&
+    read("yarn.lock") === null && npmLockDisabled(read(NPM_CONFIG));
+  const manager = selected?.manager ?? manifest.packageManager ??
+    (pnpmWorkspaceText !== null ? "pnpm" : lockless ? "npm" : null);
 
   const pnpm = manager !== "pnpm" ? null
     : pnpmWorkspaceText === null ? Object.freeze({ patterns: Object.freeze([]), error: null })
@@ -213,12 +234,15 @@ export function resolveNpmWorkspace(project, readFile) {
     project,
     manifest,
     manager,
+    lockless,
     lock: selected?.name ?? null,
-    install: selected?.install ?? NPM_LOCKS.find((entry) => entry.manager === manager)?.install ?? null,
+    install: lockless ? "npm install" : selected?.install ??
+      NPM_LOCKS.find((entry) => entry.manager === manager)?.install ?? null,
     ambiguous: Object.freeze(ambiguous),
     patterns: pnpm === null ? manifest.workspaces : pnpm.patterns,
 
     inputs: Object.freeze([...(selected === null ? ambiguous : [selected.name]),
+      ...(lockless ? [NPM_CONFIG] : []),
       ...(pnpm === null || pnpmWorkspaceText === null ? [] : [PNPM_WORKSPACE])]),
     get lockedDirectories() {
       return Object.freeze((lockFacts()?.directories ?? []).map((directory) => at(project, directory)));
@@ -237,8 +261,16 @@ export function directoryReader(root) {
   return (relative) => {
     try {
       return readFileSync(path.join(root, relative), "utf8");
-    } catch {
-      return null;
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+      const input = path.join(root, relative);
+      const action = `make ${input} readable to the user that runs setup, then rerun setup`;
+      throw new TestRuntimeSetupError("test_runtime_dependency_input_inaccessible",
+        `${input} cannot be read (${error.code}): ${error.message}`, {
+          condition: "a dependency input cannot be read", input, errno: error.code, cause: error.message,
+          effects: "no usable runtime was published by this detection", uncertainty: "the input's contents",
+          action: { actor: "operator", statement: action }, correction: action
+        });
     }
   };
 }

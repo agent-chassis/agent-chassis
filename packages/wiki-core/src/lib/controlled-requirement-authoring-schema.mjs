@@ -10,6 +10,7 @@ import { CONTROLLED_CONTRACT_REQUIREMENT_LIMITS, deriveControlledContractAuthori
 import { shareRecordAuthoringDefinitions } from './record-authoring-shared-definitions.mjs';
 import { requirementCapabilities, relationCapability, scopePrimitiveValueDefinitions } from './requirement-schema-exposure.mjs';
 import { publicValueDefinitions } from '../operations/controlled-contract/contract-requirement-native-values.mjs';
+import { buildPublicSelectionSchema } from '../operations/controlled-contract/public-selection.mjs';
 
 export const TERM_IDENTITY_KIND = 'profile_term';
 
@@ -364,21 +365,19 @@ export const REQUIREMENT_BATCH_MEMBERS = Object.freeze(['entities', 'requirement
 
 export const REQUIREMENT_ROW_SOURCE_MEMBERS = Object.freeze(['user_requirement', 'user_requirement_occurrence']);
 
-export function buildRequirementBatchSchema({ label, labelReference, claimId, rebindCaseIds, existingRows = true, capabilities = null }) {
-  const rowId = { type: 'string', pattern: REQUIREMENT_ROW_ID_PATTERN };
-  const collectionRowId = { type: 'string', pattern: REQUIREMENT_COLLECTION_ROW_ID_PATTERN };
+export function buildRequirementBatchSchema({ label, labelReference, rebindCaseIds, existingRows = true, capabilities = null }) {
 
   const shared = buildControlledRequirementDefinitions({ relationDefinitions: false, capabilities, ...(existingRows
-    ? { collectionMember: { type: 'string', pattern: `(?:${labelReference.pattern})|(?:${REQUIREMENT_ROW_ID_PATTERN})` },
-      memberWords: 'A member is a requirement of this request by its label ("$key"), or a saved requirement row by its row_id.' }
+    ? { collectionMember: buildPublicSelectionSchema({ kinds: ['requirement'], allowLocalKeys: true }),
+      memberWords: 'A member is a requirement of this request by "$key", or a whole saved requirement selected by its authored meaning.' }
     : { collectionMember: labelReference, memberWords: 'A member is a requirement of this request by its label ("$key").' }) });
   const source = {
     user_requirement: { description: 'Exact saved user_requirements passage, compared literally without normalization, trimming or case folding. Omission infers no source.', type: 'string', minLength: 1 },
     user_requirement_occurrence: { description: '1-based left-to-right occurrence, including overlaps. Only with user_requirement; required for repeated passages.', type: 'integer', minimum: 1 } };
   const key = { key: { ...label, description: 'Request-local row label; "$key" names its collection member/claims.' } };
   const addressed = existingRows ? { ...key,
-    row_id: { ...rowId, description: 'Restate a saved row or its source. Exclusive with key/id.' } } : key;
-  const corrected = existingRows ? { id: { ...claimId, description: 'Correct one saved claim. Exclusive with key/row_id.' },
+    target: buildPublicSelectionSchema({ kinds: ['requirement'] }) } : key;
+  const corrected = existingRows ? { target: buildPublicSelectionSchema({ kinds: ['requirement', 'claim'] }),
     rebind_case_ids: rebindCaseIds } : {};
   const verification = ref('requirement_verification');
   const verificationKey = { ...label, description: 'Request-local verification label; "$key" names its claims/case.' };
@@ -386,30 +385,43 @@ export function buildRequirementBatchSchema({ label, labelReference, claimId, re
   const defs = { ...statements,
     definition_requirement: { ...statements.definition_requirement,
       properties: { ...addressed, ...statements.definition_requirement.properties, ...source } },
-    requirement: { ...requirement, description: `${requirement.description}${existingRows ? ' Use at most one of key/row_id/id.' : ''}`,
+    requirement: { ...requirement, description: `${requirement.description}${existingRows ? ' Use key for a new declaration or target for a saved declaration, never both.' : ''}`,
       properties: { ...addressed, ...corrected, ...requirement.properties, verification, ...source } },
-    membership_requirement: { ...membership, description: `${membership.description}${existingRows ? ' Use at most one of key/row_id.' : ''}`,
+    membership_requirement: { ...membership, description: `${membership.description}${existingRows ? ' Use key for a new declaration or target for a saved declaration, never both.' : ''}`,
       properties: { ...addressed, ...membership.properties, verification, ...source } },
     requirement_verification: { ...shared.verification, anyOf: shared.verification.anyOf.map(option => ({ ...option,
       properties: { key: verificationKey, ...option.properties } })) },
     collection: { ...shared.collection, properties: { key: label,
-      ...(existingRows ? { row_id: { ...collectionRowId, description: 'Restate a saved collection; exclusive with key.' } } : {}), ...shared.collection.properties } },
+      ...(existingRows ? { target: buildPublicSelectionSchema({ kinds: ['collection'] }) } : {}), ...shared.collection.properties } },
     unresolved_meaning: shared.unresolved_meaning };
+  const rowOptions = [...shared.requirementRows.items.oneOf];
+  if (existingRows) {
+    const replacementKey = { ...label, description: 'Request-local binding of this targeted declaration\'s complete submitted assertions. "$key" in claims selects all of them; a claim selection with requirement:"$key" and an exact match selects one submitted part. It names no verification or durable identity.' };
+    for (const option of shared.requirementRows.items.oneOf) {
+      const name = option.$ref.slice('#/$defs/'.length), base = defs[name];
+      const { key: _creationKey, ...properties } = base.properties;
+      const replacementName = `replacement_${name}`;
+      defs[replacementName] = { ...base,
+        description: 'Restate one saved whole declaration using target; replacement_key names only its submitted assertion population for explicit same-save associations.',
+        required: [...new Set([...(base.required ?? []), 'target', 'replacement_key'])],
+        properties: { ...properties, target: buildPublicSelectionSchema({ kinds: ['requirement'] }), replacement_key: replacementKey } };
+      rowOptions.push(ref(replacementName));
+    }
+  }
   const batch = { description: 'Entities declared once by id; requirements: statements/memberships; collections: groups; unresolved: unencoded meaning. '
       + 'Absent modality/objects/required applicability/type or pending values save incomplete, without identity/expression. Expressions generated, never supplied.',
     type: 'object', additionalProperties: false, minProperties: 1,
     properties: { entities: ref('entities'),
-      requirements: { ...shared.requirementRows, minItems: 1,
+      requirements: { ...shared.requirementRows, items: { oneOf: rowOptions }, minItems: 1,
         description: `At most ${shared.requirementRows.maxItems} rows plus claim retirements per request; whole-row removals have a separate bound. `
           + (existingRows
-            ? 'New rows append; omitted saved rows remain. Correct saved rows with row_id or id. '
+            ? 'New declarations append; omitted declarations remain. Correct saved meaning with target. '
             : 'Creation supplies initial rows; later saves append and retain omitted rows. ')
           + 'Declare new entities; reuse saved row-bound bindings.' },
       collections: { type: 'array', minItems: 1, items: ref('collection') },
       unresolved: { ...shared.unresolved, description: `${shared.unresolved.description} Supplied: replaces the list. Omitted: retains it.` } } };
   const factored = shareRecordAuthoringDefinitions({ properties: defs, shared: [
     ['requirement_key', key.key], ['verification_key', verificationKey],
-    ...(existingRows ? [['requirement_row_id', addressed.row_id]] : []),
     ...Object.entries(source)
   ] });
   const definitions = { ...factored.properties, ...factored.$defs };

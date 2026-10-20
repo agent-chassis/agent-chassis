@@ -325,7 +325,7 @@ export function upsertSlice(record, { slice } = {}) {
         changed: false,
         unit,
         next_calls: [
-          { tool: "workspace_read_wiki", arguments: { subject: unit } },
+          { tool: "workspace_read_wiki", arguments: { reads: [{ subject: unit, for_changes: ["tasks"] }] } },
           { tool: "save_record", fixed_arguments: { unit }, required_authored_fields: ["revision", "changes.tasks"] }
         ]
       }

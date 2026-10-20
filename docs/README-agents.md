@@ -10,6 +10,9 @@ repo.
 
 ## Repo layers
 
+Package paths on this page refer to the source checkout; linked public docs
+are also available in the installed core package.
+
 - `docs/` — durable system knowledge, public docs, operator docs, and technical
   contracts.
 - `packages/wiki-core/` — shared wiki contract logic: schemas, templates, lint,
@@ -23,12 +26,52 @@ repo.
 - `packages/agent-launch-cli/` — the `agent-launch` operator entrypoints,
   orchestrator launch/resume/list, and launcher-controlled role dispatch
   runtime.
+- `packages/controlled-contract/` — controlled-contract validation, reusable
+  proof definitions, and proof-plan assessment. Candidate execution and runtime
+  observation collection are separate launcher responsibilities.
 - `wiki/work-records/` — canonical `WK-*` work contracts in JSON.
 - `wiki/initiatives/`, `wiki/decisions/`, `wiki/areas/`, and `wiki/sources/` —
   durable coordination, design history, subsystem boundaries, and evidence.
 - `wiki/catalog.md`, `wiki/now.md`, `wiki/backlog.md`, `wiki/inbox.md`, and
   `wiki/archive.md` — generated navigation views. Read them for orientation;
   do not treat them as independent authority.
+
+Work contracts define assignments, scope, deliverables and dependencies.
+Controlled acceptance states required behavior, the claims that need proof
+(proof obligations), and how evidence must establish particular properties.
+Work records connect those requirements and obligations to assigned work.
+
+Assessing an authored contract checks its declared structure, completeness and
+proof selections; it cannot discover unauthored requirements or establish
+implementation behavior. Certifying a reusable proof definition establishes
+declaration adequacy under its stated authority and exclusions. Candidate
+verification evaluates evidence bound to the tested source; a passing test
+alone does not establish requirement satisfaction.
+
+## Understanding the implementation
+
+- Controlled-contract representation and assessment:
+  [packages/controlled-contract/](https://github.com/agent-chassis/agent-chassis/tree/main/packages/controlled-contract)
+  (source repository).
+- Requirement and proof authoring:
+  [mcp-controlled-contract-operations.md](mcp-controlled-contract-operations.md).
+- Acceptance criteria and proof obligations:
+  [acceptance-coverage-mcp.md](acceptance-coverage-mcp.md).
+- Current proof definitions, parameters and exclusions:
+  [proof-pack-parameters.md](proof-pack-parameters.md) and its
+  [per-definition index](proof-pack-parameters/index.md).
+- Runtime verification and interpretation of results:
+  [test-proof-execution.md](test-proof-execution.md) and
+  [test-proof-results.md](test-proof-results.md).
+- Work coordination: `packages/wiki-core/` and `packages/agent-launch-core/`;
+  [work-record-ontology.md](work-record-ontology.md) and
+  [initiative-status.md](initiative-status.md) explain coordination semantics.
+
+For an architectural assessment, examine both work orchestration and controlled
+acceptance. Trace requirements through proof selection, contract assessment,
+runtime evidence and acceptance coverage, checking what each stage establishes
+and excludes. Use this map for investigation; routine operational tasks follow
+their granted tools and returned next calls.
 
 ## Core docs by topic
 
@@ -48,9 +91,6 @@ repo.
 - Launcher and dispatch runtime:
   [agent-launch-quickstart.md](agent-launch-quickstart.md),
   and [agent-launch-operator-entrypoints.md](agent-launch-operator-entrypoints.md).
-- Work-record schema and coordination semantics:
-  [work-record-ontology.md](work-record-ontology.md) and
-  [initiative-status.md](initiative-status.md).
 - Repo-local wiki structure and consumer-owned docs:
   [areas.md](areas.md),
   [consumer-owned-docs.md](consumer-owned-docs.md), and
@@ -103,6 +143,10 @@ canonical records.
 Agents use structured MCP tools for repo/wiki work when those tools are
 available. Do not infer support from package manifests, wrapper filenames,
 executable bits, generated examples, or historical work records.
+Published package capabilities do not grant session access: actual registration,
+role and tier determine tool exposure. See
+[tool-discovery-tiers.md](tool-discovery-tiers.md) for availability and the
+[enforcement model](enforcement-model.md#registered-task-authority) for authority.
 
 Worker, reviewer, and redteam dispatch goes through `start_agent`.
 Observe those runs by canonical subject and returned attempt with `get_run_result`.

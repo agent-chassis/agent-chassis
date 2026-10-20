@@ -85,40 +85,119 @@ const loadEvaluationInputSchema = createEvictOnRejectionMemo(async () => {
   return validateEvaluationInput;
 });
 
-export function packageValidationDiagnostics(validation, candidate = null) {
-  const projection = validation.diagnostics;
-  const details = structuredClone(validation.diagnostic_details ??
-    projection?.diagnostics ?? []);
-  const lossless = projection?.truncated === false && projection?.omitted_count === 0;
-  const contradictions = details.filter(row => row.code === 'irreflexive_proposition');
-  const authored = contradictions.flatMap(diagnostic => (candidate?.authored_requirements?.rows ?? []).flatMap(row => {
-    const verifications = (candidate.relations ?? []).filter(relation => relation.role === 'verifies' &&
-      row.claim_ids.includes(relation.target_claim_id)).map(relation => relation.source_claim_id);
-    return (candidate.claims ?? []).filter(claim => verifications.includes(claim.claim_id) &&
-      claim.falsifying_proposition_id === diagnostic.proposition_id).map(claim => ({
-      code: diagnostic.code, proposition_id: diagnostic.proposition_id, row_id: row.row_id,
-      claim_ids: row.claim_ids, verification_claim_id: claim.claim_id, field: 'verification.fails_when'
-    }));
-  }));
-  const mappedIds = [...new Set(authored.map(row => row.proposition_id))];
-  const unmappedIds = contradictions.filter(diagnostic => !mappedIds.includes(diagnostic.proposition_id))
-    .map(diagnostic => diagnostic.proposition_id);
-  return {
-    contract_family: validation.family,
-    diagnostics: projection,
-    ...(contradictions.length === 0 ? {} : { authored_falsifiers: authored,
-      ...(unmappedIds.length === 0 ? {} : { unmapped_contradiction_ids: unmappedIds, location_limitation:
-        'No authored field is established for the listed native propositions; their native diagnostic locations remain authoritative.' }),
-      ...(mappedIds.length === 0 ? {} : { falsifier_recovery: {
-        proposition_ids: mappedIds, guidance_path: ['required_object_shapes', 'verification'],
-        correction: 'For these mapped falsifiers, asserting a subject differs from itself cannot describe a contrary outcome. KEEP the required behavior and its applicability, source and evidence associations. Supply an author-defined verification.fails_when tied to that behavior; a different arbitrary symbol is not a falsifier.' } }) }),
-    ...(lossless
-      ? { diagnostic_details_omitted: Object.freeze({
-        reason: "bounded_projection_carries_every_diagnostic_fact",
-        diagnostic_count: details.length
-      }) }
-      : { diagnostic_details: details })
+const diagnosticIdentityKinds = new Map([
+  ['row_id', 'requirement'], ['collection_row_id', 'collection'],
+  ['claim_id', 'claim'], ['verification_id', 'verification'], ['verification_claim_id', 'verification'],
+  ['proposition_id', 'proposition'], ['constraint_id', 'constraint'], ['reference_id', 'entity'], ['relation_id', 'relation']
+]);
+const uniqueMeanings = rows => [...new Map(rows.map(row => [JSON.stringify(row), row])).values()];
+function nativeDiagnosticSubjects(candidate) {
+  const bindings = new Map();
+  const add = (id, subject) => { if (typeof id === 'string') bindings.set(id,
+    uniqueMeanings([...(bindings.get(id) ?? []), subject])); };
+  const references = new Map((candidate?.references ?? []).map(row => [row.reference_id, row]));
+  const entity = row => ({ ...(row.type_term === undefined ? {} : { type_term: row.type_term }), identity: structuredClone(row.identity) });
+  let missingReference = false;
+  const authoredValue = value => {
+    if (Array.isArray(value)) return value.map(authoredValue);
+    if (value === null || typeof value !== 'object') return value;
+    if (value.identity !== undefined) return entity(value);
+    if (typeof value.select === 'string') {
+      if (references.get(value.select)?.identity !== undefined) return entity(references.get(value.select));
+      missingReference = true;
+      return undefined;
+    }
+    return Object.fromEntries(Object.entries(value).map(([key, member]) => [key, authoredValue(member)]));
   };
+  for (const row of candidate?.references ?? []) if (row.identity !== undefined) add(row.reference_id,
+    { subject: { kind: 'entity', identity: row.identity, type_term: row.type_term } });
+  for (const row of candidate?.authored_requirements?.rows ?? []) {
+    if (row.input?.subject?.identity === undefined) continue;
+    missingReference = false;
+    const match = authoredValue(row.input);
+    if (missingReference) continue;
+    const subject = { kind: 'requirement', match };
+    add(row.row_id, { subject });
+    for (const id of row.constraint_ids ?? []) add(id, { subject, field: row.input.membership === undefined ? 'behavior' : 'membership' });
+    for (const id of row.claim_ids ?? []) add(id, { subject, field: 'behavior' });
+  }
+  for (const claim of candidate?.claims ?? []) {
+    const owns = claim.kind === 'verification'
+      ? (candidate.relations ?? []).filter(row => row.role === 'verifies' && row.source_claim_id === claim.claim_id)
+        .flatMap(row => bindings.get(row.target_claim_id) ?? []).map(({ subject }) => ({ subject, field: 'verification' }))
+      : bindings.get(claim.claim_id) ?? [];
+    for (const subject of owns) {
+      add(claim.claim_id, subject);
+      add(claim.proposition_id, { ...subject, field: claim.kind === 'verification' ? 'verification.observes' : 'behavior' });
+      add(claim.falsifying_proposition_id, { ...subject, field: 'verification.fails_when' });
+    }
+  }
+  for (const row of candidate?.relations ?? []) for (const id of [row.source_claim_id, row.target_claim_id])
+    for (const subject of bindings.get(id) ?? []) add(row.relation_id, subject);
+  return bindings;
+}
+
+export function packageValidationDiagnostics(validation, candidate = null) {
+
+  const native = structuredClone(validation.diagnostic_details ?? validation.diagnostics?.diagnostics ?? []);
+  const bindings = nativeDiagnosticSubjects(candidate);
+  const diagnostic = fact => {
+    const subjects = [], unresolved = [], substitutions = new Map();
+    const visit = value => {
+      if (Array.isArray(value)) return value.map(visit);
+      if (value === null || typeof value !== 'object') return value;
+      return Object.fromEntries(Object.entries(value).flatMap(([key, member]) => {
+        const singular = key.endsWith('_ids') ? key.slice(0, -1) : key;
+        const identityField = [...diagnosticIdentityKinds.keys()].find(field => singular === field || singular.endsWith(`_${field}`));
+        const kind = diagnosticIdentityKinds.get(identityField);
+        if (kind !== undefined) {
+          for (const id of Array.isArray(member) ? member : [member]) {
+            const matches = bindings.get(id) ?? [];
+            subjects.push(...matches.map(subject => ({ ...subject, ...(singular === identityField ? {}
+              : { role: singular.slice(0, -3) }) })));
+            if (!matches.length) unresolved.push({ kind,
+              cause: 'No authored subject association is established for this failed native member.' });
+            substitutions.set(id, matches.length ? `the affected ${matches[0].subject.kind}` : `an unattributed ${kind}`);
+          }
+          return [];
+        }
+
+        if (['schema_pointer', 'schemaPath', 'diagnostic_projection_version'].includes(key)) return [];
+        if (['pointer', 'field_pointer', 'instancePath'].includes(key) &&
+            /^\/(?:claims|propositions|references|relations|test_proofs|authored_requirements)(?:\/|$)/u.test(member)) {
+          const field = member.replace(/^\/[^/]+\/[0-9]+\/?/u, '').replaceAll('/', '.');
+          return field ? [['failed_field', field]] : [];
+        }
+        return [[key, visit(member)]];
+      }));
+    };
+    const meaning = visit(fact);
+    const translate = value => typeof value === 'string'
+      ? [...substitutions].reduce((text, [id, subject]) => typeof id === 'string' && id.length > 0 ? text.replaceAll(id, subject) : text, value)
+      : Array.isArray(value) ? value.map(translate)
+        : value !== null && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, member]) => [key, translate(member)])) : value;
+    const choices = uniqueMeanings(subjects);
+    const status = unresolved.length ? 'unavailable' : choices.length === 1 ? 'mapped' : choices.length > 1 ? 'ambiguous' : 'unavailable';
+    const attribution = { status, ...(choices.length === 1 && status === 'mapped' ? choices[0] : choices.length ? { choices } : {}),
+      ...(unresolved.length ? { unresolved } : {}),
+      ...(status === 'mapped' ? {} : { uncertainty: choices.length > 1
+        ? 'The failed member has several authored associations. No single correction target is established.'
+        : 'The failure is established, but its authored correction location is unavailable.' }) };
+    const falsifier = fact.code === 'irreflexive_proposition' && choices.some(row => row.field === 'verification.fails_when');
+    return { ...translate(meaning), attribution,
+      ...(falsifier ? { guidance_path: ['required_object_shapes', 'verification'],
+        correction: 'Preserve the required behavior, applicability, source and evidence associations. Author verification.fails_when tied to that behavior: a subject differing from itself cannot describe a contrary outcome.' } : {}) };
+  };
+  const incomplete = validation.diagnostic_details === undefined &&
+    (validation.diagnostics?.truncated === true || validation.diagnostics?.omitted_count > 0);
+  return { diagnostics: { diagnostics: uniqueMeanings(native.map(diagnostic)),
+    ...(native.length === 0 ? { availability: { state: 'unavailable',
+      cause: 'Validation failed but its deciding diagnostics were not supplied.',
+      correction: 'Stop: no supported correction is established without the deciding cause. Do not retry unchanged to discover it.' } }
+      : incomplete ? { availability: { state: 'partial',
+        cause: 'Additional deciding validation facts were not supplied by the validator. The delivered failures remain established.',
+        correction: 'Preserve the delivered failures. A complete correction cannot be established from this incomplete diagnosis; do not guess omitted causes or retry unchanged.' } } : {}) } };
+
 }
 
 function assertPackageValidContract(validation, candidate = null) {

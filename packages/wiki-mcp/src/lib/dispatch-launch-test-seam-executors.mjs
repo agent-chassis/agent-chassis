@@ -226,7 +226,10 @@ function finish(extra) {
   assignmentRead = { reads: assignment.reads, reference: assignment.reference,
     guidance_sha256: "sha256:" + createHash("sha256").update(assignment.guidance).digest("hex") };
   if (correctionMode !== "read") {
-    const bad = async args => (await mcp.callTool("workspace_read_wiki", args)).isError === true;
+    const bad = async read => {
+      const result = await mcp.callTool("workspace_read_wiki", { reads: [read] });
+      return result.isError === true || result.structuredContent.results[0].status !== "ok";
+    };
     assignmentRead.missing_binding_refused = await bad({ select: { field: "guidance" } });
     assignmentRead.altered_binding_refused = await bad({ reference: { ref_id: assignment.reference.ref_id + "altered" }, select: { field: "guidance" } });
     if (!assignmentRead.missing_binding_refused || !assignmentRead.altered_binding_refused) throw new Error("assignment binding control admitted a dependent read");
@@ -260,10 +263,11 @@ function finish(extra) {
     await new Promise(resolve => { const timer = setInterval(() => {
       if (require("node:fs").readFileSync("src/worker-probe-receipt.json", "utf8") === "reread-assignment\n") { clearInterval(timer); resolve(); }
     }, 25); });
-    const repeated = await mcp.callTool("workspace_read_wiki", { reference: assignment.reference, select: { field: "guidance" } });
-    const same = repeated.isError !== true && repeated.structuredContent.value === assignment.guidance;
+    const repeated = await mcp.callTool("workspace_read_wiki", { reads: [{ reference: assignment.reference, select: { field: "guidance" } }] });
+    const selected = repeated.structuredContent.results[0];
+    const same = repeated.isError !== true && selected.status === "ok" && selected.value.value === assignment.guidance;
     persist({ ok: same, frozen_unchanged: same, assignment_read: assignmentRead,
-      guidance_sha256: "sha256:" + createHash("sha256").update(repeated.structuredContent.value).digest("hex") });
+      guidance_sha256: "sha256:" + createHash("sha256").update(selected.value.value).digest("hex") });
   }
 })().catch(error => finish({ ok: false, stage: "mcp_handshake", error: error.message }));
 `;

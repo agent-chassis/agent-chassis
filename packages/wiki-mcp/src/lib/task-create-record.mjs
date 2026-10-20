@@ -5,6 +5,7 @@ import { recordAuthoringChangeSchema, recordAuthoringIssueByMemberPath, validate
 import { createRecordFromInitial } from "@agent-chassis/wiki-core/src/operations/create.mjs";
 import { serializeWorkRecordDiagnosticValue } from "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { saveRecordFailureMeaning } from './save-record-response.mjs';
 import { creationCause, creationConflictSubject, creationFacts, creationMaintenance, creationRecovery } from "./create-record-response.mjs";
 import { createCreateRecordInputExposure } from "./create-record-input-exposure.mjs";
 import { compactInputSchemaAdvertisement } from "./input-schema-exposure.mjs";
@@ -17,10 +18,10 @@ import { CREATE_RECORD_ROUTE } from "./record-authoring-maintenance-subject.mjs"
 import { createSaveRecordMaintenance } from "./save-record-maintenance.mjs";
 import { buildSaveRecordOriginalCall, buildSaveRecordRetryCall } from "./task-save-record-tools.mjs";
 import { retainedFindingsReferenceResolver } from "./work-record-entry-tools.mjs";
-import { readRetainedGraphImpact } from "./graph-impact-persistence-tools.mjs";
+import { readRetainedGraphImpact } from "./retained-graph-impact.mjs";
 import { projectPublicationOutcome } from "./work-record-write-route-helpers.mjs";
 import { readSelectedResponseSource, retainSelectedResponseSource, selectedResponseDeliveryBound, selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
-import { describeRetentionFailure, guardToolHandler, jsonContent, measureMcpInlineResultBytes, selectedFullContent } from "./mcp-response.mjs";
+import { describeRetentionFailure, guardToolHandler, jsonContent, measureMcpInlineResultBytes, selectedFullContent, completeProducedContent } from "./mcp-response.mjs";
 import { projectToolInputValidationFailure } from "./register-tool.mjs";
 import { createMutationRecovery, mutationAuthorityIdentity, mutationRecoverySchema } from './record-mutation-recovery.mjs';
 
@@ -61,7 +62,7 @@ const DEFERRED_INITIAL_REQUIREMENTS = "One batch of controlled requirements {ent
 
 export const CREATE_RECORD_INITIAL_CONTRACT_GUIDANCE =
   "initial lists every member of the selected kind; a member shown without a type has its complete schema in that " +
-  'kind\'s context: workspace_read_wiki {"subject":{"record_kind":"<kind>"}}, then the returned reference with select ' +
+  'kind\'s context: workspace_read_wiki {"reads":[{"subject":{"record_kind":"<kind>"}}]}, then the returned reference with select ' +
   '{"input_contract":{"tool":"workspace_create_record","members":[...]}} naming every member the creation needs in one ' +
   "read. A schema already read stays valid; reading one is never required.";
 function compactInitialAlternatives(kinds, initialSchemas) {
@@ -80,7 +81,7 @@ export function buildCreateRecordReadCall({ unit, kind, path }) {
     case "source": case "area": subject = path; break;
     default: throw new TypeError(`Unsupported creation read kind '${String(kind)}'`);
   }
-  return buildNextCall({ tool: "workspace_read_wiki", arguments: { subject }, recommended: false });
+  return buildNextCall({ tool: "workspace_read_wiki", arguments: { reads: [{ subject }] }, recommended: false });
 }
 
 export function buildCreateRecordCorrectionCall({ unit, revision, changes }) {
@@ -174,7 +175,9 @@ export function createCreateRecordSurface({ workspace, z, responseEnv = process.
           ...(allocation?.record_source_digest === undefined ? {} : { record_source_digest: allocation.record_source_digest }),
           ...(allocation === null ? {} : { allocation }),
           diagnostics: addressed(error.diagnostics ?? [{ code: error.code ?? "create_record_failed", severity: "error",
-            path: "$", message: error.message }]),
+            path: "$", message: error.message,
+            ...(error.code === 'controlled_contract_carrier_validation_failed' ? {
+              details: saveRecordFailureMeaning(error.details) } : {}) }]),
           cause: { code: error.code ?? null, message: error.message,
             ...(error.details === undefined ? {} : { details: serializeWorkRecordDiagnosticValue(error.details) }),
             ...(error.cause === undefined ? {} : { cause: serializeWorkRecordDiagnosticValue(error.cause) }),
@@ -259,7 +262,13 @@ export function createCreateRecordTask(configuration) {
     }
     const conflict = creationConflictSubject(body);
     const sourcePath = conflict ?? (unpublishedCandidate(body.allocation) ? undefined : body.source?.path ?? body.allocation?.relativeFile);
-    if (sourcePath !== undefined) nextCalls.push({ ...buildSubjectCall({ unit: body.unit, kind: body.kind, path: sourcePath }),
+    if (result.continuation?.state === 'current_context_required') nextCalls.push({
+      tool: 'workspace_read_wiki', executable: false,
+      known_arguments: { reads: [{ subject: body.unit }] },
+      missing_caller_input: ['reads[0].for_changes'],
+      information: 'If editing next, supply the intended save members in for_changes and use contexts[unit].revision. Creation is complete.'
+    });
+    else if (sourcePath !== undefined) nextCalls.push({ ...buildSubjectCall({ unit: body.unit, kind: body.kind, path: sourcePath }),
       recommended: body.effects?.published === "unknown" });
     const complete = { ...result, complete: true, next_calls: nextCalls };
     if (measureMcpInlineResultBytes(complete) <= selectedResponseDeliveryBound(responseEnv)) return jsonContent(complete, { env: responseEnv });
@@ -274,21 +283,21 @@ export function createCreateRecordTask(configuration) {
       operation: "retain_creation_detail", subject: { unit: body.unit } }) }; }
     const summary = { ...result, bindings: undefined,
       ...(result.diagnostics === undefined ? {} : { diagnostics: result.diagnostics.slice(0, 1) }),
-      ...(maintenance === null ? {} : { maintenance: { ...maintenance, members: maintenance.members.map(row => ({ ...row,
-        ...(row.check === undefined ? {} : { check: { ...row.check,
-          ...(row.check.findings === undefined ? {} : { findings: row.check.findings.slice(0, 1) }) } }) })) } }) };
+      ...(maintenance === null ? {} : { maintenance: { ...maintenance, failures: maintenance.failures?.map(row => ({ ...row,
+        ...(row.findings === undefined ? {} : { findings: row.findings.slice(0, 1) }) })) } }) };
     if (detail.failure === undefined) return jsonContent({ ...summary, complete: false,
       next_calls: [{ ...buildOriginalCall(detail), recommended: true }, ...nextCalls] }, { env: responseEnv });
-    return jsonContent({ ...summary, complete: false,
-      recovery: { state: "no_supported_route", code: "creation_detail_unavailable",
-        stopping_condition: "Creation's reported publication state stands. Needed continuation detail exceeds delivery capacity and no authenticated original is available; do not guess identities or repeat creation.",
-        cause: creationCause(detail.failure.cause) },
-      next_calls: nextCalls }, { env: responseEnv });
+
+    delete complete.delivery_failure;
+    return completeProducedContent(complete);
   }
   async function readOriginal(source) {
     const retained = await surface.original(source);
+    const maintenance = creationMaintenance(retained.carrier);
+    const recovery = creationRecovery(retained.carrier, maintenance);
     return selectedFullContent({ source, retained, projection: retained.binding.query_identity.operation === "creation_detail"
-      ? retained.carrier : creationFacts(retained.carrier) });
+      ? retained.carrier : { ...creationFacts(retained.carrier),
+        ...(maintenance === null ? {} : { maintenance }), ...(recovery === null ? {} : { recovery }) } });
   }
   return Object.freeze({ inputContract: surface.inputContract, handle, readOriginal });
 }
@@ -321,7 +330,7 @@ export function registerCreateRecordTools({ registerTool, ...configuration }) {
         ownerDiagnostics, ownerGuidance: !recovery && getManifestRecordBirthKinds().some(row => row.kind === args?.kind) &&
           (owner?.length > 0 || failure.issues.some(issue => issue.path[0] === "initial"))
           ? { calls: [buildNextCall({ tool: "workspace_read_wiki",
-            arguments: { subject: { record_kind: args.kind } }, recommended: false })] } : null
+            arguments: { reads: [{ subject: { record_kind: args.kind } }] }, recommended: false })] } : null
       }), { env: configuration.responseEnv ?? process.env }), isError: true } };
     } },
   guardToolHandler(task.handle, { env: configuration.responseEnv ?? process.env }));

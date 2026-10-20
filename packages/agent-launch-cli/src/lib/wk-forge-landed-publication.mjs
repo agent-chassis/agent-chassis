@@ -438,7 +438,8 @@ function projectHandoff(handoff) {
     base_branch: handoff.base_branch,
     destination: handoff.destination,
     ...(handoff.transport === HANDOFF_TRANSPORTS.HOSTED
-      ? { branch: handoff.branch, pull_request_number: handoff.pull_request?.number ?? null }
+      ? { branch: handoff.branch, pull_request_number: handoff.pull_request?.number ?? null,
+          pull_request: handoff.pull_request }
       : { handoff_ref: handoff.handoff_ref, branch: handoff.branch })
   };
 }
@@ -449,7 +450,8 @@ function landingObservation(assignedUnit, {
   outcome = null,
   cause = null,
   objectCacheFetch = LANDING_OBJECT_CACHE_FETCH.NOT_ATTEMPTED,
-  selection = undefined
+  selection = undefined,
+  observedLanding = null
 }) {
   return deepFreeze({
     schema_version: WK_LANDING_OBSERVATION_SCHEMA_VERSION,
@@ -467,6 +469,7 @@ function landingObservation(assignedUnit, {
     handoff: handoff === null ? null : projectHandoff(handoff),
     observed_base: outcome?.observedBase ?? null,
     landed_publication: outcome?.landedPublication ?? null,
+    ...(observedLanding === null ? {} : { observed_landing: observedLanding }),
     cause: outcome?.cause ?? cause,
     effects: { object_cache_fetch: outcome?.objectCacheFetch ?? objectCacheFetch }
   });
@@ -541,6 +544,9 @@ export async function observeWkHandoffLanding({ mainRepo, assignedUnit, selectio
               : WK_LANDING_STATES.UNAVAILABLE,
             selection,
             objectCacheFetch,
+
+            observedLanding: observed?.landing?.state === WK_LANDING_STATES.AWAITING_HUMAN_LANDING
+              ? { state: "not_landed" } : null,
             cause: observed?.landing?.cause ?? {
               stage: "handoff",
               category: observed?.category ?? null,

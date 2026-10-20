@@ -19,20 +19,29 @@ function subjects(diagnosis, detail) {
   return diagnosis.subjects.map(subject => {
     const pin = diagnosis.code === 'obligation_coverage_definition_integrity_mismatch';
     if (!detail) return { ...pick(subject, ['obligation_id', 'case_id', 'id', 'location',
-      ...(pin ? [] : ['field', 'node_id', 'parameter'])]),
+      ...(pin ? [] : ['field', 'parameter'])]),
       ...(subject.object?.entity ? { entity: subject.object.entity } : {}),
+      ...(subject.requirements === undefined ? {} : { requirements: subject.requirements.map(({ declaration: _declaration, ...target }) => target) }),
+      ...(subject.verification === undefined ? {} : { verification: subject.verification.map(({ meaning: _meaning, ...target }) => target) }),
       ...(diagnosis.family === 'specification_meaning' && subject.text !== undefined ? { text: subject.text } : {}),
       ...(subject.required_uses?.length ? { required_uses: subject.required_uses } : {}),
       ...(subject.evidence?.proof_name ? { proof_name: subject.evidence.proof_name } : {}) };
     const { owner_diagnostics: _checks, failed_fields: _fields, authored_identity_correction: _identity,
-      corrections: _clauses, row_id: rowId, finding, object, ...facts } = subject;
+      corrections: _clauses, row_id: _rowId, finding, object, ...facts } = subject;
     const { expected: _expected, actual: _actual, field: _field, ...pinSubject } = facts;
     return { ...(pin ? pinSubject : facts),
-      ...(rowId !== undefined && diagnosis.family !== 'semantic' ? { row_id: rowId } : {}),
       ...(finding === undefined ? {} : { finding: pick(finding, ['code', 'reason', 'recovery', 'path', 'expected', 'actual']),
         ...(finding.source === undefined ? {} : { source_problem: pick(finding.source, ['code', 'repository', 'bound_repository', 'path', 'symbol', 'candidates', 'message']) }) }),
-      ...(object === undefined ? {} : { entity: object.entity, reference_ids: object.reference_ids }) };
+      ...(object === undefined ? {} : { entity: object.entity }) };
   });
+}
+
+function sourceCause(diagnosis) {
+  if (diagnosis.family !== 'definition') return diagnosis.meaning;
+  if (diagnosis.code === 'description_symbol_missing') return 'The authored code symbol is absent from its captured source.';
+  if (diagnosis.code === 'description_source_missing') return 'The authored source path is absent from the captured committed source.';
+  if (diagnosis.code === 'description_symbol_ambiguous') return 'The authored code symbol matches several captured declarations.';
+  return diagnosis.meaning;
 }
 
 function scope(carrier) { return assessmentAddress(carrier); }
@@ -68,10 +77,17 @@ export function assessmentAuthoredValidity(carrier) {
 }
 const validity = assessmentAuthoredValidity;
 
+function unavailableMembership(carrier) {
+  return [...new Set(carrier.diagnosis_inventory.diagnoses.filter(diagnosis => diagnosis.family === 'authoring' &&
+    [diagnosis.code, ...(diagnosis.reason_codes ?? [])].includes('obligation_coverage_node_unknown'))
+    .flatMap(diagnosis => diagnosis.subjects.map(subject => subject.obligation_id).filter(Boolean)))];
+}
+
 function assessmentSummary(carrier) {
   const a = carrier.assessment;
-  return { authored: validity(carrier), specification: a.specification.status,
-    ...(a.acceptance_coverage?.status && a.acceptance_coverage.status !== 'complete'
+  return { authored: validity(carrier), specification: a.specification.status === 'complete' && unavailableMembership(carrier).length
+    ? 'unavailable' : a.specification.status,
+    ...(a.acceptance_coverage?.status && !['complete', 'not_applicable'].includes(a.acceptance_coverage.status)
       ? { criterion_coverage: a.acceptance_coverage.status } : {}),
     ...(carrier.selection.scope === 'selected_obligation' ? { whole_unit_assessed: false } : {}),
     ...(a.exceptions?.controlled_acceptance?.exempted ? { controlled_acceptance: 'exempted',
@@ -85,22 +101,41 @@ function selectionFacts(carrier, diagnosis) {
     || diagnosis.subjects.some(subject => subject.authored_identity_correction || subject.discovery_input)
     || diagnosis.reason_codes?.includes('controlled_acceptance_disposition_missing');
   return { ...pick(diagnosis, ['code', 'family', 'category', 'gap_class', 'reason_codes']),
-    cause: repository ?? diagnosis.meaning,
+    cause: repository ?? sourceCause(diagnosis),
     ...(authored ? { correction_unit: unitFor(carrier, diagnosis) }
       : { recovery: { status: diagnosis.recovery_status ?? 'unavailable',
-        owner: diagnosis.responsible_owner ?? diagnosis.owner,
         stop: 'This assessment establishes no supported authored correction.' } }),
     subjects: subjects(diagnosis, false) };
 }
 
 function unavailableFacts(carrier) {
-  return (carrier.assessment.owner_failures ?? []).map(failure => ({
-    owner: failure.responsible_owner, code: failure.cause.code, cause: failure.message,
-    stop: 'Validity remains unestablished for the failed owner. Changing authored proof inputs is not an established recovery.' }));
+  const membership = unavailableMembership(carrier);
+  return [...(carrier.assessment.owner_failures ?? []).map(failure => ({
+    assessment: failure.responsible_owner === 'contract-requirement-descriptions' ? 'requirement meaning'
+      : failure.responsible_owner === 'proof-authoring-executable-map' ? 'proof input validity' : 'semantic validity',
+    code: failure.cause.code, cause: failure.message,
+    stop: 'This part of validity remains unestablished. Changing authored proof inputs is not an established recovery.' })),
+    ...(membership.length ? [{ assessment: 'requirement membership', code: 'obligation_coverage_node_unknown',
+      obligation_ids: membership,
+      cause: 'A saved association does not resolve; the complete requirement membership of these obligations remains unassessed.',
+      correction: 'Choose the intended replacement through the association diagnosis; unknown membership is neither empty nor complete.' }] : [])];
 }
 
 export function projectContractAssessmentResponse(read, request, { tier, responseEnv, normalize }) {
-  const { carrier } = read;
+  const native = read.carrier;
+  const projectedDiagnosis = diagnosis => {
+    const publicSubjects = native.diagnosis_inventory.public_subjects?.[diagnosis.diagnostic_group_id];
+    if (diagnosis.family === 'authoring' && publicSubjects === undefined) throw new ControlledContractToolError(
+      'assessment_authored_selection_unavailable', 'This retained diagnosis has no captured public authored-subject projection.', {
+        subject: { unit: native.unit, obligation_ids: [...new Set(diagnosis.subjects.map(subject => subject.obligation_id).filter(Boolean))] },
+        effects: { assessment: 'completed', canonical_written: false, proofs_executed: false },
+        stop: 'The retained authored associations cannot be established through the current public contract. No native identities or guessed current replacements are offered.',
+        next_calls: [] });
+    return publicSubjects === undefined ? diagnosis : { ...diagnosis, subjects: request.original?.obligation_id === undefined
+      ? publicSubjects : publicSubjects.filter(subject => subject.obligation_id === request.original.obligation_id) };
+  };
+  const carrier = { ...native, diagnosis_inventory: { ...native.diagnosis_inventory,
+    diagnoses: native.diagnosis_inventory.diagnoses.map(projectedDiagnosis) } };
   if (request.original !== undefined) normalize(request, carrier);
   const source = read.original.locator;
   const inventoryCall = source === null ? null : { ...call({ original: { source, view: 'diagnoses' } }), purpose: 'diagnostic_inventory' };
@@ -111,7 +146,7 @@ export function projectContractAssessmentResponse(read, request, { tier, respons
   else if (read.source_revision_currentness?.state === 'unavailable') body.observation = {
     status: 'currentness_unavailable', cause: read.source_revision_currentness.cause };
   if (read.selected_diagnosis !== undefined) {
-    const selected = read.selected_diagnosis;
+    const selected = { ...read.selected_diagnosis, diagnosis: projectedDiagnosis(read.selected_diagnosis.diagnosis) };
     const selectedCarrier = request.original.obligation_id === undefined ? carrier : { ...carrier,
       selection: { ...carrier.selection, obligation_id: request.original.obligation_id } };
     const recovery = selectedAssessmentRecovery(selectedCarrier, selected.diagnosis, selected.corrections, tier);
@@ -124,7 +159,7 @@ export function projectContractAssessmentResponse(read, request, { tier, respons
     return { ...body, ...(validity(carrier) === 'unavailable' ? { assessment: assessmentSummary(carrier) } : {}),
       selected_diagnosis: { diagnosis_id: selected.diagnosis_id,
       diagnosis: { ...pick(selected.diagnosis, ['code', 'family', 'category', 'gap_class', 'reason_codes']),
-        meaning: repository ?? selected.diagnosis.meaning, ...facts }, ...guidance,
+        meaning: repository ?? sourceCause(selected.diagnosis), ...facts }, ...guidance,
         ...(repository && guidance.save_guidance === undefined ? { recovery: {
           status: 'repository_outside_assessment_scope',
           stop: 'This source owner establishes no supported authored identity correction or cross-repository resolution call. Preserve intentional foreign references; do not infer a typo from this limit.' } } : {}) }, next_calls: next };

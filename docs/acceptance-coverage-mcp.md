@@ -933,7 +933,7 @@ and never claim to have selected a work record or verified slice existence.
 
 `task-assess-contract-response.mjs` owns the public answer. A complete scoped
 assessment can finish with the unit, necessary authored/specification verdicts
-and an empty `next_calls`. It exposes no successful-check counts, compiler
+and an empty `next_calls`. Complete or inapplicable criterion checks add no field. It exposes no successful-check counts, compiler
 inventory, source digests, authority identity or retention bookkeeping.
 Missing whole-unit criterion coverage is a separate qualification; a selected
 obligation establishes no whole-unit assessment. A saved exemption retains its
@@ -964,7 +964,23 @@ meaning and affected subjects, relevant authored correction inputs or the
 precise stopping condition. Equal definition facts are shared through
 `subject_definitions`; their associations stay with the affected obligations.
 Native validator check inventories, intermediate failed paths, source-generation
-metadata and duplicate coverage recipes are not detail content.
+metadata and duplicate coverage recipes are not detail content. A retained
+authoring diagnosis without its captured public-subject projection stops with
+`assessment_authored_selection_unavailable`; current storage and native identities
+cannot substitute for that missing historical meaning.
+
+Definition subjects carry whole authored declarations and semantic `target`
+selectors from the common public-selection resolver, together with the required
+typed meanings and exact authored use paths. Population membership alone does
+not establish a usable replacement target: the producer resolves each selector
+against the same captured source and preserves ambiguity or unavailable meaning.
+An identity correction without a unique available authored target stops with
+`definition_target_unresolved`; it offers no guessed save or positional address.
+The affected subject owns each target/declaration once; correction guidance
+refers to `affected subject.requirements[].target` and its declaration/uses.
+Missing definitions can still be appended when their exact entity and typed
+meaning are established. Compiler claim, row and reference identities remain
+private and are never correction arguments.
 
 A repository outside the bound assessment scope is reported with both the
 authored and bound repository identities. It establishes neither a typo nor
@@ -981,17 +997,50 @@ Public requirement source links share one projection across selected rows,
 full requirements and coverage. It retains the owning work record, source
 field, exact passage, occurrence, location, currentness and stale-link
 correction. Check digests and repeated constraint/claim arrays stay internal;
-the row retains its operational identities for dependent authoring.
+the declaration retains its semantic selector for dependent authoring.
+
+Case-association details keep public case and obligation identities and map
+verification choices through the same captured source and common resolver.
+Each verification's distinguishing meaning appears once, with its eligibility
+and candidacy; blocked owners and competing cases retain their actual effects.
+Ambiguous or unavailable associations remain explicit and supply no guessed
+selector. A missing case offers the exact associated-verification read. Missing
+eligible meaning or an unknown association offers parent requirement choices;
+the caller chooses the intended association, never a compiler identity.
 
 A supported correction offers the exact current read in `next_calls` with
 `purpose:"current_correction_context"`. `save_guidance.unit` names the write
-owner. Bind that read's returned `reference` to
-`save_guidance.changes_schema_from.select` to read the existing save schema;
-use its current `revision` when saving caller-authored meaning. No historical
+owner. Reader calls use `{reads:[Read,...]}`, including a single read;
+`for_changes` belongs on the `Read`. Consume results in request order and use
+the explicitly requested `contexts[unit].revision` for the write owner. Follow
+that context's returned call matching
+`save_guidance.changes_schema_from.select` for the existing save grammar.
+Requirement replacements and associations use the supplied semantic selectors;
+case and obligation identities keep their existing public meanings. No historical
 assessment supplies write authority. Missing definition, proof choice, authored
 case prerequisite and unavailable capability have separate corrections. Derived
 bindings are never authored in place of missing case content. Discovery with a
 missing property question stays explicitly nonexecutable; no query is invented.
+
+Obligation reads return `claims:[Selector,...]`, directly reusable by save.
+These preserve the linked assertion subset and explicit verification links;
+associated whole declarations are not a substitute for exact membership.
+Omit `claims` when a correction leaves associations unchanged. Restating
+unchanged membership reuses the returned selectors without expanding a group
+or dropping verification links. An assertion-changing whole-declaration
+amendment uses `replacement_key` for its submitted population, explicit claim
+selections under that key for intended subsets, and a separate `verification.key`
+for the submitted check. Translate the returned associations explicitly;
+saved selectors continue to select saved assertions. Preserve shared case IDs
+and unrelated links; unamended retiring uses in another unit refuse the write.
+Unavailable membership makes
+the read partial, retaining its cause and uncertainty with `claims` omitted for
+the affected obligation. Independently available declarations remain selectable.
+Repair requires the caller's intended replacement, never an inferred empty set.
+Complete known declarations do not establish a complete scoped specification
+when membership is unresolved. The public summary then reports specification
+unavailable; independently incomplete meaning stays incomplete, with the affected
+membership identified as unassessed in summaries, inventories and selected detail.
 
 Independent source-absent, applicability, source-accounting and criterion gaps
 are returned as separate `gaps`, each with its own cause, write owner and
@@ -1163,8 +1212,16 @@ successful validation.
 The package-owned `occurrenceRecoveryFacts` in `proof-executable-map.mjs` derives
 the failed fields and correction clauses from the binding owner's typed failures;
 the refusal prose and the selected diagnosis are composed from those same facts,
-and nothing parses prose to classify a correction. A missing authored
-prerequisite selects one prerequisite clause from its own owner fact and
+and nothing parses prose to classify a correction. A missing authored case
+field uses that same mapping to name the specific authored component,
+target, observation or falsification input. Independent association failures
+keep their own correction; valid verification links stay intact. Public task
+diagnoses state these authored fields through the selected correction recipe,
+without publishing validator paths or restoring derived-binding bookkeeping.
+An unavailable assessment names the affected requirement, proof-input or semantic
+validity check with its native cause. Internal implementation ownership is not
+an agent recovery action. Independently established defects remain correctable.
+A missing authored prerequisite selects one prerequisite clause from its own owner fact and
 publishes no failed fields: a parameter withheld because the obligation's case
 lacks the field it is derived from selects `prerequisite_component`
 (`obligations[].case.component`) or `prerequisite_target`
@@ -2208,7 +2265,7 @@ private specification assessment's `authored_meaning`, `lowering` and `source_re
 missing definitions, unsupported lowering and unavailable definition source;
 unavailable capability or source does not establish omitted authored meaning.
 The public diagnosis choices keep deciding cause and affected identities;
-selected details add the requirement rows, claims, uses and typed correction
+selected details add public declaration targets, authored meaning, uses and typed correction
 meaning needed to act. Retained diagnosis selections preserve
 those captured facts after repair and restart without resolving definitions again.
 Whole-unit findings need no obligation; slice and selected-obligation findings
@@ -2218,7 +2275,10 @@ Definition diagnoses offer `workspace_read_wiki` inspection and, where supported
 `save_record` guidance for caller-authored `requirements`. Definitions belong to
 the parent specification even when a slice obligation reaches them: the correction
 explicitly names that parent and leaves slice obligations untouched. Follow the
-current read for its revision and complete contract selections, then supply the
+current bulk read for its explicitly requested `contexts[unit].revision` and
+schema calls. One-item acquisition uses `reads:[Read]`; `for_changes` belongs
+on that Read. Gather required meanings and write contexts in the same request,
+then supply the
 intended typed definition through the serving save schema. The assessment supplies
 no replacement meaning or executable save. Frozen authority grants no write;
 named focused-contract correction remains unsupported. Historical retrieval is
@@ -2227,7 +2287,23 @@ never a repair or current write revision.
 An aggregate saved-authoring stage is an inspection observation; its owner codes
 identify the cause but establish no independent obligation correction. Definition
 recovery keeps the affected object, required meaning and applicability, and
-requirement identities in its nested subjects. Authorized authoring guidance emits
+semantic requirement selections in its nested subjects. Identity corrections
+retain the supplied and bound repositories and require the caller's explicit
+intent; an intentional foreign reference is never rebound automatically. Each
+affected use names its public target and authored field path. Append-only
+definition guidance supplies the entity meaning and accepted authoring shape;
+the caller authors its value or behavior. Compiler row/claim/reference addresses
+are not correction inputs.
+
+Case replacement, rebinding and retirement refusals preserve the deciding
+condition, affected public cases/obligations/units and semantic declarations.
+Their bulk read supplies the selected dependencies and requested write contexts;
+the caller explicitly supplies compatible amendments or retained case selections.
+Missing/ambiguous targeting remains a refusal. A failed association diagnosis
+preserves the original cause and states unavailable correction, without choosing
+a replacement or retrying. Reads execute no replacement or repository checks.
+
+Authorized authoring guidance emits
 `grammar_guidance` calls to the existing `required_object_shapes`,
 `authoring_vocabulary` and `save_record_inputs.requirement_batch` topics. Follow
 each context's complete selection for statement shapes, accepted vocabulary and

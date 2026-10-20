@@ -88,7 +88,7 @@ export function prepareDeliverWorkResponse({ workspace, outcome = {}, observatio
   const receiptFailed = receiptPublication?.state === "failed";
   const outputFailed = outcome.output?.state === "failed" || receiptFailed;
   const decidingStage = outcome.output?.stage ?? settled.stage ?? stage ??
-    (settled.scope?.contained === false ? "scope_verification" :
+    (settled.scope?.contained === false && effects.submitted_for_review !== true ? "scope_verification" :
       transaction.compensation?.state === "failed" ? "compensation" :
       ["threw", "refused"].includes(transaction.canonical_review?.state) ? "canonical_review" :
       ["pending", "superseded"].includes(effects.checkout) ? "checkout" :

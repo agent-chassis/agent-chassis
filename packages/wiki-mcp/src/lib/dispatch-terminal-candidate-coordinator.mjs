@@ -1,6 +1,7 @@
 
 
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { types as utilTypes } from "node:util";
 import {
   runWithControlledContractAuthorityContext,
@@ -40,15 +41,21 @@ import {
   TerminalWkCandidateError,
   verifyTerminalWkCandidateObjectBinding
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
+import { classifyAncestryObservation, mintGitFailure } from
+  "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate-ref-publication.mjs";
 import {
   verifyTerminalCandidateDependencies
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate-validation.mjs";
 import {
   authenticateExistingTerminalCandidate,
+  authenticateObservedTerminalCandidateVersion,
   terminalCandidateState
 } from "./dispatch-terminal-candidate-authentication.mjs";
 import {
-  isControlledGenerationNotPersisted
+  isControlledGenerationNotPersisted,
+  synchronizeControlledContractGeneration,
+  selectedCandidateAdmitsLaterWkTip,
+  createTerminalCandidatePublicationAccount
 } from "./dispatch-terminal-candidate-publication.mjs";
 import {
   canonicalCurrentTerminalReviewContract,
@@ -323,7 +330,8 @@ export function createTerminalCandidateCoordinator({
   mainRepo,
   worktreeRoot,
 
-  runGit = defaultTerminalCandidateRunGit
+  runGit = defaultTerminalCandidateRunGit,
+  generationPersistenceDeps = {}
 } = {}) {
   if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) ||
       typeof worktreeRoot !== "string" || !path.isAbsolute(worktreeRoot) ||
@@ -544,7 +552,7 @@ export function createTerminalCandidateCoordinator({
   };
 
   const observeTerminalCandidateWithGeneration = async ({
-    wkId, generationAuthentication, observed, expectedVersion = null
+    wkId, generationAuthentication, observed, expectedVersion = null, identityOnly = false
   }) => {
     const { contract, recoveredBinding } = await authenticateExistingCandidate({
       wkId, candidate: observed, generationAuthentication
@@ -562,6 +570,7 @@ export function createTerminalCandidateCoordinator({
       requireSelected: true
     });
     const binding = Object.freeze({ ...recoveredBinding, version_decision: versionDecision });
+    if (identityOnly) return Object.freeze({ binding });
     const materialization = await verifyTerminalCandidateCheckout({
       binding,
       candidateRoot: path.join(worktreeRoot, ".terminal-candidates", wkId, binding.candidate),
@@ -650,16 +659,118 @@ export function createTerminalCandidateCoordinator({
     })
   });
 
+  const recoverSelectedCandidateCheckout = async ({ wkId, version, integratedSha }) => {
+    if (!/^[a-f0-9]{64}$/u.test(version ?? "") ||
+        !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(integratedSha ?? "")) {
+      throw new TypeError("candidate checkout recovery requires its selected version and integrated implementation");
+    }
+    return recoverTerminalCandidateWithRunner({ wkId, expectedVersion: version,
+      runWithAuthority: run => withControlledContractAuthorityExclusion({ repoRoot: mainRepo, wkId, run }),
+      withGeneration: async facts => {
+        const identity = await observeTerminalCandidateWithGeneration({ ...facts, identityOnly: true });
+        const ancestry = await runGit({ repo: mainRepo,
+          args: ["merge-base", "--is-ancestor", integratedSha, identity.binding.wk_tip], env: null });
+        const relation = classifyAncestryObservation(ancestry);
+        if (relation === 'failed') throw mintGitFailure(TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
+          'could not compare the integrated implementation with the selected candidate', ancestry,
+          { args: ['merge-base'], path: identity.binding.wk_ref });
+        if (relation !== "ancestor") {
+          failTerminalCandidateRecovery("terminal_candidate_recovery_integrated_implementation_unestablished");
+        }
+        return recoverTerminalCandidateWithGeneration(facts);
+      } });
+  };
+
+  const observeSelectedCandidateIdentity = async wkId => recoverTerminalCandidateWithRunner({ wkId,
+    runWithAuthority: run => withControlledContractAuthorityExclusion({ repoRoot: mainRepo, wkId, run }),
+    withGeneration: facts => observeTerminalCandidateWithGeneration({ ...facts, identityOnly: true }) });
+
   const recoverTerminalCandidateUnderAuthority = async ({
-    wkId, authorityContext, expectedVersion = null
-  } = {}) => recoverTerminalCandidateWithRunner({
-        wkId,
-        expectedVersion,
-        withGeneration: observeTerminalCandidateWithGeneration,
-        runWithAuthority: async (run) => runWithControlledContractAuthorityContext({
-          repoRoot: mainRepo, wkId, authorityContext, run
-        })
+    wkId, authorityContext, expectedVersion = null, beforeFirstWrite = null
+  } = {}) => {
+
+    if (expectedVersion !== null) return recoverTerminalCandidateWithRunner({
+      wkId, expectedVersion, withGeneration: observeTerminalCandidateWithGeneration,
+      runWithAuthority: run => runWithControlledContractAuthorityContext({
+        repoRoot: mainRepo, wkId, authorityContext, run
+      })
+    });
+    const account = createTerminalCandidatePublicationAccount({ beforeFirstWrite });
+    try {
+      return await runWithControlledContractAuthorityContext({
+        repoRoot: mainRepo, wkId, authorityContext, run: async () => {
+          let observed = await readTerminalCandidateCurrentRef({ mainRepo, canonicalWkId: wkId, runGit });
+          await assertDurableReconstructionAuthority(wkId);
+          const synchronized = await synchronizeControlledContractGeneration({
+            mainRepo, wkId, deps: generationPersistenceDeps, beforeFirstWrite: account.admitWrite,
+            beforePersistence: async () => {
+              let generationAuthentication = null;
+              try {
+                generationAuthentication = (await authenticateCurrentControlledContractGenerationStateAtW({
+                  repoRoot: mainRepo, wkId, deps: { runGit }
+                })).authenticated;
+              } catch (error) {
+                if (!isControlledGenerationNotPersisted(error)) throw error;
+              }
+              if (observed !== null) {
+                const initiative = canonicalRecordInitiative({ mainRepo, recordId: wkId });
+                if (!await selectedCandidateAdmitsLaterWkTip({ mainRepo, wkId, initiative, candidate: observed, runGit })) {
+                  failTerminalCandidateRecovery("terminal_candidate_recovery_no_deterministic_match");
+                }
+                const metadata = await readTerminalWkCandidateMetadata({ mainRepo, candidate: observed, runGit });
+                if (generationAuthentication !== null && metadata.wk_tip === generationAuthentication.wk_tip_sha) {
+                  await authenticateExistingCandidate({ wkId, candidate: observed, generationAuthentication });
+                } else {
+                  await authenticateObservedTerminalCandidateVersion({ mainRepo, wkId, candidate: observed, runGit });
+                }
+              }
+            }
+          });
+          account.recordGeneration(synchronized);
+          return authenticateCurrentControlledGeneration({ mainRepo, wkId, expectedW: synchronized.wk_tip, runGit,
+            run: async authentication => {
+              if (observed !== null) {
+                const metadata = await readTerminalWkCandidateMetadata({ mainRepo, candidate: observed, runGit });
+                if (metadata.wk_tip !== authentication.wk_tip_sha) {
+                  await account.admitWrite();
+                  const replacement = await reconstructAbsentTerminalCandidate({
+                    wkId, currentRef: deriveTerminalCandidateCurrentRef({ canonicalWkId: wkId }),
+                    generationAuthentication: authentication, expectedVersion: null, expectedOld: observed
+                  });
+                  account.recordReplacement({ previous: observed, candidate: replacement.candidate });
+                  observed = replacement.candidate;
+                }
+              } else {
+                await account.admitWrite();
+              }
+              const facts = { wkId, generationAuthentication: authentication, observed, expectedVersion: null };
+              let observeOnly = false;
+              if (observed !== null) {
+                const { recoveredBinding } = await authenticateExistingCandidate({
+                  wkId, candidate: observed, generationAuthentication: authentication
+                });
+                const version = await inspectTerminalWkCandidateVersion({ binding: recoveredBinding, runGit });
+
+                observeOnly = version.state === "selected" && existsSync(path.join(
+                  worktreeRoot, ".terminal-candidates", wkId, observed, "checkout"));
+              }
+              if (!observeOnly) await account.admitWrite();
+              const state = await (observeOnly
+                ? observeTerminalCandidateWithGeneration(facts)
+                : recoverTerminalCandidateWithGeneration(facts));
+              const synchronization = account.project();
+              return synchronization === null ? state : Object.freeze({ ...state, synchronization });
+            }
+          });
+        }
       });
+    } catch (error) {
+      account.attach(error);
+      if (isForwardedTerminalCandidateFailure(error)) throw error;
+      if (!authenticatesTerminalCandidateFailures) forwardUntrustedTerminalCandidateFailure(error);
+      failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error), error);
+    }
+  };
 
   const observeTerminalCandidateUnderAuthority = async ({ wkId, authorityContext } = {}) =>
     recoverTerminalCandidateWithRunner({
@@ -698,6 +809,8 @@ export function createTerminalCandidateCoordinator({
 
   return Object.freeze({
     prepareTerminalCandidate,
+    recoverSelectedCandidateCheckout,
+    observeSelectedCandidateIdentity,
     recoverTerminalCandidate,
     recoverTerminalCandidateUnderAuthority,
     observeTerminalCandidateUnderAuthority,
