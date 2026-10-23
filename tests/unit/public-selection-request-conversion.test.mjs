@@ -4,8 +4,29 @@ import { z } from 'zod';
 import { requestSchema } from '../../packages/wiki-mcp/src/lib/proof-request-schema.mjs';
 import { buildPublicSelectionSchema } from '../../packages/wiki-core/src/operations/controlled-contract/public-selection-schema.mjs';
 import { projectZodRequestContract } from '../../packages/wiki-mcp/src/lib/zod-request-contract-projection.mjs';
+import { recordAuthoringSchemaValidator } from '../../packages/wiki-core/src/lib/record-authoring-schema-validation.mjs';
 
 const convert = schema => requestSchema(z, schema, schema.$defs, { memoize: true });
+test('compound conversion retains implicit object constraints and exclusive alternatives', () => {
+  const declarations = [
+    { properties: { label: { type: 'string', pattern: '\\S' } } },
+    { oneOf: [{ type: 'number', minimum: 0 }, { type: 'number', maximum: 10 }] },
+    { type: 'object', additionalProperties: false, properties: { mode: { enum: ['new', 'update'] },
+      label: { type: 'string', minLength: 1 }, saved: { type: 'string', minLength: 1 } }, required: ['mode'],
+      allOf: [{ if: { properties: { mode: { const: 'new' } }, required: ['mode'] },
+        then: { required: ['label'], not: { required: ['saved'] } },
+        else: { required: ['saved'], not: { required: ['label'] } } }] }
+  ];
+  for (const schema of declarations) {
+    const sdk = convert(schema), owner = recordAuthoringSchemaValidator(schema);
+    for (const value of [null, 5, -1, 11, {}, { label: ' ' }, { label: 'meaning' },
+      { mode: 'new', label: 'meaning' }, { mode: 'update', saved: 'exact' },
+      { mode: 'new', saved: 'exact' }, { mode: 'update', label: 'meaning' },
+      { mode: 'new', label: 'meaning', saved: 'exact' }, { mode: 'new', label: 'meaning', unknown: true }])
+      assert.equal(sdk.safeParse(value).success, owner(value), JSON.stringify({ schema, value }));
+  }
+  assert.throws(() => convert({ unsupported_constraint: true }), /Unsupported authored request-schema declaration/u);
+});
 test('authored JSON value unions preserve nested objects, arrays, scalar values and null without widening strict selectors', () => {
   const value = { type: ['object', 'array', 'string', 'number', 'boolean', 'null'] };
   const converted = convert(value);

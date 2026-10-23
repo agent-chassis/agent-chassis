@@ -14,3 +14,7 @@ effort = "high"
 [roles.redteam]
 model = "opus"
 effort = "medium"
+
+# Preparation worker old-space ceiling in MiB; read from committed HEAD at launch.
+[code_index]
+build_heap_mib = 8192

@@ -98,7 +98,7 @@ function projectRecovery(recovery) {
 }
 
 export function projectCheckLandingAnswer(body, { action = null, detail = false, later = null,
-  detailCall = null } = {}) {
+  detailCall = null, includeAction = detail } = {}) {
   const recovery = projectRecovery(body.recovery ?? body.refusal?.recovery);
   const cause = projectCheckLandingCause(body.cause ?? body.blocker?.detail);
   return {
@@ -113,8 +113,8 @@ export function projectCheckLandingAnswer(body, { action = null, detail = false,
     ...(!detail && body.state === "awaiting_human_landing" && body.selection_authenticated === true && later === null
       ? { selection: body.selection } : {}),
     ...(body.state !== "awaiting_human_landing" ? {} : {
-      ...((detail || detailCall === null) && action !== null ? {} : { landing_authority: body.landing_authority }),
-      ...(detail || detailCall === null ? action === null
+      ...(includeAction && action !== null ? {} : { landing_authority: body.landing_authority }),
+      ...(includeAction ? action === null
         ? { limitation: "The observer supplied no usable landing action target." }
         : { landing_action: action } : {}),
       ...(later === null ? {} : { observe_later: later }) }),
@@ -129,6 +129,7 @@ export function projectCheckLandingAnswer(body, { action = null, detail = false,
       : body.effects?.object_cache_fetch === "uncertain" ||
         (body.state === "unavailable" || body.state === "contradictory") &&
           body.effects?.object_cache_fetch === "completed" ? { effects: body.effects } : {}),
-    ...(!detail && detailCall !== null ? { next_calls: [{ ...detailCall, purpose: "landing_action" }] } : {})
+    ...(!includeAction && !detail && detailCall !== null ? { next_calls: [{ ...detailCall,
+      purpose: "landing_action", ...(body.request_detail == null ? {} : { recommended: true }) }] } : {})
   };
 }

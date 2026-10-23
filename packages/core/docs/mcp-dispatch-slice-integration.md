@@ -1497,6 +1497,21 @@ commit; a differing merge base is not substituted silently. Existing primitive
 binding checks, ref CAS, compound record CAS and sibling completeness remain the
 effect owners. On final integration, the registered composition invokes the shared terminal-candidate preparation owner before delivery finalization. Ordinary recovery prepares the exact integrated slice commit; a later WK tip cannot silently replace that input. Preparation failure preserves confirmed integration and its specific cause, with recovery limited to unfinished effects. Observation reads prepare nothing and launch nothing.
 
+If that preparation owner reports
+`terminal_candidate_recovery_expected_version_mismatch`, integration stands and
+the selected candidate remains unchanged. The partial response recommends
+`workspace_inspect_candidate({subject: <authenticated delivery's parent WK>})`.
+Its current-state read supplies any supported exact-version advancement choice;
+inspection neither advances the candidate nor finishes integration. Advancing
+remains an explicit caller decision under the candidate owner's existing rules.
+After resolving the mismatch, the conditional `integrate_work` call retains the
+original delivery locator and finishes only outstanding preparation and
+finalization. It never substitutes another delivery, advances a candidate
+implicitly, or replays completed Git or record effects. The optional historical
+integration read preserves this same correction. If candidate inspection is not
+served or permitted, the response states that this correction cannot continue
+in that session; an unchanged retry is not a fix.
+
 When publication cannot use a selected candidate's checkout, the shared
 integration-original owner can associate that candidate with one authenticated
 unfinished integration of its implementation. It offers the original delivery
@@ -1507,10 +1522,55 @@ recovery. The candidate must contain the already-integrated implementation;
 unknown ancestry, a moved selection or a missing/altered binding stops the
 action. Recovery may restore an explicitly advanced candidate's checkout but
 does not construct an absent selection or replace any candidate. Completed
-Git effects remain intact. A later successful result suppresses recovery for
-that logical delivery. Successful preparation reports its selected version;
-any independently superseded checkout remains a separate fact. An optional
-publication call still requires publication intent and authority.
+Git effects remain intact. Successful preparation reports its selected version
+and suppresses further preparation discovery for that logical delivery. Pending
+finalization retains its own continuation as described below; any independently
+superseded checkout remains a separate fact. An optional publication call still
+requires publication intent and authority.
+
+Preparation completion does not settle independently pending delivery cleanup.
+If exact-version recovery completes preparation but leaves checkout, retirement
+or slice cleanup pending, its returned call retains both the original delivery
+locator and `candidate_version`. After correcting the reported condition, that
+same call resumes unfinished finalization through its existing owners. It reuses
+the authenticated preparation receipt and acknowledged completed stages; it
+does not repeat integration, preparation or completed checkout/retirement/reap
+effects. Persistent failure preserves its cause and remaining work. A fully
+settled receipt takes precedence over earlier pending receipts, so a settled
+replay executes no effects. A superseded WK checkout remains superseded while
+independent cleanup can finish; this recovery cannot rewind newer work.
+
+A version fence rejected before recovery starts reports this invocation's
+nonexecution separately from `prior_integration`, which preserves the established
+delivery, integration point, any known record effect and outstanding cleanup
+with its specific cause. A moved selection uses
+`integrate_work.candidate_preparation_selection_moved.v1`; the rejected version
+is not offered again. The response offers read-only current-candidate inspection
+and a conditional, explicitly different choice to publish current work. That
+publication choice may issue a new authenticated recovery binding; inspection
+does not select it. A completed preparation is distinguished from an unavailable
+unfinished-preparation account, without denying the earlier integration.
+
+Version-bound preparation outcomes publish
+`observed_facts["integration.preparation_complete"]`: `true` for authoritative
+completion of the exact requested version, `false` for authoritative
+incompletion, and no fact when unknown or bound to another version. Prior
+integration alone does not establish this fact. The publication-issued
+continuation evaluates this fact without a compulsory reread. Preparation
+completion is independent of delivery cleanup and grants neither publication
+authority nor proof credit; pending cleanup adds no publication policy gate.
+
+The public integrated source is the delivery's established integration point,
+not a later live WK tip observed during recovery. Dependent verification retains
+that same source. Native content-conflict responses preserve the failed
+operation, source commit identities and conflicted paths, or explicitly state
+that affected paths are unavailable. The Git owner obtains paths through native
+NUL-delimited name-only output; the response does not interpret diagnostic prose
+or expose process transcripts. An authorized implementation worker must correct
+the intended content; a corrected immutable delivery needs a new explicit
+integration decision. The refused call neither edits its selected delivery nor
+offers an unchanged merge retry.
+
 A failed current fence preserves any previously confirmed cached integration as
 a partial result with the refusal cause. Without authenticated historical facts,
 a cold fence refusal reports unconfirmed integration rather than invented absence.

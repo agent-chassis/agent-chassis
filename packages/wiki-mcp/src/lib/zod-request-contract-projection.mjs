@@ -13,7 +13,7 @@ function typeNameOf(schema) {
   return schema?._def?.typeName ?? null;
 }
 
-function unwrap(schema) {
+export function unwrapRequestSchema(schema) {
   let current = schema;
   let optional = false;
   let nullable = false;
@@ -49,12 +49,16 @@ function unwrap(schema) {
   return { schema: current, optional, nullable, description, defaultValue, refinements };
 }
 
-function objectShape(schema) {
+const unwrap = unwrapRequestSchema;
+
+export function requestSchemaObjectShape(schema) {
   const shape = schema?._def?.shape;
   return typeof shape === "function" ? shape() : (schema?.shape ?? {});
 }
 
-function unionOptions(schema) {
+const objectShape = requestSchemaObjectShape;
+
+export function requestSchemaUnionOptions(schema) {
   const typeName = typeNameOf(schema);
   if (typeName === "ZodUnion") return schema._def.options ?? [];
   if (typeName === "ZodDiscriminatedUnion") {
@@ -63,6 +67,8 @@ function unionOptions(schema) {
   }
   return null;
 }
+
+const unionOptions = requestSchemaUnionOptions;
 
 function stringConstraints(schema, report) {
   const projected = { type: "string" };

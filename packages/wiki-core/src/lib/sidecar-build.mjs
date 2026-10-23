@@ -1,3 +1,4 @@
+import { assertSidecarGeneratorInputsCurrent } from "./sidecar-generator-identity.mjs";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { collectSidecarCheckoutInputs, compareSidecarCheckoutFiles } from "./sidecar-checkout-inputs.mjs";
@@ -268,11 +269,10 @@ export async function updateSidecarIndex({
 }) {
   const publication = observed.state === "available" && observed.publication?.repository_commit
     ? observed.publication : null;
-  let generator = null;
+  const generatorValue = (await resolveSidecarGeneratorIdentity()).generator_identity;
   const generatorIdentity = async () => {
-    generator ??= (await resolveSidecarGeneratorIdentity({ repoRoot, index_head: head }))
-      .generator_identity;
-    return generator;
+    assertSidecarGeneratorInputsCurrent();
+    return generatorValue;
   };
   const sources = await collectSidecarCheckoutInputs(repoRoot);
   const projectPaths = sources.tracked.filter(isSidecarProjectInputFile).map(file => file.path);
@@ -308,6 +308,7 @@ export async function updateSidecarIndex({
       (retryDependencyLimited && sidecarDependencyLimitations(publication?.provider_coverage).length > 0)
   });
   if (classification.action === "reuse") {
+    assertSidecarGeneratorInputsCurrent();
     return { action: "coalesced", publication, metrics: ZERO_METRICS };
   }
   throwIfSidecarPreparationCancelled(signal);
@@ -319,9 +320,6 @@ export async function updateSidecarIndex({
     .map((key) => [key, byKey[key].settings?.dependency_mapping ?? null]));
   const mappingChanged = mappingIdentity(priorRecords) !==
     mappingIdentity(Object.fromEntries(plan.map(({ project, record }) => [project.key, record])));
-  const generatorValue = publication?.repository_commit === head
-    ? publication.generator_identity
-    : await generatorIdentity();
   const baseRecords = clean ? [] : records.filter((change) =>
     recordPaths(change).some(isSidecarBaseInputPath));
 
@@ -420,6 +418,7 @@ export async function updateSidecarIndex({
   target.base_coverage.inputs_moved = sources.identity !== (await collectSidecarCheckoutInputs(repoRoot)).identity;
   throwIfSidecarPreparationCancelled(signal);
 
+  assertSidecarGeneratorInputsCurrent();
   let prepared = null;
   let published;
   try {
@@ -431,6 +430,7 @@ export async function updateSidecarIndex({
           goModules: sidecarGoModules(goFiles), rustCrates,
           candidateKeys: mappingChanged ? [SIDECAR_RUST_CRATE_SET_CANDIDATE] : [] });
         throwIfSidecarPreparationCancelled(signal);
+        assertSidecarGeneratorInputsCurrent();
         return publishPreparedDeltaInDatabase(graph, prepared.delta);
       }
     });

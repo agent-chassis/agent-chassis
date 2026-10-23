@@ -26,6 +26,7 @@ import {
 
 export const PUBLISH_WORK_TOOL_NAME = "workspace_publish_work";
 export const PUBLISH_WORK_SCHEMA_VERSION = "workspace-publish-work.v1";
+const PUBLICATION_INDETERMINATE_CODE = "agent_launch.wk_forge_handoff.publication_indeterminate.v1";
 
 function withoutRawCapture(failure) {
   return distillDispatchFailureDetail(failure, { nested: true }).detail;
@@ -77,34 +78,55 @@ export function publicationCarrier(subject, outcome, env, requestSchemaAuthority
   const detail = preparation != null && preparation.effects == null && preparation.synchronization == null &&
       preparation.uncertain_effect == null && preparation.effects_observed === undefined
     ? { ...preparation, effects_observed: false } : preparation;
-  const code = mapBackendRefusalToDispatchCode(refusal.code);
+  const uncertain = detail?.uncertain_effect != null || refusal.category === "indeterminate";
+
+  const code = mapBackendRefusalToDispatchCode(uncertain ? PUBLICATION_INDETERMINATE_CODE : refusal.code);
   const decidingFacts = [{ field: "forge_handoff.executor_accepted", value: false }];
   const observedFacts = { "forge_handoff.executor_accepted": false };
   const carried = {};
   const driftInput = { refusal, detail, assignedUnit: subject,
     code, decidingFacts, observedFacts, carried, requestSchemaAuthority };
-  const drift = acceptanceValidationDriftGuidance(driftInput) ?? sectionsDriftGuidance(driftInput);
-  const integrationCall = outcome.integration_recovery === undefined ? null : buildDispatchContinuation({
+  const drift = uncertain ? null : acceptanceValidationDriftGuidance(driftInput) ?? sectionsDriftGuidance(driftInput);
+  const integrationCall = uncertain || outcome.integration_recovery === undefined ? null : buildDispatchContinuation({
     tool: outcome.integration_recovery.tool, arguments: outcome.integration_recovery.arguments,
     successPredicate: { fact: 'integration.preparation_complete', operator: 'is_true' }, requestSchemaAuthority });
   if (integrationCall !== null) {
     decidingFacts.push({ field: 'integration.preparation_complete', value: false });
     observedFacts['integration.preparation_complete'] = false;
   }
-  const recovery = integrationCall === null ? drift?.recovery ?? producerEstablishedRecovery(detail, {
+  const recovery = integrationCall === null ? drift?.recovery ?? (uncertain ? ownedNoRouteRecovery({
+    responsibleActor: null, prerequisite: "The publication outcome must be established before choosing another mutation.",
+    explanation: "A publication effect may have occurred. No corrective mutation is established by this result; " +
+      "do not repeat publication merely to recover its acknowledgment." }) : producerEstablishedRecovery(detail, {
     unchanged: `the reported publication failure for ${subject} is corrected`,
     retryCondition: "make a new subject-only publication request after that prerequisite holds",
     unestablished: "the producer established no correction owner; an unchanged retry refuses again"
-  }) : { state: 'callable', prerequisite: 'The selected candidate checkout preparation is unfinished.',
+  })) : { state: 'callable', prerequisite: 'The selected candidate checkout preparation is unfinished.',
     operation: integrationCall.tool, success_condition: 'The same selected candidate has a prepared checkout.',
     success_predicate: integrationCall.success_predicate,
     message: 'Integration already occurred. Finish only the selected candidate preparation and remaining integration work through this exact call, then request publication. No publication occurred in this call.' };
+  let observation = null, observationFailure = null;
+  if (uncertain) try {
+    observation = buildCheckLandingRequest({ subject }, { requestSchemaAuthority });
+  } catch (error) {
+    observationFailure = { failed_operation: "build_current_landing_call",
+      cause: projectPublicationDiagnosis({ evidence: captureDiagnosticEvidence(error) }, env) };
+  }
+
+  const { success_predicate: _predicate, ...optionalObservation } = observation ?? {};
+  const observationCall = observation == null || observation.callable === false ? null
+    : { ...optionalObservation, recommended: false };
   return {
     schema_version: PUBLISH_WORK_SCHEMA_VERSION, subject,
     producer: { accepted: false, refusal: { ...refusalIdentity, detail } },
     blocker: { code, reason: refusal.reason, detail: { category: detail?.category ?? refusal.category } },
-    observed_facts: { "publication.confirmed": false },
-    ...(integrationCall === null ? {} : { next_calls: [integrationCall] }),
+    observed_facts: { "publication.confirmed": uncertain ? null : false },
+    ...(uncertain ? { observation: observationCall === null ? {
+      state: "unavailable", ...observationFailure,
+      stopping_condition: "This session cannot observe publication status. The publication outcome remains uncertain; do not repeat it to obtain an acknowledgment."
+    } : { scope: "current_publication", limitation: "The current publication observation does not identify the failed attempt or prove that attempt had no effects." },
+      next_calls: observationCall === null ? [] : [observationCall] }
+      : integrationCall === null ? {} : { next_calls: [integrationCall] }),
     refusal: drift?.refusal ?? buildDispatchMechanicalRefusal({ code, decidingFacts, observedFacts,
       noSupportedRoute: integrationCall === null, recovery, route: PUBLISH_WORK_TOOL_NAME,
       ...(integrationCall === null ? {} : { nextCalls: [integrationCall], requestSchemaAuthority }),
@@ -128,14 +150,14 @@ export function publicationRepoResolutionRefusal(subject, resolution) {
         retryCondition: "submit the same subject-only request in the corrected session" }) }) };
 }
 
-export function publicationException(subject, error, env) {
+export function publicationException(subject, error, env, requestSchemaAuthority = null) {
   return publicationCarrier(subject, { accepted: false, refusal: {
-    ...(typeof error?.code === "string" ? { code: error.code } : {}),
-    category: "exception",
+    code: PUBLICATION_INDETERMINATE_CODE,
+    category: "indeterminate",
     reason: "publication_adapter_threw",
     detail: { ...buildDispatchToolExceptionDetail(PUBLISH_WORK_TOOL_NAME, error, { env, operatorLocator: false }),
       effects_observed: false, uncertain_effect: "publication" }
-  } }, env);
+  } }, env, requestSchemaAuthority);
 }
 
 export function publicationEntitlementRefusal(subject, role, code) {

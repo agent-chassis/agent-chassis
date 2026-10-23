@@ -40,6 +40,7 @@ const REQUIREMENT_DEFINITIONS = Object.freeze([
   "authored_requirement_statement",
   "authored_requirement_membership",
   "authored_requirement_source",
+  "authored_source_passages",
   "authored_requirement_row",
   "authored_requirement_collection",
   "authored_unresolved_meaning",

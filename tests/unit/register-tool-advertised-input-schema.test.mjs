@@ -134,6 +134,38 @@ function createBoundary({
 
 const errorTextOf = (result) => JSON.stringify(result);
 
+test('registered shared validation supplies enforced patterns and nested accepted locations before effects', async () => {
+  for (const custom of [false, true]) {
+    const boundary = createBoundary();
+    const schema = z.object({ unit: z.string(), git_sha: z.string().regex(/^[0-9a-f]{40}$/u),
+      original: z.object({ view: z.enum(['summary', 'full']) }).strict() }).strict();
+    let receivedSchema;
+    boundary.register({ description: 'd', inputSchema: schema, advertisedInputSchema: schema,
+      ...(custom ? { inputValidationErrorProjector: async ({ args, validationError, inputSchema }) => {
+        receivedSchema = inputSchema;
+        return { terminal_result: { ...jsonContent(await projectToolInputValidationFailure({ tool: boundary.toolName,
+          args, validationError, inputSchema })), isError: true } };
+      } } : {}) });
+    const handler = boundary.registered.get(boundary.toolName).handler;
+    const request = { unit: 'WK-2665', git_sha: 'HEAD', original: { view: 'summary' }, view: 'full' };
+    const raw = await handler(request);
+    assert.equal(raw.isError, true); assert.deepEqual(boundary.calls, []);
+    const body = raw.structuredContent;
+    const issues = custom ? body.invalid_fields : body.diagnostic.validator_diagnostics;
+    assert.equal(issues.find(issue => issue.path[0] === 'git_sha').constraint.pattern, '^[0-9a-f]{40}$');
+    const misplaced = issues.find(issue => issue.code === 'unrecognized_keys');
+    assert.deepEqual(misplaced.constraint.accepted_key_paths.view, ['original.view']);
+    if (custom) assert.equal(receivedSchema, schema, 'registration passes the full owner schema');
+    const corrected = structuredClone(request);
+    const destination = misplaced.constraint.accepted_key_paths.view[0].split('.');
+    corrected[destination[0]][destination[1]] = request.view; delete corrected.view;
+    assert.equal((await handler(corrected)).isError, true, 'an independent bad commit remains rejected');
+    corrected.git_sha = 'a'.repeat(40);
+    assert.notEqual((await handler(corrected)).isError, true);
+    assert.deepEqual(boundary.calls, [corrected]);
+  }
+});
+
 test('shared task projection preserves long selected authoring paths and every deciding constraint', async () => {
   const longMember = 'x'.repeat(2048);
   const body = await projectToolInputValidationFailure({ tool: 'save_record', args: { unit: 'WK-0001' },
@@ -145,7 +177,7 @@ test('shared task projection preserves long selected authoring paths and every d
   const [issue] = body.invalid_fields;
   assert.deepEqual(issue.path, ['changes', longMember, 0]);
   assert.equal(issue.message, `changes.${longMember} is not an accepted member`);
-  assert.deepEqual(issue.constraint, { keyword: 'additionalProperties', additionalProperty: longMember });
+  assert.deepEqual(body.constraint_definitions[issue.constraint.ref], { keyword: 'additionalProperties', additionalProperty: longMember });
   assert.equal(body.invalid_fields.length, 12);
   assert.deepEqual(body.invalid_fields[11].path, ['changes', longMember, 11]);
   assert.deepEqual(body.next_calls, []);
@@ -190,7 +222,7 @@ test("shared task refusal leaves unsupported-field removal to an explicit caller
   const args = { unit: "WK-2665", answer: { kind: "skip", extra: true }, extra: "discard this member" };
   const body = (await handler(args)).structuredContent;
   assert.deepEqual(boundary.calls, []);
-  assert.equal(body.invalid_fields[0].message, "Unrecognized key(s) in object: 'extra'");
+  assert.equal(body.invalid_fields[0].message, "These keys are not accepted at this input path; choose supported inputs or explicitly omit them.");
   assert.deepEqual(body.invalid_fields[0].keys, ["extra"]);
   assert.deepEqual(body.next_calls, []);
   assert.match(body.correction, /Choose how to express the rejected fields/);

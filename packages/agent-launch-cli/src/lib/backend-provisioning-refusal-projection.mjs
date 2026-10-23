@@ -30,13 +30,13 @@ const MANAGED_SLICE_TIP_RECONCILE_REQUIRED =
 
 export const BASE_SELECTION_MISSING_LAUNCH_REASON = "managed_worktree_base_selection_missing";
 export const BASE_SELECTION_PREREQUISITE =
-  "the canonical WK record must explicitly select base_branch before its first worker starts";
+  "the root WK needs a resolvable base_branch before its first worker starts";
 export const BASE_SELECTION_NO_FALLBACK =
-  "No checkout, HEAD, main or master fallback applies; after allocation the captured base is frozen.";
+  "When base_branch is absent, start_agent saves the configured checkout's current symbolic local branch. An explicit selection is never replaced; after allocation the captured base is frozen.";
 export const BASE_SELECTION_EDITOR = "save_record";
 
 export function baseSelectionMissingPreflightMessage(recordId) {
-  return `Root ${recordId} selects no base_branch, so dispatch refuses before its first ` +
+  return `Root ${recordId} selects no base_branch and its configured checkout has no resolvable current local branch, so dispatch refuses before its first ` +
     `managed allocation (${BASE_SELECTION_MISSING_LAUNCH_REASON}). An operator chooses an ` +
     `existing canonical short local branch; author it on the root ${recordId}, not a slice, ` +
     `through ${BASE_SELECTION_EDITOR} changes.base_branch with the root record's fresh ` +

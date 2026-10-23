@@ -35,6 +35,28 @@ Those internal pages explain design history and implementation boundaries. This
 page is the public landing page for snapshot consumers and agents that need the
 stable shape without the full maintainer narrative.
 
+Selected authoring grammar composes each field's owning declaration into one
+self-contained document, including mixed member selections. Repeated selectors,
+validation inputs and prose carriers use local `$defs`; their complete rules
+and descriptions remain in that document. Requirement capability selections
+and their source-integrity checks use the same factored projection.
+
+Static authoring rules include required and forbidden fields, task-action and
+disposition variants, request-local label forms, controlled values, nonblank
+text, Unicode and UTF-8 limits, and each destination's path syntax. Entry titles
+allow 256 Unicode scalars / 1,024 UTF-8 bytes; kinds allow 64 / 256. Prose
+carriers contain at most 256 flat text/reference leaves. Ordinary slice objects
+remain open where their owner permits additional authored members; ready-slice
+objects retain their closed shaping contract. Root criterion creation labels
+remain distinct from slice acceptance criteria.
+
+Ready shaping's known mode constrains assignment, write scope and inspection
+targets. Creation has its declared default; an update omitting the mode or
+review purpose depends on the selected saved slice. Static grammar does not
+establish target existence, captured-source authority, executable binding
+completeness or lifecycle permission. Record and slice applicability follow the
+selected unit. Dependency labels are not resolved by ordinary authoring.
+
 ## Record Shape
 
 A `work-record.v1` JSON record identifies the work item and its lifecycle:
@@ -76,6 +98,36 @@ The public schema distinction is:
   versions. Slices have no such field; slice assignments carry the relevant
   requirements explicitly. Generated Markdown renders the field before derived
   narrative, search indexes it, and agent briefs list it as omitted.
+
+Ordinary unresolved contract meaning may retain explicit source associations
+without becoming a grammar exception. Its object form in
+`changes.requirements.unresolved` requires `text` and controlled `reason`, with
+optional `candidate_concept` and `source_passages`. Each passage selects exact
+nonempty `user_requirement` text and, where repeated, an explicit positive
+`user_requirement_occurrence`. The shared source-passage declaration admits one
+to 64 selections and no other fields. The server records the resolved source
+provenance under `authored_requirements.unresolved[].source_passages`; callers
+never supply source digests or locations. Saved reads report current or stale
+bindings against their captured user-requirement text. Missing bindings stay
+absent; stale bindings are not silently refreshed. Association supplies no
+encoded behavior, exception decision, completeness or proof credit.
+
+An authored definition may explicitly classify its bound passage with
+`source_role:"context"` on its complete requirement-batch row. This requires
+`definition:true` and an explicitly supplied exact `user_requirement`, with the
+existing occurrence choice for repeated passages. The saved role is metadata on
+`authored_requirements.rows[]`, outside `input`, and does not change semantic
+identity, source provenance or associations. A source-linked definition without
+this explicit role has no contextual classification. A normal targeted
+restatement may use `source_role:null` to clear only the role. Omission retains a
+saved role for an unchanged binding; rebinding a different source requires an
+explicit classification or clearing. Source movement leaves omitted bindings
+stale. Converting a classified definition to normative meaning requires clearing
+the role in that save. Public requirement members expose `source_role:"context"`
+beside the unchanged declaration, semantic selector and current/stale source
+facts; the role is not a selector or a declaration member. Classification itself
+establishes no faithful interpretation, obligation coverage or proof credit.
+
 - `sections.entries`, when present, is a root- or slice-owned array of durable
   entries. An entry has a WK-wide numeric identity, a current-version pointer,
   and immutable retained versions.
@@ -341,14 +393,23 @@ assigned the default worker role, and refuse an explicitly conflicting role.
 ## Acceptance and Validation
 
 `acceptance.criteria` lists the behavioral or documentation outcomes that make
-the unit complete. A criterion is either a non-empty string or an object whose
-only fields are `text` and the optional authoring metadata `verification_method`
-(one of the controlled feature-vector verification methods, or null),
-`evidence_target` (a repository-relative path, or null) and `facet_provenance`.
-Any other field is refused at the authoring boundary. Coverage identifies a
-criterion by its position and `text`, so adding or changing this metadata leaves
-criterion identity and saved coverage rows intact while still moving the
-acceptance-coverage source bindings that own staleness.
+the unit complete. Ready-slice criterion authoring accepts a nonblank string or a
+closed object with required nonblank `text` and optional `typed_identity`, `verification_method`,
+`evidence_target` and `facet_provenance`. Text is trimmed. `typed_identity` is a
+nonempty authored string preserved exactly. `verification_method` is one of the
+controlled feature-vector verification methods or null; surrounding whitespace
+is ignored. `evidence_target` is an authored string or null, retained exactly;
+this field does not perform path resolution. `facet_provenance` is a closed
+object with optional `text`, `verification_method` and `evidence_target` keys,
+each holding a controlled provenance value or null. Unknown fields are refused
+at their authored address. The owning normalizer's declaration supplies both
+selected save grammar and the editor's authoring schema.
+
+A root `changes.criteria[]` creation may use a request-local `key`. A slice's
+`acceptance.criteria[]` contains its own readable criteria and accepts no `key`;
+copying a parent label transfers neither text nor coverage. Root creation labels
+and authored `typed_identity` serve different purposes. Saving a criterion or its
+metadata does not establish proof coverage.
 
 `acceptance.validation` accepts human note strings,
 `{note, verification_ids}` relationship-bearing notes, repository commands, and proof bindings:
@@ -361,6 +422,34 @@ literal `harness: {cwd, argv}`, exact `definition_paths`, optional prepared
 Selections never interpolate caller arguments. Only an explicitly authored
 default allows omission of selection. Repository commands carry no
 `verification_ids`, proof targets or proof credit.
+
+Authoring grammar exposes command and selection IDs as 1–128 ASCII letters,
+digits, underscores, dots or hyphens, starting with a letter or digit. Command
+IDs are unique in a unit, selection IDs within a command, and
+`default_selection` must name a submitted selection. `cwd` is `.` or a canonical
+repository-relative POSIX directory without a trailing slash; `definition_paths`
+is a nonempty unique list of canonical repository-relative file selectors.
+Neither accepts traversal, absolute paths or backslashes; file selectors also
+exclude glob syntax. `argv` is nonempty, its first string is nonempty, and no
+argument contains NUL. Environment identities follow the runtime owner's
+`ecosystem@installation-root` syntax. Additional baseline commits are unique
+full lowercase 40- or 64-hex identities. The selected grammar states the exact
+patterns and path restrictions. Syntax does not establish that a source file,
+directory, runtime environment or commit exists or is usable at execution.
+
+A note object contains exactly `note` (nonblank text) and `verification_ids`
+(a unique array of nonblank strings, possibly empty). Ordinary note authoring
+creates no executable binding or proof credit. Grammar also retains prose
+limits from the destination owner: `sections.agent_notes`, exposed as `notes`
+or ready-slice `agent_notes`, is at most 8,192 UTF-8 bytes after content resolution,
+including separators. This is a byte limit, not a character count.
+
+Refusals preserve the authored field, violated rule and known nonpublication.
+Repository-command failures report all deciding submitted issues together;
+selection-membership failures expose the submitted choices. Authors choose the
+correction without automatic path rewriting or invented values. Grammar reads
+are needed only when necessary input information is missing. Successful saves
+need no grammar, assessment or verification reread.
 
 `save_record changes.validation` and ready-slice `acceptance.validation` accept
 `{repository_tests: [...], notes?: [...]}` to replace the selected unit's entire

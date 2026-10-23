@@ -5,7 +5,6 @@ import { createTaskResultSnapshotRegistry, TaskResultSnapshotError } from '@agen
 import { discoverCompleteControlledProofIntentsOperation,
   discoverControlledProofIntentsOperation } from '@agent-chassis/wiki-core';
 import { createControlledContractRefusal } from '@agent-chassis/wiki-core/src/operations/controlled-contract/refusal.mjs';
-import { buildGuidanceCall } from '@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs';
 import { CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE,
   ControlledContractToolError } from '@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs';
 import { PROOF_INTENT_DISCOVERY_CATALOG, PROOF_INTENT_DISCOVERY_QUERY_POLICY, isProofIntentDiscoveryQueryWithinLimit, proofVerificationCapability, readProofDiscoverySourceIdentity } from '@agent-chassis/controlled-contract/proof-intent-discovery';
@@ -23,6 +22,7 @@ import { measureMcpInlineResultBytes } from './mcp-response.mjs';
 import { authoringSchemaMembers, familyAuthoringFacts, familyChoiceFacts, projectIndex, projectIndexSummary, projectProof,
   projectProofSummary, proofDiscoveryAlternatives } from './proof-discovery-response.mjs';
 import { createToolInputValidationError } from './register-tool.mjs';
+import { createFindProofsInputDiagnosis } from './proof-discovery-input-diagnosis.mjs';
 import { readSelectedResponseProjection, retainSelectedResponseSource, scalarRangeBytesWithinDeliveryBound,
   selectedResponseCorrectableError, selectedResponseDeliveryBound, selectedResponseDetailSchema,
   selectedResponseQueryInvalidError, selectedResponseRequestSchema } from './selected-response-snapshot.mjs';
@@ -396,7 +396,7 @@ const SOURCE_CHANGED_FACTS = Object.freeze({
 export function createFindProofsInputContract(z) {
   const nonEmpty = () => z.string().min(1);
   const proofName = meaning => z.string().min(PROOF_NAME_INPUT_SCHEMA.minLength).describe(meaning);
-  const part = z.union([
+  const part = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('overview') }).strict(),
     z.object({ kind: z.literal('comparisons') }).strict(),
     z.object({ kind: z.literal('authoring') }).strict(),
@@ -499,12 +499,14 @@ export function createFindProofsSession({ workspace, z, sessionEnv = process.env
   function selectedFamily(request, recognition, authoring) {
     const explicit = request.target_family ?? null;
     if (explicit !== null && !Object.hasOwn(authoring.families, explicit)) {
-      const { target_family: _family, ...withoutFamily } = request;
-      throw correctable('target_family_unknown',
-        { target_family: explicit, listed_families: Object.keys(authoring.families) }, withoutFamily,
-        'target_family is one listed family id',
-        'the call repeats the preserved query or proof request without the invalid target_family; ' +
-          'query recognition may still select a listed family; it does not select the requested invalid family');
+
+      const { target_family: _family, ...preserved } = request;
+      throw new ControlledContractToolError('target_family_unknown',
+        `Unknown target_family: ${explicit}. Choose the intended supported replacement; ` +
+          'query recognition does not replace an explicit family choice.',
+        { target_family: explicit, effects: 'No result retained; no proof executed or credited.',
+          recovery: { tool: FIND_PROOFS_TASK, executable: false, known_arguments: preserved,
+            missing_caller_input: ['target_family'], choices: familyChoiceFacts(authoring) } });
     }
     const family = explicit ?? (recognition.status === 'identified' ? recognition.families[0] : null);
     return family === null ? null : familyAuthoringFacts(authoring, family);
@@ -768,31 +770,8 @@ export function registerFindProofsTool({ defineTool, z, jsonContent, errorConten
   responseEnv, ...owners }) {
   const session = createFindProofsSession({ workspace, z, sessionEnv, responseEnv,
     requestContracts: registeredToolRequestContracts(defineTool), ...owners });
-  const { inputSchema, advertisedInputSchema, allowedFieldSets, publishedInputSchemaProjection,
-    retainedSelectionSchema } = session.contract;
-
-  const retainedRequestRefusal = args => {
-    if (args === null || typeof args !== 'object' || Array.isArray(args) ||
-        !(Object.hasOwn(args, 'selection') || Object.hasOwn(args, 'result'))) return null;
-    const parsed = retainedSelectionSchema.safeParse(args);
-    if (parsed.success) return null;
-    if (Object.hasOwn(args, 'result')) return createToolInputValidationError({ tool: FIND_PROOFS_TASK,
-      validationError: parsed.error, details: { allowed_field_sets: allowedFieldSets } });
-    const { issues } = parsed.error;
-    const current = issues.length === 1 && args.selection.proof_name !== undefined
-      ? { proof_name: args.selection.proof_name,
-        ...(args.selection.part === undefined ? {} : { part: args.selection.part }) } : null;
-    return createToolInputValidationError({ tool: FIND_PROOFS_TASK,
-      validationError: { message: `selection requires a result returned by ${FIND_PROOFS_TASK}.`, issues },
-      details: { allowed_field_sets: allowedFieldSets, missing_input: 'result',
-        correction: 'A selection reads within one original result: pass the result a ' +
-          `${FIND_PROOFS_TASK} call returned, unchanged, beside the selection. No result is invented.` },
-      nextCalls: current !== null && inputSchema.safeParse(current).success ? [buildGuidanceCall({
-        tool: FIND_PROOFS_TASK, arguments: current,
-        information: 'Reads the CURRENT catalogue entry for this proof_name instead. It is a different ' +
-          'request: not the retained original the refused selection needs, and no substitute for it.' },
-      { requestSchema: session.requestSchema, registeredTools: [FIND_PROOFS_TASK] })] : [] });
-  };
+  const { inputSchema, advertisedInputSchema, publishedInputSchemaProjection } = session.contract;
+  const inputDiagnosis = createFindProofsInputDiagnosis({ contract: session.contract, requestSchema: session.requestSchema });
   defineTool(FIND_PROOFS_TASK, {
     description: 'Browse with no arguments; use a held name or property query directly. Never mix request forms. ' +
       'Fresh read of the CURRENT catalogue: {proof_name, part?, target_family?}, or {query, target_family?} ' +
@@ -808,9 +787,7 @@ export function registerFindProofsTool({ defineTool, z, jsonContent, errorConten
     inputSchema,
     advertisedInputSchema,
     publishedInputSchemaProjection,
-    inputValidationErrorProjector: ({ args, validationError }) => ({ terminal_result: errorContent(
-      retainedRequestRefusal(args) ?? createToolInputValidationError({ tool: FIND_PROOFS_TASK, validationError,
-        details: { allowed_field_sets: allowedFieldSets } })) })
+    inputValidationErrorProjector: ({ args }) => ({ terminal_result: errorContent(inputDiagnosis(args)) })
   }, async args => {
     try {
       const { selected, payload } = await session.run(inputSchema.parse(args));

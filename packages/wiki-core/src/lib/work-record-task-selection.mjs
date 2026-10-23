@@ -1,12 +1,25 @@
 import { isObject } from "../operations/work-records-shared.mjs";
 
+export const WORK_RECORD_TASK_ACTION_SCHEMA = Object.freeze({ oneOf: [
+  { type: "object", additionalProperties: false, required: ["action", "value"],
+    description: 'append_todo requires nonblank value and accepts no text/index selector.', properties: {
+    action: { const: "append_todo" }, value: { type: "string", pattern: "\\S", description: "Supply nonblank task text." } } },
+  ...["mark_done", "replace_text"].flatMap(action => ["text", "index"].map(selector => ({
+    type: "object", additionalProperties: false, required: ["action", selector, ...(action === "replace_text" ? ["value"] : [])],
+    description: `${action} requires exactly one of text or index${action === 'replace_text' ? ' and a replacement value (nonblank or explicitly empty)' : ' and accepts no value or status'}.`,
+    properties: { action: { const: action }, [selector]: selector === "index" ? { type: "integer", minimum: 0 }
+      : { type: "string", description: "Select the exact saved task text (surrounding whitespace is ignored)." },
+      ...(action === "replace_text" ? { value: { type: "string", pattern: "^(?:$|[\\s\\S]*\\S[\\s\\S]*)$",
+        description: "Supply nonblank replacement text or an explicit empty string; surrounding whitespace is trimmed." } } : {}) }
+  }))) ] });
+
 export function selectTaskBySelector({ tasks, text, index }) {
   if (text !== undefined && index !== undefined) {
     return {
       ok: false,
       issue: {
         code: "ambiguous_task_selector",
-        message: "set-task accepts --text or --index, not both",
+        message: "Select a task with exactly one of text or index, not both",
         path: "tasks"
       }
     };
@@ -17,7 +30,7 @@ export function selectTaskBySelector({ tasks, text, index }) {
       ok: false,
       issue: {
         code: "missing_task_selector",
-        message: "set-task requires --text <task text> or --index <n>",
+        message: "Select a task with text (the saved task text) or index (its zero-based position)",
         path: "tasks"
       }
     };

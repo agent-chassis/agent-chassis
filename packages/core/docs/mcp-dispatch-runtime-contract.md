@@ -328,10 +328,20 @@ allocation, worktree, or attempt event.
 
 For an unallocated WK that saves no `base_branch`, preflight proposes the
 configured checkout's current symbolic local branch and reports it as
-defaulted; it writes nothing. A detached `HEAD` proposes nothing and is reported as
+defaulted; it writes nothing. The action preview and actual worker-input
+preflight use the same stable scope-base resolver and initial selection owner.
+Actual start persists the branch current then through revision-checked root
+authoring before allocation and reevaluates dispatch. It preserves concurrent
+explicit choices and retains the known save effect if a later stage refuses.
+A refused save is not replayed and starts no child.
+A detached `HEAD` proposes nothing and is reported as
 `scope_existence_base_selection_missing`. Preflight never substitutes `main`,
 `master`, or any branch inventory candidate, and never replaces a saved
-`base_branch` that fails to resolve.
+`base_branch` that fails to resolve. A failed current-branch Git read remains
+an unavailable resolution with its actual cause; it is not a missing choice.
+Detached-checkout recovery supplies only the root's edit context and required
+caller branch choice, then uses the same original assignment after a successful
+authorized save. An offered call grants no authorization.
 An absent selected base retains the base resolver's original cause with a null
 base value. It does not fabricate a branch ref, choose a base or replace the
 refusal with a diagnostic serialization failure. The public start refusal states

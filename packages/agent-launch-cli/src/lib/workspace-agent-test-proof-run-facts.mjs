@@ -8,6 +8,7 @@ import {
   TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE,
   projectTestProofForcedInvocationIdentityFailure
 } from "./workspace-agent-test-proof-module-fault-contract.mjs";
+import { nativeExecutionFailureDiagnostic } from './test-execution/ordinary-test-diagnosis.mjs';
 
 const STABLE_CODE_RE = /^[a-z0-9_.-]{1,160}$/u;
 const SIGNAL_RE = /^SIG[A-Z0-9]{1,32}$/u;
@@ -202,7 +203,7 @@ export function boundedRunFacts(run) {
     if (unconfirmed === undefined) return null;
     Object.assign(facts, unconfirmed);
   }
-  const cause = runCause(run);
+  const cause = runCause(run) ?? nativeExecutionFailureDiagnostic(run);
   if (cause !== null) {
     if (!isLauncherTestFailureDiagnostic(cause)) return null;
     facts.failure_diagnostic = structuredClone(cause);

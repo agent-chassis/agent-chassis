@@ -116,9 +116,11 @@ export function projectDiagnostic(value) {
   });
 }
 
+export const PROCESS_DIAGNOSTIC_PREFIXES = Object.freeze(["fatal:", "error:", "fatal error:"]);
+
 export function projectProcessDiagnosticLine(line) {
-  const match = /^\s*(fatal|error):\s*(.+)$/u.exec(line);
-  return match ? { severity: match[1], reason: match[2] } : null;
+  const match = /^\s*(fatal(?: error)?|error):\s*(.+)$/iu.exec(line);
+  return match ? { severity: match[1].toLowerCase().startsWith("fatal") ? "fatal" : "error", reason: match[2] } : null;
 }
 
 export function projectFailureDiagnosis(error, seen = new Set()) {

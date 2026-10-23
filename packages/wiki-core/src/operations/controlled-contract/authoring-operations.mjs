@@ -37,54 +37,17 @@ import { continueControlledContractProofGraphOperation } from
 import { buildProofPlanOperation } from "./proof-pack-operations.mjs";
 import { persistControlledAcceptanceProofPostureOperation } from
   "./proof-posture-operations.mjs";
-import {
-  compileControlledContractRequirements,
-  controlledContractRequirementPatchOperations,
-  controlledContractRequirementVerificationBundles
-} from "./contract-requirement-authoring.mjs";
+import { requireRequirementAuthoringOperation } from "./proof-authoring-contract-inputs.mjs";
 import {
   buildControlledContractRuntimeTestTemplate,
   composeControlledContractRuntimeTestReplacement,
   sameControlledContractRuntimeTestProof
 } from "./contract-requirement-runtime-proof.mjs";
-import { deriveControlledContractAuthoringVocabulary } from
-  "./contract-requirement-vocabulary.mjs";
 import { persistControlledContractReferenceCandidatePopulation } from
   "./prospective-reference-authoring.mjs";
 import { loadWorkRecordById } from "../../lib/work-record-store.mjs";
 import { writeValidatedWorkRecord } from "../work-records-store-io.mjs";
 import { runControlledContractRepairTransaction } from "./repair-transaction.mjs";
-
-async function compileRequirementAnswer({ repoRoot, wkId, focus, response,
-  expectedContentDigest, readCarrier }) {
-  const pkg = await loadControlledContractPackage();
-  let contract = null;
-  if (expectedContentDigest !== null) {
-    const carrier = await readCarrier({ repoRoot, wkId, focus,
-      carrierKind: "contract" });
-    if (carrier.content_digest !== expectedContentDigest) {
-      throw new ControlledContractToolError(
-        "controlled_contract_stale_content_digest",
-        "the controlled contract changed after the wrapper issued the continuation",
-        { changed: false, expected_content_digest: expectedContentDigest,
-          actual_content_digest: carrier.content_digest });
-    }
-    contract = carrier.content;
-  }
-  return compileControlledContractRequirements({
-    wkId, focus, answer: response, contract,
-    vocabulary: deriveControlledContractAuthoringVocabulary(
-      pkg.NATIVE_CONTRACT_SCHEMA_V1),
-
-    buildTestProofTemplate: pkg.buildStableTestProofBindingTemplate,
-    schemaIdentity: {
-      schema_version: pkg.SCHEMA_VERSION_V1,
-      vocabulary_version: pkg.VOCABULARY_VERSION_V1,
-      profile_id: pkg.PROFILE_ID_V1,
-      test_proof_version: pkg.TEST_PROOF_VERSION_V1
-    }
-  });
-}
 
 function coveragePopulationRows(context, authored, compose, {
   multiplePerCriterion = false
@@ -240,6 +203,7 @@ function assertProofAuthoringSelectionProgressed(skeleton) {
 export async function applyControlledContractDesignSemanticResponse({
   repoRoot, wkId, focus = null, continuationRecord, response, referenceRepairCandidate
 }, {
+  requirementAuthoring,
   createCarrier = createControlledContractCarrierOperation,
   patchCarrier = patchControlledContractCarrierOperation,
   readCarrier = readControlledContractCarrierFile,
@@ -299,7 +263,7 @@ export async function applyControlledContractDesignSemanticResponse({
       expectedSourceDigest: context.expected_record_source_digest });
   case "contract_carrier": {
 
-    const compiled = await compileRequirementAnswer({ repoRoot, wkId, focus,
+    const compiled = await requireRequirementAuthoringOperation(requirementAuthoring, "prepareContinuationRequirement")({ repoRoot, wkId, focus,
       response, expectedContentDigest: context.expected_content_digest,
       readCarrier });
     if (context.expected_content_digest === null) {
@@ -327,11 +291,11 @@ export async function applyControlledContractDesignSemanticResponse({
     if (compiled.added.test_proofs.length > 0) {
       return patchVerificationBundle({ repoRoot, wkId, focus,
         expectedContentDigest: context.expected_content_digest,
-        operations: controlledContractRequirementVerificationBundles({ compiled }) });
+        operations: requireRequirementAuthoringOperation(requirementAuthoring, "prepareRequirementVerificationBundles")({ compiled }) });
     }
     return patchCarrier({ repoRoot, wkId, focus, carrierKind: "contract",
       expectedContentDigest: context.expected_content_digest,
-      operations: controlledContractRequirementPatchOperations({ compiled }) });
+      operations: requireRequirementAuthoringOperation(requirementAuthoring, "prepareRequirementPatchOperations")({ compiled }) });
   }
   case "test_proof": {
 

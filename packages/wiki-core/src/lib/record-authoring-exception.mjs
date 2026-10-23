@@ -1,6 +1,7 @@
 
 
 import { buildPublicSelectionSchema } from '../operations/controlled-contract/public-selection-schema.mjs';
+import { REQUIREMENT_SOURCE_PASSAGES_SCHEMA } from './requirement-source-passage-schema.mjs';
 
 import { createRequire } from "node:module";
 
@@ -69,12 +70,8 @@ const MEANINGS = Object.freeze({
 
 const closed = (properties, required) => Object.freeze({ type: "object", additionalProperties: false, required,
   properties: Object.freeze(properties) });
-const sourcePassages = Object.freeze({ type: "array", minItems: 1, maxItems: 64,
-  description: "Caller-authored exact passages accounted for by this exception; choose user_requirement_occurrence where repeated. Omission saves an accounting draft with zero inferred passage coverage.",
-  items: closed({ user_requirement: { type: "string", minLength: 1 },
-    user_requirement_occurrence: { type: "integer", minimum: 1 } }, ["user_requirement"]) });
 const variant = (kind, action) => closed({ kind: Object.freeze({ const: kind }), action: Object.freeze({ const: action }),
-  subject: SUBJECTS[kind].schema, ...(action === "apply" ? { rationale, ...(kind === "proof" ? {} : { source_passages: sourcePassages }) } : {}) },
+  subject: SUBJECTS[kind].schema, ...(action === "apply" ? { rationale, ...(kind === "proof" ? {} : { source_passages: REQUIREMENT_SOURCE_PASSAGES_SCHEMA }) } : {}) },
 ["kind", "action", "subject", ...(action === "apply" ? ["rationale"] : [])]);
 
 export const RECORD_AUTHORING_EXCEPTION_SCHEMA = Object.freeze({
@@ -156,7 +153,7 @@ export function retiredExceptionMemberPaths(changes) {
   });
   const acceptance = changes.controlled_acceptance;
   if (acceptance !== null && typeof acceptance === "object" && !Array.isArray(acceptance) &&
-      (Object.hasOwn(acceptance, "rationale") || (Object.hasOwn(acceptance, "disposition") && acceptance.disposition !== "required"))) {
+      acceptance.disposition !== "required" && (Object.hasOwn(acceptance, "rationale") || Object.hasOwn(acceptance, "disposition"))) {
     paths.push("changes.controlled_acceptance");
   }
   return paths;

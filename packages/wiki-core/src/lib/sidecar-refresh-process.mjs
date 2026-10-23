@@ -1,5 +1,6 @@
 import { StringDecoder } from "node:string_decoder";
-import { projectFailureDiagnosis, projectProcessDiagnosticLine } from "./diagnostic-projection.mjs";
+import { SidecarIndexEnsureError } from "./sidecar-ensure.mjs";
+import { PROCESS_DIAGNOSTIC_PREFIXES, projectFailureDiagnosis, projectProcessDiagnosticLine } from "./diagnostic-projection.mjs";
 
 export const SIDECAR_REFRESH_STDERR_BYTES = 4096;
 export const SIDECAR_REFRESH_STDOUT_BYTES = 1024;
@@ -44,7 +45,7 @@ function diagnosticCapture(limit) {
   };
 }
 
-export function observeSidecarRefreshWorker(child) {
+export function observeSidecarRefreshWorker(child, { operation = "ensureSidecarIndex" } = {}) {
   const stdout = diagnosticCapture(SIDECAR_REFRESH_STDOUT_BYTES);
   const stderr = diagnosticCapture(SIDECAR_REFRESH_STDERR_BYTES);
   child.stdout.setEncoding("utf8");
@@ -64,8 +65,8 @@ export function observeSidecarRefreshWorker(child) {
     for (let index = 0; index < parts.length; index += 1) {
       if (!ignoredLine) {
         pending = (pending + parts[index]).trimStart();
-        const prefixes = ["fatal:", "error:"];
-        if (!prefixes.some(prefix => prefix.startsWith(pending) || pending.startsWith(prefix))) {
+        const prefixText = pending.toLowerCase();
+        if (!PROCESS_DIAGNOSTIC_PREFIXES.some(prefix => prefix.startsWith(prefixText) || prefixText.startsWith(prefix))) {
           ignoredLine = true;
           pending = "";
         }
@@ -90,7 +91,8 @@ export function observeSidecarRefreshWorker(child) {
     child.once("error", (error) => { processError ??= error; });
     child.once("close", (exitCode, signal) => {
       accept(pending);
-      const processDiagnosis = { exit_code: exitCode, signal, errors: [...reasons.values()] };
+      const processDiagnosis = { process: "sidecar_refresh_worker", pid: child.pid ?? null,
+        operation, exit_code: exitCode, signal, errors: [...reasons.values()] };
       const exit = { exit_code: exitCode, signal };
       const diagnostics = { stdout: stdout.read(), stderr: stderr.read() };
       if (processError) {
@@ -101,17 +103,31 @@ export function observeSidecarRefreshWorker(child) {
       } else if (response?.type === "completed" && exitCode === 0 && signal === null) {
         resolve({ ...response, worker_exit: exit });
       } else if (response && response.type !== "completed") {
-        reject(new SidecarRefreshError(
+        const failure = new SidecarRefreshError(
           String(response.message ?? "the refresh worker reported a failure"),
           { code: typeof response.code === "string" ? response.code : "sidecar_refresh_failed",
-            details: { ...exit, cause_code: response.cause_code ?? null,
-              publication_outcome: response.publication_outcome ?? null, diagnosis: response.diagnosis ?? null, process_diagnosis: processDiagnosis, diagnostics } }));
+            details: { ...response.details, ...exit, cause_code: response.cause_code ?? null,
+              publication_outcome: response.publication_outcome ?? null, diagnosis: response.diagnosis ?? null, process_diagnosis: processDiagnosis, diagnostics } });
+        if (response.error_name === "SidecarIndexEnsureError") {
+          const typed = new SidecarIndexEnsureError(failure.message, { code: failure.code });
+          typed.envelope = Object.freeze(response.envelope);
+          typed.details = failure.details;
+          reject(typed);
+        } else if (response.error_name === "TypeError") {
+          reject(Object.assign(new TypeError(failure.message), { code: failure.code, details: failure.details }));
+        } else {
+          reject(failure);
+        }
       } else {
         reject(new SidecarRefreshError(
           `the refresh worker ${response ? "reported completion but exited unsuccessfully" :
-            "exited before reporting an outcome"} (${signal ?? `exit code ${exitCode}`})`,
+            "exited before reporting an outcome"} (${signal ?? `exit code ${exitCode}`}): ${reasons.size
+              ? [...reasons.values()].map(row => row.reason).join("; ")
+              : "cause unknown; no explicit error diagnostic was captured"}`,
           { code: "sidecar_refresh_worker_exited", details: { ...exit, diagnostics, process_diagnosis: processDiagnosis,
-            correction: "The worker exited without a structured outcome. Restore the worker runtime before retrying; publication effects are unconfirmed." } }));
+            correction: reasons.size
+              ? "Investigate the reported refresh-worker operation and explicit diagnosis before retrying; publication effects are unconfirmed."
+              : "Capture the refresh worker's deciding diagnostic before selecting a repair or retrying; publication effects are unconfirmed." } }));
       }
     });
   });

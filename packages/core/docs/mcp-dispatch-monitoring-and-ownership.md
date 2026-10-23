@@ -20,12 +20,16 @@ settlement, canonical write, Git mutation, integration, launch or rerun. If the
 same call remains pending in the client, continue that call identity rather than
 starting another one. A later call is a separate observation, never approval.
 
-The launcher's supervisor, not a read, moves a worker attempt's runtime status
-from `launching` to `running`: one turn after supervision attaches it confirms a
-child that has a process id and no recorded exit or spawn error, and the launch
-owner applies that to the attempt record. The transition probes and captures
-nothing, is never inferred from proof receipts, elapsed time or worker output,
-and never follows a terminal status or an observed child termination.
+The launcher's supervisor, not a read, moves a managed worker, reviewer or
+redteam attempt's runtime status from `launching` to `running`: one turn after
+supervision attaches it confirms a child that has a process id and no recorded
+exit or spawn error, and the shared lifecycle owner applies that to the exact
+attempt record. Without confirmation, acceptance alone leaves it `launching`.
+The transition probes and captures nothing, is never inferred from proof
+receipts, elapsed time or output, and never follows a terminal status or an
+observed child termination. `running` establishes process activity only; model
+progress and a usable review result remain unestablished until separately
+observed. Immediate reads and bounded waits report these producer-owned facts.
 
 The producer settles a terminal child and captures the public original once
 independently of result polling. Original capture is a terminal producer action;
@@ -128,8 +132,22 @@ integration and observation originals retain their existing producer identities.
 For a retained run observation, `{result}` delivers its public `final_result`
 directly, rather than another summary and a required self-read. A completed
 selected member has no next call to reread itself. Attempt ambiguity returns
-one exact read per choice with the known role/state, retaining the existing
-live and durable election rules. No selected attempt is replaced by a newer one.
+one exact read per choice with authenticated task meaning and known role/state,
+retaining the existing live and durable election rules. Saved-design choices
+identify the canonical design task; when needed to distinguish attempts, their
+commit is labeled `material.supporting_sha`, never a reviewed code range.
+Established code-review material uses `reviewed_range` when its range is needed
+for selection. Missing material-kind evidence stays `material.kind:"unknown"`;
+SHA pairs alone establish neither design nor code-review meaning. These labels
+do not establish a usable report or review completion. An explicit attempt
+mismatch preserves the available authenticated choices for caller selection;
+it does not establish that result evidence is unavailable. No replacement
+attempt is selected, and unreadable or foreign originals supply neither task
+meaning nor a result call. If task meaning cannot distinguish choices, the
+caller must supply the missing selection. No selected attempt is replaced by a
+newer one. Requesting `final_result` through a subject instead of an issued
+`result` is rejected with a same-subject/attempt observation call to acquire
+that reference when the request is otherwise valid and the role permits it.
 The public common reader changes no stored binding or schema identity. Optional
 proof selection names an exact subject or authored source tuple. Non-proof
 originals reject proof selectors. Detail is the delivery/observation owner's

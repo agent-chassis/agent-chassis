@@ -6,7 +6,8 @@ import { resolveWorkspaceRepo as incumbentResolveWorkspaceRepo } from "./workspa
 import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
 import { resolveObligationCoverageQueryContext } from "./controlled-contract-query-context.mjs";
 import { guardToolHandler, jsonContent } from "./mcp-response.mjs";
-import { createToolInputValidationError } from "./register-tool.mjs";
+import { createToolInputValidationError, projectToolInputValidationFailure } from "./register-tool.mjs";
+import { registeredToolRequestContracts } from "./registered-tool-request-contracts.mjs";
 import { DISPATCH_BLOCKER_CODES } from "./dispatch-tool-constants.mjs";
 import { buildDispatchContinuation, dispatchRepoResolutionRefusal,
   recordOwnerRegisteredRequestSchema, registrarGuidanceAuthority,
@@ -77,7 +78,7 @@ export function createPublishWorkTask({ workspaceRepos, wkForgeHandoffAdapter,
     try {
       outcome = await wkForgeHandoffAdapter({ assigned_unit: subject });
     } catch (error) {
-      return deliverPublication({ carrier: publicationException(subject, error, responseEnv),
+      return deliverPublication({ carrier: publicationException(subject, error, responseEnv, requestSchemaAuthority),
         binding, env: responseEnv, ownerCall, ownerRequestSchema });
     }
     const carrier = publicationCarrier(subject, outcome, responseEnv, requestSchemaAuthority);
@@ -106,7 +107,26 @@ export function createPublishWorkTask({ workspaceRepos, wkForgeHandoffAdapter,
 export function registerPublishWorkTool({ registerTool, ...composition }) {
   const task = createPublishWorkTask({ ...composition,
     requestSchemaAuthority: requestSchemaAuthorityForRegistration(registerTool) });
-  registerTool(task.name, task.config, task.call);
+  const contracts = registeredToolRequestContracts(registerTool);
+  registerTool(task.name, contracts === null ? task.config : { ...task.config,
+    advertisedInputSchema: task.inputSchema,
+    inputValidationErrorProjector: async ({ args, validationError }) => {
+      const projection = await projectToolInputValidationFailure({ tool: task.name, args, validationError,
+        inputSchema: task.inputSchema });
+      if (args === null || typeof args !== "object" || !Object.hasOwn(args, "version")) return { terminal_result: {
+        ...jsonContent(projection, { env: composition.responseEnv ?? composition.env ?? process.env }), isError: true } };
+      return { terminal_result: { ...jsonContent({ ...projection,
+        invalid_fields: projection.invalid_fields.map(field => {
+          if (field.code !== "unrecognized_keys" || field.path.length !== 0 || !field.keys.includes("version")) return field;
+          const { message: _message, ...facts } = field;
+          return facts;
+        }),
+        effects: { publication: "not_attempted" },
+        correction: "This operation cannot publish an explicitly selected version. Stop this exact-version request; " +
+          "no supported correction expresses that selection. Subject-only publication selects current canonical work: " +
+          "it is a different request, not a correction for the requested version.",
+        next_calls: [] }, { env: composition.responseEnv ?? composition.env ?? process.env }), isError: true } };
+    } }, task.call);
   recordOwnerRegisteredRequestSchema({ registerTool, toolName: task.name, declaredInput: task.inputSchema });
   return task;
 }

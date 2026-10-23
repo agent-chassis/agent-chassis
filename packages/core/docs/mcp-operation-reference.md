@@ -10,9 +10,9 @@ Tool names are exact, with no aliases or deprecated forms.
 
 | Intent | First tool | Request boundary |
 | --- | --- | --- |
-| Saved work, reference material, frozen assignment | `workspace_read_wiki` | One of `subject`, `search`, `assignment:true`, or returned `reference`; semantic `select` only with that reference |
+| Saved work, reference material, frozen assignment | `workspace_read_wiki` | `{reads:[Read,...]}`; each read names one `subject`, `search`, `assignment:true`, or issued `reference`, with optional `select` and `for_changes` |
 | Published code evidence | `query_code_index` | Existing published-index query and retained selection contract |
-| Proof candidates and complete meaning | `workspace_find_proofs` | No arguments to browse the catalogue, then a returned retained selection; optionally a query or known proof identity |
+| Proof candidates and complete meaning | `workspace_find_proofs` | Known `{proof_name}` or property `{query}` directly; `{}` to browse; `{result,selection?}` to read a returned original |
 | Allocate and author a new record | `workspace_create_record` | `kind`, `title`, kind-specific `initial?` |
 | Save canonical changes | `save_record` | `unit`, current combined `revision`, closed `changes` |
 | Assess saved design | `workspace_assess_contract` | `unit` and the owner's selected assessment input |
@@ -50,18 +50,49 @@ assignment; findings sessions read their authenticated review source.
 
 ## Compact-first reads and authoring
 
-`workspace_read_wiki({subject:"work record"})` returns compact context, the current
-combined authoring revision and a resource reference. Follow one of its exact
-selection calls to read fields, entries, populations, currentness or integrity
-whole. `workspace_read_wiki({assignment:true})` selects a worker's authenticated
-frozen assignment; it accepts no caller assignment identity. A reference selects
-the resource the first answer returned, under the same source and role grants.
-`workspace_read_wiki({subject:{record_kind:"work_item"}})` returns a record
-kind's creation context before any record exists; its reference reads the
-complete `initial` schema of the members a creation authors.
-It never grants arbitrary filesystem access.
+`workspace_read_wiki` accepts `{reads:[Read,...]}`, including a length-one
+array for one selection. Known subjects accept semantic selections directly;
+context and discovery supply missing information only. For example, request
+known criterion meaning and design prose together:
 
-Search uses `search:{query,where?}` for ranked matches or
+```json
+{
+  "reads": [
+    {
+      "subject": "work record",
+      "select": {
+        "contract": "criteria",
+        "where": {"kind": "criterion", "match": {"text": "The component exists."}}
+      },
+      "for_changes": ["obligations"]
+    },
+    {"subject": "work record", "select": {"field": "sections.summary"}}
+  ]
+}
+```
+
+`results` preserves request order and each item's status, meaning or specific
+issue. This explicit `for_changes` request supplies the current combined
+authoring revision once at `contexts["work record"].revision`, with fitting grammar
+calls. Plain reading supplies no current write revision. A successful mutation's
+returned revision can serve a dependent save; stale revisions still refuse.
+Existing criterion associations use semantic selectors in
+`changes.obligations[].criteria`; `$key` names only a criterion created in the
+same request. No generated criterion identity acquisition is required.
+
+`workspace_read_wiki({reads:[{subject:"work record"}]})` requests compact context
+and resource choices when needed. Fields, entries, contract populations,
+currentness and integrity can be selected directly or through an issued
+reference under the same source and role grants.
+`workspace_read_wiki({reads:[{assignment:true}]})` selects a worker's
+authenticated frozen assignment; it accepts no caller assignment identity and
+supplies no current write context.
+`workspace_read_wiki({reads:[{subject:{record_kind:"work_item"}}]})` returns a
+record kind's creation context before any record exists; its reference supports
+the complete `initial` schema for the members a creation authors. The reader
+never grants arbitrary filesystem access. See [Wiki reader](workspace-read-wiki.md).
+
+Each read can instead use `search:{query,where?}` for ranked matches or
 `search:{inventory:true,where?,query?}` for the complete filtered population.
 The owner-derived `where` guidance is included in the tool declaration:
 
@@ -109,6 +140,13 @@ The combined transaction preserves native atomicity and certainty facts.
 Original create/save responses are selected through their returned
 `workspace_read_wiki` references without another mutation.
 
+A refused save preserves rejected fields and unresolved caller choices. For a
+known unit, returned bulk reads offer the relevant input grammar and any missing
+write context; malformed or unknown changes can offer supported-member choices.
+The author chooses the correction explicitly. An unavailable reader selection
+reports its boundary rather than offering an unusable call. A successful save
+requires no reread.
+
 `workspace_assess_contract` evaluates authored validity, currentness and route
 facts without executing proofs. Validation is distinct from coverage and runtime
 success. Saving a disposition records advisory judgment; it never requests
@@ -117,14 +155,26 @@ integration. See [persistence](work-record-persistence.md) and
 
 ## Proof-intent discovery
 
-Call `workspace_find_proofs` with no arguments first: it returns the complete
-catalogue, every proof name with its short description, or a bounded summary
-with the exact call to that complete list. Neither a listed description nor a
-lexical match establishes that a proof applies. With an optional `query` it
-returns complete lexical matches grouped by tier, or a
-bounded summary with the exact call to that complete index. Follow the returned
-selection for a candidate's complete assertion, exclusions, capability and
-applicable authoring facts. A lexical tier is no semantic eligibility verdict:
+Use a held proof name directly with `workspace_find_proofs({proof_name})`, or
+search the property to establish with `workspace_find_proofs({query})`.
+Browse with `workspace_find_proofs({})` when the catalogue is needed; no browse
+is required before a known name or query. Browse returns available proof names with
+its short description, or a bounded summary with the exact call to that complete
+list. A query returns complete lexical matches grouped by tier, or a bounded
+summary with the exact call to that complete index. Neither a listed description
+nor a lexical match establishes that a proof applies.
+An unavailable definition keeps its specific cause and makes the population
+explicitly incomplete; healthy choices remain usable. An incomplete search
+with no available matches is not a complete negative result.
+
+A fresh named read accepts `part:{kind:"overview"}` (the default),
+`{kind:"comparisons"}`, `{kind:"authoring"}`, `{kind:"parameter",name}` or
+`{kind:"constraint",ref}`. Read retained meaning with `{result,selection?}`;
+`selection` may contain `proof_name` and `part` from that original. Keep these
+request forms separate. `target_family` is optional on a fresh name or query
+request only and selects authoring context, never a proof or execution authority.
+Read the candidate's complete assertion, exclusions, capability and any needed
+authoring facts. A lexical tier is no semantic eligibility verdict:
 assess plausible candidates across tiers and abstain when evidence is absent,
 incomplete or ambiguous. A provider-only query may match nothing. Query provider
 recognition, listed family support, authored target validity and actual runtime
@@ -325,20 +375,30 @@ immediately ends the worker and preserves partial work; the coordinator decides
 revisions. Ordinary failing tests and recoverable tool refusals alone do not
 establish an assignment gap.
 Source-snapshot symlink recovery uses this route when the authenticated worker
-cannot change the affected path. It supplies known refusal evidence and a
-schema-validated call with explicitly incomplete work testimony; the worker must
-supply its own `completed_work` and `remaining_work` before choosing to submit.
-Verification and recorded reads never submit it automatically. Missing route,
-authenticated binding, frozen assignment or unused completion authority is named
-as a capability limitation, with no uncallable request or unchanged retry.
+cannot change the affected path. A non-executable assignment-change template
+supplies diagnostic evidence and names missing caller testimony. The caller
+confirms the assignment claim and supplies prevented work, requested correction
+and completed/remaining work before submission. Deliberately supplied empty work
+arrays are valid. Verification and recorded reads never submit the template
+automatically. Missing route, authenticated binding or unused completion
+authority is named as a capability limitation, with no uncallable request or
+unchanged retry.
+An otherwise authenticated and exactly bound worker can report unavailable
+assignment content through this tool. The configured artifact must name the
+authenticated assignment pin; missing or denied content reads are retained as
+specific failures, not verified content. Corrupt/mismatched evidence still
+refuses. See [assignment-change responses](mcp-request-assignment-change.md).
 
-Empty typed testimony is accepted as incomplete testimony. References are inert
-evidence descriptions. The request cannot supply repository, unit, attempt,
+Missing required caller fields are refused. References are inert evidence
+descriptions. The request cannot supply repository, unit, attempt,
 retry, worktree, scope or approval authority.
 
-Acceptance retains the exact request and frozen assignment through the existing
+Acceptance retains the exact request and either the validated frozen assignment
+or its explicit unavailable-content cause through the existing
 retained-original owner, then links them under the attempt journal's partition
 lock. That link consumes only this attempt's completion authority. Repeated identical requests retain one acceptance; different content conflicts.
+The completion's assignment digest is the authenticated pin; retaining it alone
+does not claim that missing content was read or verified.
 The accepted worker call remains pending under launcher shutdown, so the worker
 has no retry or next call. Delivery
 claims its informational intent through the same owner before materialization,
@@ -363,6 +423,7 @@ and grants no integration, proof, publication or successor authority.
 published, then the semantic outcome `assignment_change_requested` after producer
 settlement. Process status, exit facts and genuine publication failures remain
 separate. Follow the returned original/member calls for complete request and
-assignment detail. The coordinator reads current authoring state with
-`workspace_read_wiki({subject:<bound unit>})`, explicitly authors any revision
+assignment detail. The coordinator reads current authoring state through a
+`workspace_read_wiki` bulk read with `for_changes` for the intended edit,
+uses `contexts[unit].revision`, explicitly authors any revision
 with `save_record`, and decides any subsequent start separately.

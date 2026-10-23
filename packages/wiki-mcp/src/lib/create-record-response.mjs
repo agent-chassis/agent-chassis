@@ -49,6 +49,10 @@ export function creationMaintenance(body) {
 export function creationRecovery(body, maintenance) {
   if (body.outcome?.startsWith('mutation_')) return body.recovery ?? {
     state: 'no_supported_route', stopping_condition: 'The exact mutation outcome is unavailable; do not repeat creation.' };
+  if (body.outcome === 'failed' && body.effects?.published === true) return {
+    state: 'no_supported_route', code: 'creation_persistence_incomplete',
+    stopping_condition: 'Canonical creation stands, but persistence failed with the reported participant effects. Preserve the original cause and any uncertain effects for the persistence owner to repair. No supported call reconciles that failure; do not repeat creation or run maintenance checks to repair publication.'
+  };
   if (body.recovery !== undefined) return body.recovery;
   if (body.maintenance?.state === 'maintenance_attempt_in_progress') return {
     state: 'observation_pending', correction: 'Completion is not recorded. Observe this original after progress; do not repeat creation or run checks to discover the outcome.' };

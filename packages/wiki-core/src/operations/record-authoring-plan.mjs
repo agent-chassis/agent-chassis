@@ -14,12 +14,12 @@ import { applyWorkRecordContractEdit, assignWorkRecordToInitiative,
 import { cloneJson, finalizeEdit, jsonEqual } from "../lib/work-record-contract-edit-shared.mjs";
 import { acceptanceCriterionInventory } from "./controlled-contract/acceptance-criterion-coverage.mjs";
 import { projectRequirementMutationFailure } from './controlled-contract/proof-authoring-case-diagnosis.mjs';
-import { prepareProofAuthoringRequirementBatch } from "./controlled-contract/proof-authoring-contract-inputs.mjs";
+import { requireRequirementAuthoringOperation } from "./controlled-contract/proof-authoring-contract-inputs.mjs";
 import { resolveRecordAuthoringSelections } from './record-authoring-public-selections.mjs';
 import { resolveRecordAuthoringLocalClaims } from './record-authoring-local-selections.mjs';
 import { projectAuthoredRequirements, requirementDescriptionEntities } from './controlled-contract/contract-requirement-projection.mjs';
 import { prepareRequirementDescriptionSources } from './controlled-contract/contract-requirement-description-sources.mjs';
-import { controlledContractIdentityScope } from './controlled-contract/contract-requirement-authoring.mjs';
+import { controlledContractIdentityScope } from './controlled-contract/contract-requirement-identity.mjs';
 import { recordAuthoringAvailability, recordAuthoringOperationDiagnostic, requirementAuthoringAvailabilityDiagnostics } from "../lib/record-authoring-availability.mjs";
 import { prepareProofAuthoringMutation } from "./controlled-contract/proof-authoring-preparation.mjs";
 import { reconcileProofAuthoringCandidate } from './controlled-contract/proof-authoring-candidate-reconciliation.mjs';
@@ -37,10 +37,19 @@ class PlanRefusal extends Error {
 const diagnostic = (code, path, message) => ({ code, severity: "error", path, message });
 const refuse = (code, path, message) => { throw new PlanRefusal([diagnostic(code, path, message)]); };
 
-function applied(plan, path) {
+function applied(plan, path, readdress = null) {
   if (plan.ok) return plan;
-  throw new PlanRefusal(plan.diagnostics.map((entry) => ({ ...entry, severity: "error",
-    owner_path: entry.path ?? null, path })));
+  throw new PlanRefusal(plan.diagnostics.map((entry) => {
+    const mapped = readdress?.(entry);
+    if (mapped) return { ...entry, severity: 'error', ...mapped,
+      message: mapped.message ?? (entry.path ? entry.message.replaceAll(entry.path, mapped.path) : entry.message) };
+    const ownerRoot = /^(?:edit\.value)(?:[.\[]|$)/u.test(entry.path ?? "") ? "edit.value"
+      : entry.path?.startsWith("slice.") ? "slice" : null;
+    const addressed = ownerRoot === null ? path : `${path}${entry.path.slice(ownerRoot.length)}`;
+    return { ...entry, severity: "error", path: addressed,
+      ...(ownerRoot === null ? { owner_path: entry.path ?? null } : {}),
+      message: ownerRoot === null ? entry.message : entry.message.replaceAll(entry.path, addressed) };
+  }));
 }
 
 const selectUnit = (record, sliceId) => sliceId === null ? record
@@ -90,8 +99,8 @@ function labelNamespace() {
 async function planOrdinaryMembers({ captured, record, sliceId, changes, repository }) {
   const changed = [];
   let current = record;
-  const step = (plan, path) => {
-    const result = applied(plan, path);
+  const step = (plan, path, readdress) => {
+    const result = applied(plan, path, readdress);
     current = result.updatedRecord;
     changed.push(...result.changedFields);
   };
@@ -128,7 +137,17 @@ async function planOrdinaryMembers({ captured, record, sliceId, changes, reposit
       ...(jsonEqual(intent, stored.dispatch_intent) ? {} : { dispatch_intent: intent }),
       ...Object.fromEntries(["expected_edit_targets", "expected_changed_line_budget", "regression_tests"]
         .filter((member) => Object.hasOwn(changes, member)).map((member) => [member, changes[member]])) } }),
-    `changes.${contract[0]}`);
+    `changes.${contract[0]}`, entry => {
+      const native = (entry.path ?? '').replace(/^slice\./u, '').replace(/^slices\[[^\]]+\]\./u, '');
+      const field = native.replace(/^dispatch_intent\.intended_agent_role/u, 'agent_role')
+        .replace(/^dispatch_intent\.target_unit/u, 'target_unit');
+      const member = field.split(/[.\[]/u)[0];
+      const message = entry.message.replaceAll('dispatch_intent.intended_agent_role', 'agent_role')
+        .replaceAll('dispatch_intent.target_unit', 'target_unit');
+      return Object.hasOwn(changes, member) ? { path: `changes.${field}`, message }
+        : { path: `changes.${contract[0]}`, subject: { unit: `${record.id}#${sliceId}`, field },
+          message, attribution: 'saved_unit_constraint', constraint: { rule: message } };
+    });
   }
   return { record: current, changed };
 }
@@ -180,7 +199,13 @@ function planSlices({ captured, record, sliceId, changes, labels }) {
     if (id !== undefined && !before.has(id)) refuse("record_authoring_row_unknown", `changes.slices[${index}].id`,
       `changes.slices[${index}].id names ${id}, which this record does not have; a new slice carries key`);
     const result = applied(applyWorkRecordContractEdit(current, { operation: "upsert_slice",
-      slice: { ...body, ...(id === undefined ? {} : { id }) } }), `changes.slices[${index}]`);
+      slice: { ...body, ...(id === undefined ? {} : { id }) } }), `changes.slices[${index}]`, entry => {
+        const native = entry.path ?? '';
+        const selectedIndex = id === undefined ? current.slices.length : current.slices.findIndex(row => row.id === id);
+        const prefix = `slices[${selectedIndex}]`;
+        return native === prefix || native.startsWith(`${prefix}.`)
+          ? { path: `changes.slices[${index}]${native.slice(prefix.length)}` } : null;
+      });
     current = result.updatedRecord;
     changed.push(...result.changedFields);
     labels.bind(key, current.slices.find((slice) => !before.has(slice.id))?.id ?? id);
@@ -198,8 +223,11 @@ async function planReadySlices({ captured, record, sliceId, changes, labels, rep
   for (const [index, { key, id, ...fields }] of rows.entries()) {
     const path = `changes.ready_slices[${index}]`;
 
-    const ownerRefusal = (...entries) => { throw new PlanRefusal(entries.map((entry) => ({ ...entry, severity: "error",
-      owner_path: entry.path ?? null, path: entry.path ? `${path}.${entry.path}` : path }))); };
+    const ownerRefusal = (...entries) => { throw new PlanRefusal(entries.map((entry) => {
+      const addressed = entry.path ? `${path}.${entry.path}` : path;
+      return { ...entry, severity: "error", path: addressed,
+        message: entry.path ? entry.message.replaceAll(entry.path, addressed) : entry.message };
+    })); };
     const request = { unit: captured.wkId, ...(id === undefined ? {} : { slice_id: id }), ...fields };
     for (const field of ["summary", "why_it_matters", "agent_notes"]) {
       if (typeof request[field] === "string") {
@@ -244,16 +272,28 @@ function planCriteria({ pkg, record, sliceId, changes, labels }) {
   };
   const criteria = cloneJson(unit.acceptance.criteria);
   const appended = [];
+  const submitted = new Map();
   rows.forEach((row, index) => {
-    if (row.id === undefined) { appended.push({ key: row.key, at: criteria.push(row.text) - 1 }); return; }
+    if (row.id === undefined) { const at = criteria.push(row.text) - 1; appended.push({ key: row.key, at }); submitted.set(at, index); return; }
     const at = position(row.id, `changes.criteria[${index}].target`);
     criteria[at] = typeof criteria[at] === "string" ? row.text : { ...criteria[at], text: row.text };
+    submitted.set(at, index);
   });
   const dropped = new Set(removed.map((identity, index) => position(identity, `changes.remove.criteria[${index}]`)));
   const kept = criteria.map((entry, at) => ({ entry, at })).filter(({ at }) => !dropped.has(at));
   const plan = applied(applyWorkRecordContractEdit(record, { operation: "edit_work_record", sliceId,
     edit: { kind: "list", field: "acceptance.criteria", action: "replace", value: kept.map(({ entry }) => entry) } }),
-  rows.length > 0 ? "changes.criteria" : "changes.remove.criteria");
+  rows.length > 0 ? "changes.criteria" : "changes.remove.criteria", entry => {
+    const match = /^edit\.value\[([0-9]+)\](.*)$/u.exec(entry.path ?? '');
+    if (!match) return null;
+    const original = kept[Number(match[1])]?.at, index = submitted.get(original);
+    if (index !== undefined) return { path: `changes.criteria[${index}].text` };
+    const criterion = criteria[original];
+    const selection = { kind: 'criterion', match: typeof criterion === 'string' ? { text: criterion }
+      : criterion?.typed_identity ? { typed_identity: criterion.typed_identity } : { text: criterion?.text } };
+    return { path: rows.length ? 'changes.criteria' : 'changes.remove.criteria',
+      subject: selection, attribution: 'retained_saved_criterion', constraint: { rule: entry.message } };
+  });
   const after = acceptanceCriterionInventory(pkg, selectUnit(plan.updatedRecord, sliceId));
   for (const { key, at } of appended) labels.bind(key, after[kept.findIndex((entry) => entry.at === at)].identity);
 
@@ -296,8 +336,9 @@ function planTasks({ record, sliceId, changes, now }) {
   (changes.tasks ?? []).forEach((edit, index) => {
     const path = `changes.tasks[${index}]`;
     const planned = planWorkRecordTaskEdit(current, unit, edit);
-    if (planned.kind === "refusal") refuse(planned.code, `${path}.${planned.fieldPath}`, planned.message);
-    if (planned.kind === "selector_issue") refuse(planned.issue.code, path, planned.issue.message);
+    if (planned.kind === "refusal") refuse(planned.code, planned.fieldPath === 'tasks' ? path : `${path}.${planned.fieldPath}`, planned.message);
+    if (planned.kind === "selector_issue") refuse(planned.issue.code,
+      ['text', 'index'].includes(planned.issue.path) ? `${path}.${planned.issue.path}` : path, planned.issue.message);
     if (planned.kind === "no_op") return;
     current = applied(finalizeEdit({ ...planned.updatedRecord, updated: now() }, [planned.changedField]), path)
       .updatedRecord;
@@ -349,7 +390,7 @@ function planDispositions({ record, sliceId, changes, labels }) {
   return { record: planned.record, changed: planned.changedFields };
 }
 
-async function semanticInput({ pkg, captured, record, changes, labels, selected, moved }) {
+async function semanticInput({ pkg, captured, record, changes, labels, selected, moved, requirementAuthoring }) {
   const retire = selected.retireClaimIds;
   const removeRows = selected.removeRowIds;
 
@@ -357,7 +398,7 @@ async function semanticInput({ pkg, captured, record, changes, labels, selected,
   let batch = null;
   if (changes.requirements !== undefined || retire.length > 0 || removeRows.length > 0) {
     try {
-      batch = prepareProofAuthoringRequirementBatch({ pkg, initial: { ...captured, record }, batch: selected.batch ?? {},
+      batch = requireRequirementAuthoringOperation(requirementAuthoring, "prepareBatch")({ pkg, initial: { ...captured, record }, batch: selected.batch ?? {},
         removeRowIds: removeRows ?? [], retireClaimIds: retire ?? [], sourceText: record.sections?.user_requirements ?? null,
         selectionContext: selected.selectionContext });
     } catch (error) {
@@ -373,7 +414,7 @@ async function semanticInput({ pkg, captured, record, changes, labels, selected,
     for (const row of batch.collections) labels.bind(row.key, row.collection_row_id);
   }
   const localClaims = await resolveRecordAuthoringLocalClaims({ pkg, captured, record, unit: selectUnit(record, captured.selectedUnit),
-    changes, batch, selections: selected });
+    changes, batch, selections: selected, requirementAuthoring });
 
   const claimsOf = (entry, path) => {
     if (entry?.kind === 'claim' && typeof entry.requirement === 'string') {
@@ -479,7 +520,7 @@ function exceptionReceipt({ exception, captured, candidate }) {
 }
 
 async function prepareWorkItemChange({ capturedSource: captured, changes, owners, exception = null }) {
-  const { pkg, now, repository = null, resolveExternalReference = null } = owners;
+  const { pkg, now, repository = null, resolveExternalReference = null, requirementAuthoring } = owners;
   const sliceId = captured.selectedUnit;
   const labels = labelNamespace();
   declareLabels(changes, labels);
@@ -515,7 +556,7 @@ async function prepareWorkItemChange({ capturedSource: captured, changes, owners
     seen.add(id);
   });
 
-  const semantic = exception === null ? await semanticInput({ pkg, captured, record, changes, labels, selected, moved })
+  const semantic = exception === null ? await semanticInput({ pkg, captured, record, changes, labels, selected, moved, requirementAuthoring })
     : { batch: null, input: { exception } };
   const steps = [...removals.map((removal) => ({ remove: true,
     input: { obligationId: removal.id, removalScope: removal.scope } })),
@@ -524,8 +565,9 @@ async function prepareWorkItemChange({ capturedSource: captured, changes, owners
   let preparation;
   const prepared = [];
   for (const step of steps) {
-    preparation = await prepareProofAuthoringMutation({ pkg, ...step, now, initial: stepInitial,
-      authoringContext: { captured, changes, rows: semantic.batch?.rows ?? [], selections: selected } });
+    preparation = await prepareProofAuthoringMutation({ pkg, ...step, now, requirementAuthoring, initial: stepInitial,
+      authoringContext: { captured, changes, rows: semantic.batch?.rows ?? [], selections: selected,
+        submittedObligations: (semantic.input.obligations ?? []).map((row, index) => ({ index, obligation_id: row.obligation_id })) } });
     prepared.push(preparation);
     stepInitial = { ...prospectiveProofAuthoringSource(stepInitial, preparation.candidate),
 

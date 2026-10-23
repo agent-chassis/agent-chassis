@@ -28,12 +28,16 @@ import {
 } from "./work-record-schema-derived-evidence.mjs";
 import {
   analyzeWorkRecordFindingsUnit,
-  isTerminalWorkUnitStatus
+  isTerminalWorkUnitStatus,
+  WORK_RECORD_FINDINGS_ACCEPTED_REVIEW_PURPOSES
 } from "./work-record-findings-semantics.mjs";
 import {
   WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES,
   WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES,
   WORK_UNIT_FEATURE_VECTOR_GRANULARITY_VALUES,
+  WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES,
+  WORK_UNIT_FACET_PROVENANCE_VALUES,
+  WORK_RECORD_REVIEW_PURPOSE_VALUES,
   WORK_RECORD_AGENT_ROLE_VALUES,
   WORK_RECORD_TARGET_UNIT_VALUES,
   WORK_RECORD_WORK_KIND_VALUES,
@@ -66,8 +70,10 @@ import { validateWorkRecordMaterialRefs } from "./work-record-entry-material.mjs
 import {
   UNSUPPORTED_REPOSITORY_SCOPE_SELECTOR,
   parseRepositoryScopeFileSelector,
-  repositoryScopeSelectorRefusalMessage
+  repositoryScopeSelectorRefusalMessage,
+  REPOSITORY_SCOPE_FILE_SCHEMA
 } from "./work-record-repository-path.mjs";
+import { WORK_RECORD_FINDINGS_TECHNICAL_ROLE_BY_WORK_KIND } from './work-record-findings-semantics.mjs';
 
 export const WORK_RECORD_SLICE_REGRESSION_TESTS_FIELD = "regression_tests";
 
@@ -281,6 +287,7 @@ function validateExpectedEditTargets(diagnostics, value, path) {
 
 const nonBlankString = () => ({ type: "string", pattern: "\\S" });
 const normalizedVocabulary = (values) => ({ ...nonBlankString(),
+  pattern: `^\\s*(?:${values.map(value => value.split('').map(letter => /[a-z]/u.test(letter) ? `[${letter}${letter.toUpperCase()}]` : letter).join('')).join('|')})\\s*$`,
   description: `One of, ignoring case and surrounding whitespace: ${values.join(", ")}` });
 const nullableVocabulary = (values) => ({ anyOf: [{ type: "string", enum: [...values] }, { type: "null" }] });
 const deepFreeze = (value) => {
@@ -299,10 +306,48 @@ export const WORK_RECORD_EXPECTED_EDIT_TARGET_SCHEMA = deepFreeze({
     activity_kind: nullableVocabulary(WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES),
     artifact_kind: nullableVocabulary(WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES),
     granularity: nullableVocabulary(WORK_UNIT_FEATURE_VECTOR_GRANULARITY_VALUES),
-    facet_provenance: { anyOf: [{ type: "object", additionalProperties: true }, { type: "null" }] },
+    facet_provenance: { anyOf: [{ type: "object", additionalProperties: nullableVocabulary(WORK_UNIT_FACET_PROVENANCE_VALUES) }, { type: "null" }] },
     optional: { type: "boolean" }
   }
 });
+
+export function workRecordOrdinarySliceProperties({ validation }) {
+  const provenance = { anyOf: [{ type: 'object', additionalProperties: nullableVocabulary(WORK_UNIT_FACET_PROVENANCE_VALUES) }, { type: 'null' }] };
+  const criteria = { type: 'array', items: { anyOf: [{ type: 'string' }, { type: 'object', additionalProperties: true,
+    required: ['text'], properties: { text: nonBlankString(), verification_method: nullableVocabulary(WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES),
+      evidence_target: { type: ['string', 'null'] }, facet_provenance: provenance } }] } };
+  const prose = { type: 'string' };
+  return {
+    title: prose, work_kind: { enum: WORK_RECORD_WORK_KIND_VALUES.filter(value => value !== 'tracker') },
+    priority: prose, owner: prose, review_purpose: { enum: [...WORK_RECORD_REVIEW_PURPOSE_VALUES] },
+    depends_on: { type: 'array', items: prose },
+    ...Object.fromEntries(['read_scope', 'repo_paths', 'write_scope'].map(field => [field, { type: 'array', items: REPOSITORY_SCOPE_FILE_SCHEMA }])),
+    dispatch_intent: { type: 'object', additionalProperties: true,
+      required: ['intended_agent_role', 'target_unit', 'requires_graph_impact', 'requires_escalation'], properties: {
+        intended_agent_role: { anyOf: [{ enum: [...WORK_RECORD_AGENT_ROLE_VALUES] }, { type: 'null' }] },
+        target_unit: { const: 'slice' }, requires_graph_impact: { type: 'boolean' }, requires_escalation: { type: 'boolean' } } },
+    acceptance: { type: 'object', additionalProperties: true, required: ['criteria', 'validation'], properties: { criteria, validation } },
+    sections: { type: 'object', additionalProperties: true, properties: {
+      summary: prose, why_it_matters: prose,
+      agent_notes: { ...prose, max_utf8_bytes: 8192, description: 'At most 8192 UTF-8 bytes; characters may occupy multiple bytes.' },
+      structured_validation: { not: {}, description: 'structured_validation is not accepted. Author acceptance.validation as notes or repository_tests; executable proof bindings belong to obligation cases.' },
+      user_requirements: { not: {}, description: 'user_requirements belongs only to the root work record through changes.user_requirements. Choose the intended unit and preserve the slice contract separately.' },
+      dispositions: { not: {}, description: 'Author review judgments through typed changes.dispositions on the selected unit; their captured sources must remain authenticated.' } } },
+    expected_edit_targets: { type: 'array', items: WORK_RECORD_EXPECTED_EDIT_TARGET_SCHEMA },
+    expected_changed_line_budget: { type: ['integer', 'null'], minimum: 0 },
+    regression_tests: { type: 'array', uniqueItems: true, items: REPOSITORY_SCOPE_FILE_SCHEMA }
+  };
+}
+
+export const workRecordSliceFindingsRoleConstraints = ({ flat = false } = {}) => [...Object.entries(WORK_RECORD_FINDINGS_TECHNICAL_ROLE_BY_WORK_KIND)
+  .map(([work_kind, role]) => ({ if: { required: ['work_kind'], properties: { work_kind: { const: work_kind } } },
+    then: { description: `${work_kind} work requires ${flat ? 'agent_role' : 'dispatch_intent.intended_agent_role'} ${role}; null leaves role derivation to its owner.`,
+      properties: flat ? { agent_role: { anyOf: [{ const: role }, { type: 'null' }] } }
+        : { dispatch_intent: { properties: { intended_agent_role: { anyOf: [{ const: role }, { type: 'null' }] } } },
+          review_purpose: { enum: [...WORK_RECORD_FINDINGS_ACCEPTED_REVIEW_PURPOSES[work_kind]] } } } })),
+  ...(flat ? [] : [{ if: { required: ['work_kind'], properties: { work_kind: { not: { enum: Object.keys(WORK_RECORD_FINDINGS_TECHNICAL_ROLE_BY_WORK_KIND) } } } },
+    then: { properties: { review_purpose: { not: {}, description: 'review_purpose applies only to review or redteam work; redteam accepts standalone only.' } } } }])];
+export const WORK_RECORD_SLICE_FINDINGS_ROLE_CONSTRAINTS = Object.freeze(workRecordSliceFindingsRoleConstraints());
 
 function validateAcceptance(diagnostics, acceptance, path = "acceptance") {
   if (!isObject(acceptance)) {

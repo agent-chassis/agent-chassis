@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { composePaidCapabilities } from './lib/paid-composition.mjs';
 import { resolveControlledAcceptancePublication } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-publication-config.mjs";
 import { createExceptionPublication } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-publication-config.mjs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -66,6 +67,8 @@ async function registerTools(server, {
   const boundPackageDocsCarrier = await bindPackageDocsCarrier(packageDocsCarrier);
 
   const registeredTier = resolveRegisteredTier(process.env);
+  const paidCapabilities = await composePaidCapabilities(registeredTier === "paid_cce" ? "paid" : "free");
+  const requirementAuthoring = paidCapabilities?.requirementAuthoring;
   const exceptionPublication = createExceptionPublication(resolveControlledAcceptancePublication(process.env));
   const mcpToolTierRegistrationPolicy = await loadMcpToolTierRegistrationPolicy();
   const registeredToolNames = new Set();
@@ -98,13 +101,14 @@ async function registerTools(server, {
 
   registerAgentTaskTools({ registerTool, workspaceRepos, resolveWorkspaceRepo,
     jsonContent, errorContent, sessionRole: toolProfile, sessionEnv: process.env,
-    responseEnv: process.env, registeredTier, exceptionPublication, dispatchBackend, dispatchSessionIdentity,
+    responseEnv: process.env, registeredTier, requirementAuthoring, exceptionPublication, dispatchBackend, dispatchSessionIdentity,
     wkForgeHandoffAdapter, wkLandingStatusAdapter, launcherNoCceAuthorityCapability,
     registeredToolNames, packageDocsCarrier, docsCarrier: boundPackageDocsCarrier,
     verifyProofDeps: proofExecutionTestCompositionDeps(proofExecutionTestComposition), assignmentChangeTermination });
   registerRunTestTool({ registerTool, z, jsonContent, errorContent, workspaceRepos,
     resolveWorkspaceRepo, env: process.env, responseEnv: process.env });
-  registerCodeIndexTools({ registerTool, workspaceRepos, jsonContent, errorContent });
+  registerCodeIndexTools({ registerTool, workspaceRepos, jsonContent, errorContent,
+    codeIntelligence: paidCapabilities === null ? null : paidCapabilities.codeIntelligence });
 
   registerWikiCoreTools({ registerTool, workspaceRepos, z, emptySchema,
     extensionNamespacesSchema, jsonContent, errorContent, resolveWorkspaceRepo,
@@ -202,6 +206,12 @@ export async function startWikiMcpServer({
     proofExecutionTestComposition,
     metricsWriter,
     assignmentChangeTermination: createLauncherAssignmentChangeTermination({ fd: launcherReadyFd, writer: launcherEventWriter })
+  }).catch(error => {
+
+    if (!isDirectModuleEntry(import.meta.url) && error?.envelope) {
+      structuredLog({ level: 'error', message: error.message, diagnostic: error.envelope });
+    }
+    throw error;
   });
   registerStaticResources(server, { readContractFile, jsonContent, errorContent });
 
@@ -249,7 +259,8 @@ if (isDirectModuleEntry(import.meta.url)) {
   startWikiMcpServer({ launcherNoCceAuthorityCapability }).catch((error) => {
     structuredLog({
       level: "error",
-      message: error instanceof Error ? error.message : String(error)
+      message: error instanceof Error ? error.message : String(error),
+      ...(error?.envelope ? { diagnostic: error.envelope } : {})
     });
     process.exitCode = 1;
   });

@@ -18,6 +18,7 @@ import { createExecutionRoot, executeConfinedInvocation } from "./confined-invoc
 import { resolveInstalledRunnerIntegration } from "./runner-integrations.mjs";
 import { RunnerIntegrationPreconditionError } from "./runner-integrations/common.mjs";
 import { configuredExecutableFailure } from "./runtime-inputs.mjs";
+import { nativeTextFailureReport } from './native-text-failure-report.mjs';
 
 export const ORDINARY_TEST_RUN_SCHEMA_VERSION = "ordinary-test-file-run.v1";
 export const ORDINARY_TEST_RUN_CODES = Object.freeze({
@@ -302,6 +303,7 @@ function firstErrorLine(text, results) {
 
 const failedResult = (line) => !PASSING_LINE.test(line) && FAILED_RESULT_LINE.test(line) &&
   !/^\s*FAIL(?:ED)?\s*$/u.test(line) && !/:\s*$/u.test(line) &&
+  !/^\s*(?:FAIL|FAILED)\s*\|/u.test(line) &&
   !/^\s*[✘✗✖✕]\s+\d+\s+problems?\b/u.test(line);
 const WORD_CHARACTER = /[\p{L}\p{N}_]/u;
 
@@ -316,6 +318,10 @@ const COLLECTION_END = /^(?:=+\s+.+\s+=+\s*$|!+ Interrupted:)/u;
 const AGGREGATE_RESULT = /^(?:FAIL\s+.+\s+\[build failed\]\s*$|test result: FAILED\.)/u;
 
 function failedResultLines(text) {
+  const report = nativeTextFailureReport(text);
+  if (report !== null) return report.failures.map(row => ({ start: row.start, nextStart: row.start,
+    end: row.end, line: row.name, listed: false, substantive: true,
+    ...(row.context === undefined ? {} : { context: row.context }) }));
   const seen = new Set();
   const lines = [];
   const diagnostics = [];

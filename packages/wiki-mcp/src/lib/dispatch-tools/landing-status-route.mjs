@@ -29,7 +29,8 @@ import { checkLandingAction, projectCheckLandingAnswer } from "./check-landing-r
 export const CHECK_LANDING_TOOL_NAME = "workspace_check_landing";
 export const CHECK_LANDING_INPUT_SCHEMA = z.object({
   subject: z.string().regex(/^WK-[0-9]{4}$/u),
-  selection: createWkPublicationSelectionSchema(z).optional()
+  selection: createWkPublicationSelectionSchema(z).optional(),
+  detail: z.object({ member: z.literal("landing_action") }).strict().optional()
 }).strict();
 
 export const CHECK_LANDING_ORIGINAL_INPUT_SCHEMA = z.object({ subject: CHECK_LANDING_INPUT_SCHEMA.shape.subject,
@@ -85,6 +86,7 @@ function checkLandingRefusal(request, { code = DISPATCH_BLOCKER_CODES.VALIDATION
       recovery: { ...recovery, intended_request: recovery.intended_request ?? buildCheckLandingRequest(request) } }) }),
     subject: { repo: workspace?.repo ?? null, unit: request.subject }, authority_identity: authority,
     request_mode: request.selection === undefined ? "current" : "explicit",
+    ...(request.detail === undefined ? {} : { request_detail: request.detail }),
     ...(request.selection === undefined ? {} : { selection: request.selection, selection_authenticated: false }),
     effects: { object_cache_fetch: "not_attempted" } };
 }
@@ -100,11 +102,15 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
   function project(body, { source = null, detail = false } = {}) {
     const action = checkLandingAction(body);
     const later = !detail && body.state === "awaiting_human_landing" && body.selection_authenticated === true
-      ? buildCheckLandingRequest({ subject: body.subject.unit, selection: body.selection }, { requestSchemaAuthority })
+      ? buildCheckLandingRequest({ subject: body.subject.unit, selection: body.selection,
+        ...(body.request_detail === undefined ? {} : { detail: body.request_detail }) }, { requestSchemaAuthority })
       : null;
-    return projectCheckLandingAnswer(body, { action, detail,
-      later: later?.callable === false ? null : later,
-      detailCall: !detail && action !== null && source !== null && ownerCall !== null ? ownerCall(source) : null });
+    const options = { action, detail, later: later?.callable === false ? null : later };
+    const includeAction = detail || body.request_detail?.member === "landing_action";
+    const complete = projectCheckLandingAnswer(body, { ...options, includeAction });
+    if (detail || source === null || ownerCall === null || action === null ||
+        (includeAction && measureMcpInlineResultBytes(complete) <= activeMcpInlineByteLimit(responseEnv))) return complete;
+    return projectCheckLandingAnswer(body, { ...options, includeAction: false, detailCall: ownerCall(source) });
   }
 
   const present = (source, binding, detail = false) => readSelectedResponseProjection(source,
@@ -168,6 +174,7 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
           body = { schema_version: "workspace-check-landing.v1", accepted: true,
             subject: { repo: workspace.repo, unit: request.subject }, authority_identity: binding.authority_identity,
             request_mode: request.selection === undefined ? "current" : "explicit",
+            ...(request.detail === undefined ? {} : { request_detail: request.detail }),
             selection: landing.selection ?? request.selection ?? null, selection_authenticated: landing.selection_authenticated === true,
             state: landing.state, transport: landing.transport, landing_authority: landing.landing_authority,
             handoff: landing.handoff ?? null,
@@ -177,6 +184,7 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
             observed_facts: { "landing.observation_available": landing.state !== "unavailable" },
             ...(landing.state === "unavailable" || landing.state === "contradictory"
               ? { recovery: checkLandingRecovery(landing.cause, { subject: request.subject,
+                ...(request.detail === undefined ? {} : { detail: request.detail }),
                 ...(landing.selection == null ? request.selection === undefined ? {} : { selection: request.selection }
                   : { selection: landing.selection }) }, requestSchemaAuthority) } : {}),
             next_calls: [] };
@@ -194,7 +202,7 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
     const complete = () => ({ source: null, originalRequest: null,
       result: jsonContent(project(body), { env: responseEnv }) });
 
-    if ((checkLandingAction(body) === null || ownerCall === null) &&
+    if ((body.request_detail?.member === "landing_action" || checkLandingAction(body) === null || ownerCall === null) &&
         measureMcpInlineResultBytes(project(body)) <= activeMcpInlineByteLimit(responseEnv)) return complete();
     let source;
     try {
@@ -221,7 +229,7 @@ export function createCheckLandingTask({ workspace, wkLandingStatusAdapter, env 
   }
 
   const handler = async (input) => (await respond(input)).result;
-  const config = Object.freeze({ description: "Observe the session WK's current or exactly selected publication landing. Landed answers finish; pending answers offer human-action detail and an optional later exact observation. Never publishes, repairs, merges or closes work. Orchestrator/operator only.",
+  const config = Object.freeze({ description: "Observe the session WK's current or exactly selected publication landing. Status-only by default; detail:{member:'landing_action'} requests human instructions, delivered directly when they fit. Landed answers finish; later exact observation is optional. Never publishes, repairs, merges or closes work. Orchestrator/operator only.",
     inputSchema: CHECK_LANDING_INPUT_SCHEMA });
   return Object.freeze({ name: CHECK_LANDING_TOOL_NAME, config, inputSchema: CHECK_LANDING_INPUT_SCHEMA,
     respond, handler, call: guardToolHandler(handler, { name: CHECK_LANDING_TOOL_NAME, env: responseEnv }),
@@ -235,7 +243,7 @@ export async function projectCheckLandingInputFailure({ args, validationError, r
     validationError });
   if (!validationError.issues.some((issue) => issue.path.length === 2 &&
       issue.path[0] === "selection" && issue.path[1] === "version")) return failure;
-  const current = { subject: args?.subject };
+  const current = { subject: args?.subject, ...(args?.detail === undefined ? {} : { detail: args.detail }) };
   const call = failure.next_calls.length === 0 && isCanonicalNextCallTool(CHECK_LANDING_TOOL_NAME) &&
     registeredTools?.has(CHECK_LANDING_TOOL_NAME) === true && await requestContract.acceptsArguments(current)
     ? buildNextCall({ tool: CHECK_LANDING_TOOL_NAME, arguments: current }) : null;

@@ -64,24 +64,33 @@ test("native stream-json captures one exact conversation and terminal result", (
   }
 });
 
-test("native timeout, denied-action facts and failed required tool cannot become success at exit zero", () => {
+test("native timeout and denied-action facts cannot become success at exit zero", () => {
   for (const response of ["", "plausible partial answer"]) {
     assert.equal(decode({ response }, { stderr: "[agy] print timeout after 1m30s with turn in progress; returning partial output" }).reason,
       "agy_print_timeout");
   }
   assert.equal(decode({ denied_actions: [{ action: "read_file" }] }).reason, "agy_permission_denied");
-  assert.equal(decodeAgyFinalResult({ stdout: stream([{ event: "step_update", step_update: {
-    conversation_id: envelope.conversation_id, state: "ERROR", step_type: "tool" } }]) }).reason, "agy_native_tool_error");
 });
 
-test("a corrected native MCP invocation recovers its operation error without hiding other failures", () => {
-  const step = (state, tool, parameters) => ({ event: "step_update", step_update: {
-    conversation_id: envelope.conversation_id, state, step_type: "tool", tool_name: "call_mcp_tool",
-    tool_info: { parameters: { ServerName: "wiki", ToolName: tool, Arguments: parameters } } } });
-  assert.equal(decodeAgyFinalResult({ stdout: stream([
-    step("ERROR", "workspace_read_wiki", { wrong: true }), step("DONE", "workspace_read_wiki", { assignment: true })
-  ]) }).ok, true);
-  assert.equal(decodeAgyFinalResult({ stdout: stream([
-    step("ERROR", "workspace_read_wiki", { wrong: true }), step("DONE", "workspace_deliver_work", {})
-  ]) }).reason, "agy_native_tool_error");
-});
+const tool = (name, state, parameters, message = "invalid arguments") => ({ event: "step_update", step_update: {
+  conversation_id: envelope.conversation_id, state, step_type: "tool", tool_name: name,
+  tool_info: { name, parameters, ...(state === "ERROR" ? { error: { type: "TOOL_ERROR", message } } : {}) } } });
+
+for (const [name, events] of Object.entries({
+  "missing file without retry": [tool("view_file", "ERROR", { path: "/missing" }, "file does not exist")],
+  "changed arguments": [tool("view_file", "ERROR", { path: "/file", start: 999 }),
+    tool("view_file", "DONE", { path: "/other-file", start: 1 })],
+  "different operation": [tool("call_mcp_tool", "ERROR", { ServerName: "wiki", ToolName: "read" }),
+    tool("run_command", "DONE", { command: "pwd" })],
+  "multiple errors ending with a failed command": [tool("view_file", "ERROR", { path: "/missing" }),
+    tool("call_mcp_tool", "ERROR", { wrong: true }), tool("run_command", "ERROR", { command: "false" })],
+  "tool failure without operation metadata": [{ event: "step_update", step_update: {
+    conversation_id: envelope.conversation_id, state: "ERROR", step_type: "tool" } }]
+})) {
+  test(`native completion accepts ${name}`, () => {
+    const decoded = decodeAgyFinalResult({ stdout: stream(events) });
+    assert.equal(decoded.ok, true);
+    assert.equal(decoded.text, envelope.response);
+    assert.equal(decoded.nativeSessionId, envelope.conversation_id);
+  });
+}

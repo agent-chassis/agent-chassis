@@ -100,6 +100,7 @@ export function createAdvisoryProcessRunner({
       workspace_alias: input.workspace_alias,
       caller_session_id: input.caller_session_id,
       startedAt,
+      clock,
       advisoryReviewInput: boundReviewInput,
       sessionContract,
       cleanup: input.cleanup ?? null

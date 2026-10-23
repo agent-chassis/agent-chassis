@@ -85,12 +85,12 @@ export async function classifySidecarPreparation({
     throw new TypeError("classifying a publication requires the provider input comparison");
   }
   text(requestedInputIdentity, "requestedInputIdentity");
+  if (typeof generatorIdentity === "function" && publication.generator_identity !== await generatorIdentity()) {
+    return decision("clean", "generator_identity_mismatch");
+  }
   const changed = publication.base_coverage?.checkout_identity !== requestedInputIdentity;
   if (!changed && isSidecarProviderCoverageSettled(publication.provider_coverage) && !await providerInputsChanged()) {
     return decision("reuse", "checkout_inputs_match");
-  }
-  if (typeof generatorIdentity === "function" && publication.generator_identity !== await generatorIdentity()) {
-    return decision("clean", "generator_identity_mismatch");
   }
   const comparison = compare ? await compare() : null;
   return decision("incremental", changed ? "checkout_inputs_changed"

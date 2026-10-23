@@ -6,7 +6,7 @@ export const PROOF_REFRESH_CORRECTION = 'Nothing was saved. Read the affected un
   'Refresh cannot change authored inputs or selected versions. Cross-unit authored correction is unavailable through this request; ' +
   'the responsible owners are proof-authoring/save_record. Do not repeat per-unit saves against stale siblings.';
 
-export async function prepareProofAuthoringRefresh({ pkg, initial, now, prepare }) {
+export async function prepareProofAuthoringRefresh({ pkg, initial, now, prepare, requirementAuthoring }) {
   if (initial.selectedUnit !== null) throw new ControlledContractToolError('obligation_coverage_request_invalid',
     'Whole-WK proof refresh requires the root WK source', { changed: false, limb: 'mechanical_failure', phase: 'request' });
   const captures = new Map(), members = [], failures = [];
@@ -25,7 +25,7 @@ export async function prepareProofAuthoringRefresh({ pkg, initial, now, prepare 
   let preparation;
   const retired = failures.find(failure => failure.code === 'proof_pack_exact_version_not_current');
   try {
-    preparation = await prepare({ pkg, initial: { ...staged, rows: staged.source?.content.obligations ?? [] },
+    preparation = await prepare({ pkg, requirementAuthoring, initial: { ...staged, rows: staged.source?.content.obligations ?? [] },
       input: {}, now });
   } catch (error) {
     if (error?.details?.changed !== false) throw error;

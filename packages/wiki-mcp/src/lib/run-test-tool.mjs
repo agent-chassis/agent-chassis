@@ -11,17 +11,18 @@ import { ordinaryRequestCorrection } from
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
 import { withAuthenticatedTestExecution } from "../../../agent-launch-cli/src/lib/test-execution/authenticated-execution-context.mjs";
 import { resolveWorkerRepositoryCommand, checkRepositoryCommandDefinitions } from './managed-test-command-context.mjs';
-import { projectAssignmentChangeRecovery } from './verify-proof-source-repair-recovery.mjs';
+import { MANAGED_ASSIGNMENT_READ_REFUSAL_CODES } from '../../../agent-launch-cli/src/lib/managed-assignment-read-artifact.mjs';
+import { projectAssignmentChangeRecoveryForCaller } from './verify-proof-source-repair-recovery.mjs';
 import { buildNextCall } from '@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs';
 import { registeredToolRequestContracts } from './registered-tool-request-contracts.mjs';
 import { fitsRunTestResponse } from './run-test-format.mjs';
-import { MANAGED_TEST_SOURCE_CODES, authenticateManagedWorkerSliceBinding, managedTestAuthorityIdentity, observeRuntimeAfterRun,
+import { MANAGED_TEST_SOURCE_CODES, managedTestAuthorityIdentity, observeRuntimeAfterRun,
   resolveManagedTestSource } from "./managed-test-source-context.mjs";
-import { MCP_WRITE_SEMANTICS } from "./register-tool.mjs";
+import { MCP_WRITE_SEMANTICS, projectToolInputValidationFailure } from "./register-tool.mjs";
 import { RUN_TEST_INPUT_CODES, RUN_TEST_TOOL_NAME, applyRunTestRetry, parseRunTestRequest,
-  runTestInputRefusal, runTestInputSchema, runTestReadCorrection, runTestRequestSeed } from "./run-test-input.mjs";
+  runTestInputSchema, runTestReadCorrection, runTestRequestSeed, runTestUnavailableInputs } from "./run-test-input.mjs";
 import { RUN_TEST_RETAINED_KINDS, presentRunTestAnswer, presentRunTestDetailRefusal, presentRunTestFailure,
-  presentRunTestRead, presentRunTestRefusal, runTestCarrier, runTestExpectedBinding, runTestReadCall,
+  presentRunTestRead, presentRunTestRefusal, presentRunTestInputFailure, runTestCarrier, runTestExpectedBinding, runTestReadCall,
   runTestRefusalClipped, runTestRetentionFailure, runTestRetryCall, runTestViewSelection, runTestEnvironmentSelection } from
   "./run-test-result.mjs";
 import { readSelectedResponseSource, retainSelectedResponseSource, selectedResponseRequestSchema } from
@@ -62,6 +63,11 @@ function refusal(payload) {
   return Object.assign(new Error(payload.message ?? payload.code), { code: payload.code, envelope: payload });
 }
 
+function environmentRecoveryEvidence({ command, selection, caller }) {
+  return [{ description: `${command.entrypoint}/${command.selection}: ${selection.reason}`,
+    references: [caller.state.assignedUnit] }];
+}
+
 export async function runOrdinaryTestAndObserve({ runRequest, expansion = [], request, runFile = runOrdinaryTest,
   observeRuntime = observeRuntimeAfterRun }) {
   const result = await runFile(runRequest, ...expansion);
@@ -77,13 +83,19 @@ export async function runOrdinaryTestAndObserve({ runRequest, expansion = [], re
 }
 
 export function createRunTestResultReader({ z, inputSchema = runTestInputSchema(z), jsonContent,
-  errorContent, responseEnv = process.env, refreshEnvironmentRecovery = null, completeReadCall = null }) {
+  errorContent, responseEnv = process.env, refreshEnvironmentRecovery = null,
+  refreshAssignmentChangeRecovery = null, sessionEnv = process.env, requestContracts = null, completeReadCall = null }) {
 
   const modeRequestSchema = (mode) => selectedResponseRequestSchema(inputSchema.innerType()
     .pick({ [mode]: true }));
   const refuse = (payload) => errorContent(refusal(payload));
   const expected = (kind, { workspace, state }) => runTestExpectedBinding({ kind, repository: workspace.repo,
     authorityIdentity: managedTestAuthorityIdentity(state) });
+  const refreshAssignment = refreshAssignmentChangeRecovery ?? (({ evidence, caller }) =>
+    projectAssignmentChangeRecoveryForCaller({ workspace: caller.workspace, state: caller.state,
+      sessionEnv, requestContracts, evidence }));
+  const refreshEnvironment = refreshEnvironmentRecovery ?? (context => refreshAssignment({ caller: context.caller,
+    evidence: environmentRecoveryEvidence(context) }));
 
   const read = async ({ result, view, failure = null }, caller, { completeSemantic = false } = {}) => {
     try {
@@ -91,13 +103,14 @@ export function createRunTestResultReader({ z, inputSchema = runTestInputSchema(
         expected: expected(RUN_TEST_RETAINED_KINDS.NATIVE_RESULT, caller) });
       const command = envelope.carrier.failure?.assigned_command;
       const selection = envelope.carrier.failure?.environment_selection;
+      const priorRecovery = envelope.carrier.failure?.recovery == null ? null : JSON.parse(envelope.carrier.failure.recovery);
 
       const environmentRecovery = view === "failure" && command !== undefined && selection !== undefined
-        ? refreshEnvironmentRecovery === null
-          ? { call: null, recovery: { missing_capability: "authenticated_assignment_change_recovery" } }
-          : await refreshEnvironmentRecovery({ command, selection, caller }) : null;
+        ? await refreshEnvironment({ command, selection, caller }) : null;
+      const assignmentChangeRecovery = view === 'failure' && priorRecovery?.assignment_change !== undefined
+        ? await refreshAssignment({ evidence: priorRecovery.assignment_change.known_arguments.evidence, caller }) : null;
       return jsonContent(presentRunTestRead({ view, failure, carrier: envelope.carrier, locator: result,
-        environmentRecovery, completeSemantic, completeCall: completeSemantic || completeReadCall === null
+        environmentRecovery, assignmentChangeRecovery, completeSemantic, completeCall: completeSemantic || completeReadCall === null
           ? null : await completeReadCall(result, view, failure) }));
     } catch (error) {
       if (error?.envelope === undefined) throw error;
@@ -133,26 +146,12 @@ export function registerRunTestTool({
     const contract = requestContracts?.contractFor(call.tool);
     return contract != null && await contract.acceptsArguments(call.arguments) ? call : null;
   };
-  const refreshEnvironmentRecovery = async ({ command, selection, caller }) => {
-    try {
-      const binding = authenticateManagedWorkerSliceBinding({ mainRepo: caller.workspace.dir,
-        state: caller.state, wkId: caller.state.assignedUnit.split('#')[0] });
-      return await projectAssignmentChangeRecovery({ workspace: caller.workspace, sessionEnv: env,
-        requestContracts, state: caller.state, binding, request: {
-          assignment_fact: { kind: selection.requested_environment === null ? 'missing' : 'contradictory',
-            statement: `${command.entrypoint}/${command.selection}: environment ${selection.requested_environment ?? 'unspecified'}.` },
-          evidence: [{ description: selection.reason, references: selection.valid_choices }],
-          prevents: 'Assigned command execution.',
-          requested_change: 'Select a valid frozen environment; authorize a successor.',
-          completed_work: [], remaining_work: []
-        } });
-    } catch (error) {
-      return { call: null, recovery: { missing_capability: 'authenticated_assignment_change_recovery',
-        cause_code: error.code ?? error.name, cause: error.message } };
-    }
-  };
+  const refreshAssignmentChangeRecovery = ({ evidence, caller }) => projectAssignmentChangeRecoveryForCaller({
+    workspace: caller.workspace, state: caller.state, sessionEnv: env, requestContracts, evidence });
+  const refreshEnvironmentRecovery = context => refreshAssignmentChangeRecovery({ caller: context.caller,
+    evidence: environmentRecoveryEvidence(context) });
   const { modeRequestSchema, expected, read, retain: retainOriginal } = createRunTestResultReader({
-    z, inputSchema, jsonContent, errorContent, responseEnv, refreshEnvironmentRecovery, completeReadCall });
+    z, inputSchema, jsonContent, errorContent, responseEnv, refreshEnvironmentRecovery, refreshAssignmentChangeRecovery, completeReadCall });
   const refuse = (payload) => errorContent(refusal(payload));
   const fail = (error, stage) => refuse(presentRunTestFailure(error, { code: CODES.EXECUTION_FAILED, stage }));
 
@@ -163,6 +162,31 @@ export function registerRunTestTool({
       return { error: refuse(presentRunTestRefusal({ code: typeof error?.code === "string" ? error.code
         : CODES.SESSION_UNAVAILABLE, message: String(error?.message ?? error),
       facts: { executed: false, stage: "session_authentication" } })) };
+    }
+  };
+
+  const inputFailure = async (args, validationError) => {
+    const correction = runTestReadCorrection(args, inputSchema);
+    const projected = await projectToolInputValidationFailure({ tool: RUN_TEST_TOOL_NAME, args, validationError,
+      inputSchema, ownerGuidance: runTestUnavailableInputs(validationError, env.WIKI_MCP_TOOL_PROFILE) });
+    const diagnosis = { ...projected, code: RUN_TEST_INPUT_CODES.INVALID, executed: false,
+      ...(correction.requiredChoice === undefined ? {} : { required_choice: correction.requiredChoice }),
+      next_calls: correction.read === undefined ? [] : [runTestReadCall(correction.read.result,
+        correction.read.view, 'correct_read_shape', correction.read.failure ?? null)] };
+    if (fitsRunTestResponse(diagnosis, true)) return refuse(diagnosis);
+    const { state, error } = runState();
+    if (error !== undefined) return refuse(presentRunTestInputFailure(diagnosis, {
+      unavailable: { reason: 'authenticated_session_unavailable' } }));
+    const caller = { workspace: resolveWorkspaceRepo(workspaceRepos), state };
+    try {
+      const locator = retainOriginal(runTestCarrier({ request: { timeout: { milliseconds: null } },
+        failure: { stage: 'request_validation', code: RUN_TEST_INPUT_CODES.INVALID,
+          input_validation: diagnosis } }), caller);
+      return refuse(presentRunTestInputFailure(diagnosis, { completeCall: await completeReadCall(locator, 'failure') }));
+    } catch (error) {
+      if (error?.envelope === undefined && error?.code === undefined) throw error;
+      return refuse(presentRunTestInputFailure(diagnosis, { unavailable: runTestRetentionFailure(error,
+        { operation: 'retain_input_diagnosis', subject: 'rejected request', capability: 'complete_diagnosis' }) }));
     }
   };
 
@@ -193,33 +217,52 @@ export function registerRunTestTool({
       nextCalls: corrections(seed) }));
   };
 
-  const refuseWithCause = (error, { stage, request, source = null, caller }) => {
+  const refuseWithCause = async (error, { stage, request, source = null, caller }) => {
     const offered = Array.isArray(error?.next_calls) ? error.next_calls : [];
-    const testimony = offered.some(call => call.tool === 'request_assignment_change') ? {
-      acceptance_effect: 'Ends this worker attempt.',
-      testimony_required: 'Confirm facts and supply completed_work and remaining_work.'
-    } : error.detail?.recovery?.missing_capability === undefined ? {} : {
+    const template = error.detail?.recovery?.assignment_change;
+    const testimony = error.detail?.recovery?.assignment_change === undefined ?
+      error.detail?.recovery?.missing_capability === undefined ? {} : {
       stopping_condition: `Assignment correction is unavailable: ${error.detail.recovery.missing_capability}.`,
       ...(error.detail.recovery.cause_code === undefined ? {} : { recovery_cause_code: error.detail.recovery.cause_code })
-    };
+    } : {};
     const options = { code: stage === 'command_authorization' && typeof error?.code === 'string'
-      ? error.code : CODES.EXECUTION_FAILED, stage, nextCalls: offered, facts: testimony };
+      ? error.code : CODES.EXECUTION_FAILED, stage, nextCalls: offered,
+      detail: error.detail?.recovery?.cause === undefined ? {} : { recovery_cause: error.detail.recovery.cause },
+      facts: { ...(stage === 'command_authorization' ? { executed: false } : {}), ...testimony } };
     const bounded = presentRunTestFailure(error, options);
-    if (!runTestRefusalClipped(bounded)) return refuse(bounded);
+
+    const withTemplate = template === undefined ? bounded : { ...bounded, recovery: error.detail.recovery };
+    const templateFits = fitsRunTestResponse(withTemplate, true);
+    if (!runTestRefusalClipped(bounded) && templateFits) return refuse(withTemplate);
     let locator;
     try {
       locator = retainOriginal(runTestCarrier({ request, source, failure: { stage,
         code: bounded.code, message: String(error?.message ?? error),
         cause_code: typeof error?.code === "string" ? error.code : null,
         detail: error?.detail ?? error?.envelope ?? null,
-        ...(offered.length === 0 ? {} : { recovery: { next_calls: offered } }) } }), caller, source?.commit ?? null);
+        ...(offered.length === 0 && error.detail?.recovery === undefined ? {} : {
+          recovery: { ...error.detail?.recovery, next_calls: offered } }) } }), caller, source?.commit ?? null);
     } catch (retentionError) {
       const { retained: _retained, ...unavailable } = runTestRetentionFailure(retentionError,
         { operation: "retain_failure_cause", subject: "complete failure cause", capability: "original_read" });
-      return refuse(presentRunTestFailure(error, { ...options, facts: { ...testimony, cause_complete: false, ...unavailable } }));
+      return refuse(presentRunTestFailure(error, { ...options, facts: { ...options.facts, cause_complete: false, ...unavailable } }));
     }
+    const readCall = template !== undefined && !templateFits
+      ? await completeReadCall(locator, 'failure') ?? runTestReadCall(locator, 'failure')
+      : runTestReadCall(locator, 'failure');
+    const answer = presentRunTestFailure(error, { ...options,
+      nextCalls: [...offered, readCall] });
+    const complete = template === undefined ? answer : { ...answer, recovery: error.detail.recovery };
+    if (fitsRunTestResponse(complete, true)) return refuse(complete);
+    const assignment = error.detail?.recovery?.assignment;
+    if (assignment === undefined) return refuse(answer);
+    const withCause = { ...answer, assignment };
+    if (fitsRunTestResponse(withCause, true)) return refuse(withCause);
+
     return refuse(presentRunTestFailure(error, { ...options,
-      nextCalls: [...offered, runTestReadCall(locator, "failure")] }));
+      facts: { ...options.facts, assignment: { state: assignment.state,
+        cause: { operation: assignment.cause.operation, code: assignment.cause.code } } },
+      nextCalls: [...offered, readCall] }));
   };
 
   const execute = async ({ request, args, caller, signal, commandContext = null, budget }) => {
@@ -318,7 +361,7 @@ export function registerRunTestTool({
     const envelope = readSelectedResponseSource(request.seed, { env: responseEnv,
       expected: expected(RUN_TEST_RETAINED_KINDS.CORRECTION_SEED, caller) });
     const merged = applyRunTestRetry(envelope.carrier.request, request);
-    return inputSchema.safeParse(merged);
+    return { ...inputSchema.safeParse(merged), request: merged };
   };
 
   registerTool(RUN_TEST_TOOL_NAME, {
@@ -326,14 +369,8 @@ export function registerRunTestTool({
     description: RUN_TEST_DESCRIPTION,
     inputSchema,
 
-    inputValidationErrorProjector: ({ args, validationError }) => {
-      const correction = runTestReadCorrection(args, inputSchema);
-      return { terminal_result: refuse(presentRunTestFailure(runTestInputRefusal(validationError),
-        { code: RUN_TEST_INPUT_CODES.INVALID, stage: "request_validation",
-          facts: correction.requiredChoice === undefined ? {} : { required_choice: correction.requiredChoice },
-          nextCalls: correction.read === undefined ? [] : [runTestReadCall(correction.read.result,
-            correction.read.view, "correct_read_shape", correction.read.failure ?? null)] })) };
-    }
+    inputValidationErrorProjector: async ({ args, validationError }) => ({
+      terminal_result: await inputFailure(args, validationError) })
   }, async (received, extra = undefined) => {
     try {
       const invalid = (error) => refuse(presentRunTestFailure(error, { code: RUN_TEST_INPUT_CODES.INVALID,
@@ -342,7 +379,7 @@ export function registerRunTestTool({
       let request;
       try {
         const parsed = inputSchema.safeParse(args);
-        if (!parsed.success) return invalid(runTestInputRefusal(parsed.error));
+        if (!parsed.success) return inputFailure(args, parsed.error);
         args = parsed.data;
         request = parseRunTestRequest(args);
       } catch (error) {
@@ -367,7 +404,7 @@ export function registerRunTestTool({
           if (seedError?.envelope === undefined) throw seedError;
           return refuse(presentRunTestDetailRefusal(seedError));
         }
-        if (!parsed.success) return invalid(runTestInputRefusal(parsed.error));
+        if (!parsed.success) return inputFailure(parsed.request, parsed.error);
         args = parsed.data;
         try {
           request = parseRunTestRequest(args);
@@ -413,20 +450,11 @@ export function registerRunTestTool({
           }
           if (/^run_test\.(?:entrypoint_unavailable|definition_changed)\.v1$/u.test(error.code ?? '') ||
               ['repository_test_definition_unavailable', 'test_proof_source_snapshot_symlink_unsupported',
-                'test_proof_source_snapshot_unsupported_entry'].includes(error.code)) {
+                'test_proof_source_snapshot_unsupported_entry', MANAGED_ASSIGNMENT_READ_REFUSAL_CODES.UNAVAILABLE].includes(error.code)) {
             try {
-              const binding = authenticateManagedWorkerSliceBinding({ mainRepo: caller.workspace.dir, state,
-                wkId: state.assignedUnit.split('#')[0] });
-              const proposed = await projectAssignmentChangeRecovery({ workspace: caller.workspace, sessionEnv: env,
-                requestContracts, state, binding, request: {
-                  assignment_fact: { kind: error.code === 'run_test.definition_changed.v1' || error.code === 'test_proof_source_snapshot_symlink_unsupported'
-                    ? 'contradictory' : 'missing', statement: 'Assigned command definitions need correction.' },
-                  evidence: [{ description: error.code, references: [state.assignedUnit,
-                    ...(typeof error.detail?.path === 'string' ? [error.detail.path] : error.detail?.paths ?? [])] }],
-                  prevents: 'Assigned test execution.',
-                  requested_change: 'Correct the frozen command assignment.',
-                  completed_work: [], remaining_work: []
-                } });
+              const proposed = await refreshAssignmentChangeRecovery({ caller,
+                evidence: [{ description: error.code, references: [state.assignedUnit,
+                  ...(typeof error.detail?.path === 'string' ? [error.detail.path] : error.detail?.paths ?? [])] }] });
               error.detail = { ...error.detail, recovery: proposed.recovery };
               if (proposed.call !== null) error.next_calls.push(proposed.call);
             } catch (recoveryError) {

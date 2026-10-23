@@ -1,7 +1,7 @@
 
 
 import { z } from "zod";
-import { CODE_INDEX_QUERY_ROUTE } from "./code-index-query-tools.mjs";
+import { CODE_INDEX_QUERY_ROUTE } from "./code-index-query-contract.mjs";
 import { readSelectedResponseEvidence, selectedResponseLocatorSchema, selectedResponseQueryInvalidError } from
   "./selected-response-snapshot.mjs";
 

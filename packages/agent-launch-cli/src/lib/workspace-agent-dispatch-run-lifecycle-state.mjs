@@ -27,6 +27,9 @@ export function selectVisibleRunRecord(
   const subjectRecords = [...runs.values()].filter((record) => record.subject === subject);
   const visible = subjectRecords.filter((record) =>
     (caller_session_id === null || record.caller_session_id === caller_session_id));
+  const choices = () => visible.map((record) => ({
+    attempt_id: record.run_id, role: record.role, status: record.status, terminal: record.terminal
+  }));
   if (attempt_id !== null) {
     const selected = visible.find((record) => record.run_id === attempt_id) ?? null;
     const hiddenExact = subjectRecords.some((record) => record.run_id === attempt_id);
@@ -36,7 +39,7 @@ export function selectVisibleRunRecord(
           code: hiddenExact
             ? BACKEND_REFUSAL_CODES.MONITOR_HANDLE_CALLER_MISMATCH
             : "attempt_selector_mismatch",
-          candidates: []
+          candidates: hiddenExact ? [] : choices()
         }
       : { selected, code: null, candidates: [selected] };
   }
@@ -45,12 +48,7 @@ export function selectVisibleRunRecord(
     return {
       selected: null,
       code: "attempt_selection_ambiguous",
-      candidates: visible.map((record) => ({
-        attempt_id: record.run_id,
-        role: record.role,
-        status: record.status,
-        terminal: record.terminal
-      }))
+      candidates: choices()
     };
   }
   return {

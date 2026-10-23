@@ -67,6 +67,7 @@ export function authoringSchemaMembers(changeSchema) {
       verification: rowMembers(declared(rowProperty(requirement, 'verification'))),
       closed_membership: rowMembers(membership) },
     obligations: { ...rowMembers(obligation),
+      criteria_guidance: declared(rowProperty(obligation, 'criteria')).description,
       proof: rowMembers(declared(rowProperty(obligation, 'proof'))).members,
       case: rowMembers(declared(rowProperty(obligation, 'case'))) }
   };
@@ -252,7 +253,7 @@ function authoringPart(carrier, proof, caseGuidance) {
   const missing = ['unit', 'revision',
     `${obligation}.key (a new obligation) or .id (an existing one)`,
     `${obligation}.statement`,
-    `${obligation}.criteria: held criterion ids or $key labels of changes.criteria`,
+    `${obligation}.criteria: ${members.obligations.criteria_guidance}`,
     `${obligation}.claims: authored semantic selections or $key labels of changes.requirements.requirements`];
   missing.push(...proof.refinements.filter(parameter => parameter.source.policy === 'configurable' &&
     !optionalParameter(parameter)).map(parameter => `${obligation}.proof.parameters.${parameter.name}`));

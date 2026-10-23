@@ -64,7 +64,7 @@ export function packageDocumentPublicReader(t, temporaryRoot, {
     assert.equal(tools.some(({ name }) => name === "workspace_read_tool_doc"), false,
       "the retired read route is not registered");
     const raw = (args) => client.callTool({ name: READ_WIKI_TOOL, arguments: args });
-    const read = (reference, select = undefined) => raw({ reference, ...(select === undefined ? {} : { select }) });
+    const read = (reference, select = undefined) => raw({ reads: [{ reference, ...(select === undefined ? {} : { select }) }] });
     return Object.assign(read, { raw, workspaceResolutions: resolutions,
       inputSchema: tools.find(({ name }) => name === READ_WIKI_TOOL).inputSchema });
   };
@@ -76,20 +76,20 @@ export function packageDocumentOwnerReader({ docsCarrier, registeredTier = "free
 }
 
 export function assertPackageDocumentRefusal(result, code, label) {
-  assert.equal(result.isError, true, `${label}: the read must refuse`);
-  assert.equal(result.structuredContent.code, code, `${label}: public read-route diagnostic`);
-  assert.equal(result.structuredContent.tool, READ_WIKI_TOOL, `${label}: the refusal names the serving operation`);
-  assert.equal(result.structuredContent.schema_version, PACKAGE_DOCUMENT_REFUSAL_SCHEMA_VERSION, label);
-  assert.equal(result.structuredContent.ok, false, label);
+  const item = result.structuredContent.results[0];
+  assert.notEqual(item.status, 'ok', `${label}: the read must refuse`);
+  assert.equal(item.issue.code, code, `${label}: public read-route diagnostic`);
+  assert.equal(item.issue.tool, READ_WIKI_TOOL, `${label}: the refusal names the serving operation`);
+  assert.equal(item.issue.ok, false, label);
 }
 
 export function assertReadWikiRequestShapeRefusal(result, fieldPath, label) {
-  assert.equal(result.isError, true, `${label}: the read must refuse`);
-  const { diagnostic } = result.structuredContent;
-  assert.equal(diagnostic.code, "tool_input_validation_failed", `${label}: request-shape diagnostic`);
-  assert.equal(diagnostic.tool, READ_WIKI_TOOL, label);
-  assert.ok(diagnostic.rejected_field_paths.includes(fieldPath),
-    `${label}: the refusal names ${fieldPath}, got ${JSON.stringify(diagnostic.rejected_field_paths)}`);
-  assert.equal(Object.values(TOOL_DOC_READ_DIAGNOSTIC_CODES).includes(result.structuredContent.code), false,
-    `${label}: the request never reached the reader`);
+  const item = result.structuredContent.results[0];
+  assert.equal(item.status, 'refused', `${label}: the read must refuse`);
+  const diagnostic = item.issue;
+  assert.equal(diagnostic.code, 'workspace_read_wiki_selection_invalid', JSON.stringify(item));
+  assert.ok(diagnostic.invalid_fields.some(field => field.path.join('.') === fieldPath),
+    `${label}: the refusal names ${fieldPath}, got ${JSON.stringify(diagnostic.invalid_fields)}`);
+  assert.equal(Object.values(TOOL_DOC_READ_DIAGNOSTIC_CODES).includes(diagnostic.code), false,
+    `${label}: the request never reached the package-document owner`);
 }

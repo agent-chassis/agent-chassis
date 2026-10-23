@@ -756,6 +756,10 @@ test('WK-2667 a typed missing runtime module path names the component correction
   assert.match(prose, /preserve valid requirement\/verification links/u);
   assert.doesNotMatch(prose, association);
   assert.doesNotMatch(prose, /\/system_under_test_boundary/u, 'bounded prose repeats no typed path');
+  const requirement = occurrenceRecoveryFacts(typed(moduleMissing)).component_requirement;
+  assert.equal(requirement.field, 'obligations[].case.component');
+  assert.deepEqual(requirement.identity, { kind: 'repository_path', required: ['repository', 'path'] });
+  assert.match(requirement.reason, /profile_term.*no module source/u);
 
   const mixed = occurrenceRecoverySummary(typed([...moduleMissing,
     { instancePath: '', keyword: 'required', params: { missingProperty: 'verification_claim_id' } }]),
@@ -776,6 +780,7 @@ test('WK-2667 a typed missing runtime module path names the component correction
       : typed(diagnostics);
     assert.doesNotMatch(occurrenceRecoverySummary(diagnostic, { summary: 'fallback' }),
       /Author that component/u, name);
+    assert.equal(occurrenceRecoveryFacts(diagnostic)?.component_requirement, undefined, name);
   }
 });
 

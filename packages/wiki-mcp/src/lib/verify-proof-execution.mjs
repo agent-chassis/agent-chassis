@@ -682,7 +682,9 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
         : `${binding.wk_id}#${binding.selected_unit}`;
       const obligationIds = [...new Set(proof.relationships.map(row => row.obligation_id))];
 
-      const authoring = recovery?.condition === "not_collected" && correctionUnit !== undefined && obligationIds.length > 0
+      const authoring = recovery?.condition === "not_collected" &&
+        recovery.action === 'compare_the_intended_test_with_the_observed_collection' &&
+        correctionUnit !== undefined && obligationIds.length > 0
         ? { ...recovery,
           recovery_call: { tool: "workspace_read_wiki", arguments: { reads: obligationIds.map(id => ({
             subject: correctionUnit, select: { contract: "obligations", where: { kind: "obligation", id } },

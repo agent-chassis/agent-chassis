@@ -1106,16 +1106,22 @@ export function projectedEvidenceFailure(error, executionContext) {
     ? "receipt" : null;
   if (stage !== null) projected.execution_stage = stage;
   const missingIdentity = error.code === "test_proof_selected_identity_not_observed";
+  const knownExecutionFailure = projected.failure_diagnostic?.status === 'captured' ||
+    projected.observed_failures?.some(row => row.status === 'failed');
+  const selectableAlternatives = projected.selection_status === 'not_collected' && projected.observed_count > 0 &&
+    !knownExecutionFailure;
   const recoveryAction = missingIdentity
-    ? projected.selection_status === "not_collected"
-      ? "author_the_named_selected_test_or_correct_the_saved_selection"
+    ? knownExecutionFailure ? 'resolve_the_reported_execution_failure_before_retry'
+      : selectableAlternatives
+      ? "compare_the_intended_test_with_the_observed_collection"
       : projected.selection_status === "collected_not_observed"
         ? "report_the_launcher_selected_test_observation_defect"
         : "resolve_the_selected_test_observation_limit"
     : executionFailure ? evidenceExecutionRecovery(projected) : TEST_PROOF_EVIDENCE_FAILURES[error.code];
   const correction = (missingIdentity ? {
-    correction_owner: projected.selection_status === "not_collected" ? "proof_author" : LAUNCHER_OBSERVATION_CORRECTION_OWNER,
-    condition: projected.selection_status
+    correction_owner: knownExecutionFailure ? 'execution_source_or_runtime_owner'
+      : selectableAlternatives ? "proof_author" : LAUNCHER_OBSERVATION_CORRECTION_OWNER,
+    condition: knownExecutionFailure ? 'execution_failed_with_selected_observation_unavailable' : projected.selection_status
   } : null) ?? noRetryCorrection(recoveryAction, projected) ??
     infrastructureCorrection(executionFailure ? projected.structured_observation_code : error.code);
   return {

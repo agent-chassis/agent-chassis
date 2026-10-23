@@ -13,8 +13,9 @@ import path from "node:path";
 
 import { z } from "zod";
 import { admitResultContinuations } from "./get-run-result-callability.mjs";
+import { observedRunSourceFailure } from './get-run-result-source-failure.mjs';
 import { integrationReadOutcome } from "./get-run-result-outcome-projection.mjs";
-import { readAssignmentChange } from "./task-request-assignment-change-result.mjs";
+import { readAssignmentChange, assignmentChangeAssignmentMeaning } from "./task-request-assignment-change-result.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
@@ -136,10 +137,12 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
     if (assignmentOriginal !== null) {
       if (parsed.native !== undefined) refuse('native_selection_requires_native_original');
       if (parsed.proof !== undefined) refuse("proof_selection_requires_proof_original");
+      const unavailable = assignmentOriginal.carrier.assignment?.state === 'unavailable';
       return parsed.detail !== undefined ? delivery.detail(assignmentOriginal.binding, parsed, assignmentOriginal.responseEnv)
         : admitResultContinuations({ subject: assignmentOriginal.carrier.identity.unit, accepted: true,
           request: assignmentOriginal.carrier.request,
-          next_calls: [...delivery.memberCalls(result, { assignment: assignmentOriginal.carrier.assignment }, assignmentOriginal.binding.route),
+          ...(unavailable ? { assignment: assignmentChangeAssignmentMeaning(assignmentOriginal.carrier.assignment) } : {}),
+          next_calls: [...(unavailable ? [] : delivery.memberCalls(result, { assignment: assignmentOriginal.carrier.assignment }, assignmentOriginal.binding.route)),
             ...(state.role === "orchestrator" ? [buildNextCall({ tool: "workspace_read_wiki", arguments: { reads: [{ subject: assignmentOriginal.carrier.identity.unit,
               for_changes: ['notes', 'read_scope', 'write_scope', 'material_refs'] }] } })] : [])] }, requestContracts);
     }
@@ -160,7 +163,7 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
       DELIVERY_ORIGINAL_PRODUCER, OBSERVATION_ORIGINAL_PRODUCER].includes(binding.route)) refuse("proof_selection_requires_proof_original");
     switch (binding.route) {
       case RUN_TEST_TOOL_NAME:
-        nativeReader ??= createRunTestResultReader({ z, responseEnv, jsonContent: (value) => value,
+        nativeReader ??= createRunTestResultReader({ z, responseEnv, sessionEnv, requestContracts, jsonContent: (value) => value,
           errorContent: (error) => { throw error; } });
         return nativeReader.read(runTestViewSelection(result, parsed.native?.view ?? "outcome", parsed.native?.failure),
           { workspace, state }, { completeSemantic: parsed.native !== undefined });
@@ -321,6 +324,12 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
     if (receipts === undefined) return observation;
     if (receipts.length === 0) return { ...observation,
       delivery: { available: false, references: [], state: "absent" } };
+    const unavailableDelivery = (code, error, facts = {}) => ({ ...observation,
+      delivery: { available: false, references: [], state: "unavailable", code, ...facts,
+        cause: observedRunSourceFailure(error),
+        effects: { scope: "this_read", executed: false, integrated: false, retained: false },
+        limitation: "Delivery selection and integration are unavailable. Earlier attempt effects are unchanged; " +
+          "this failure does not establish their absence. No supported correction is available from this read." } });
     const references = [];
     const accounts = [];
     let nonCurrent = 0;
@@ -335,24 +344,16 @@ export function createGetRunResultTask({ workspace, sessionEnv, responseEnv,
       }
       catch (error) {
 
-        refuse("delivery_receipt_unreadable", {
-          subject: request.assigned === true ? resolveLauncherRunState(sessionEnv).assignedUnit : request.subject,
-          attempt_id: observation.run_id ?? observation.selected?.dispatch_tuple?.run_id ?? request.attempt_id,
-          receipt: { index, result },
-          cause: buildDispatchToolExceptionDetail(GET_RUN_RESULT_TASK, error,
-            { original: DISPATCH_FAILURE_ORIGINALS.READ_OBSERVATION }),
-          effects: { executed: false, integrated: false, retained: false },
-          limitation: "The attempt's subordinate delivery receipt could not be read. No delivery success or integration is established; stop this dependent step." });
+        return unavailableDelivery("delivery_receipt_unreadable", error, { receipt: { index, result } });
       }
     }
-    let heads;
-    try { heads = selectLogicalDeliveryAccounts(accounts, { readAncestor: result =>
-      readDeliveryOriginalForSession({ workspace, sessionEnv, responseEnv, request: { result } }) }).heads; }
-    catch (error) { refuse('delivery_recovery_unavailable', {
-      subject: request.assigned === true ? resolveLauncherRunState(sessionEnv).assignedUnit : request.subject,
-      cause: buildDispatchToolExceptionDetail(GET_RUN_RESULT_TASK, error),
-      effects: { executed: false, integrated: false },
-      limitation: 'The delivery recovery relationship could not be authenticated. No logical delivery was selected; do not guess or replay delivery.' }); }
+    let heads, failedPredecessor;
+    try { heads = selectLogicalDeliveryAccounts(accounts, { readAncestor: result => {
+      try { return readDeliveryOriginalForSession({ workspace, sessionEnv, responseEnv, request: { result } }); }
+      catch (error) { failedPredecessor = result; throw error; }
+    } }).heads; }
+    catch (error) { return unavailableDelivery('delivery_recovery_unavailable', error,
+      failedPredecessor === undefined ? {} : { predecessor: failedPredecessor }); }
     const choices = heads.map(({ result, carrier }) => {
       references.push(result);
       const response = carrier.outcome.response;

@@ -3,8 +3,8 @@
 import { createControlledContractRefusal } from
   "@agent-chassis/wiki-core/src/operations/controlled-contract/refusal.mjs";
 import { CONTRACT_ASSESSMENT_ROUTE } from "./controlled-contract-query-context.mjs";
-import { errorContent } from "./mcp-response.mjs";
-import { createToolInputValidationError } from "./register-tool.mjs";
+import { errorContent, jsonContent } from "./mcp-response.mjs";
+import { projectToolInputValidationFailure } from "./register-tool.mjs";
 import { registeredToolRequestContracts } from "./registered-tool-request-contracts.mjs";
 import { recordOwnerRegisteredRequestSchema } from "./dispatch-tool-helpers.mjs";
 import { contractAssessmentCall, createContractAssessmentSurface } from "./task-assess-contract-surface.mjs";
@@ -39,6 +39,36 @@ async function initiativeUnitCorrection(args, contracts) {
   nextCalls: offered ? [{ tool: "workspace_read_wiki", arguments: lookup }] : [] };
 }
 
+function diagnosisReadCorrection(args, inputSchema) {
+  if (args === null || typeof args !== 'object' ||
+      !['original', 'diagnoses', 'diagnosis', 'view'].some(key => Object.hasOwn(args, key))) return {};
+  const details = { required_shape: 'Read chosen retained diagnoses with {original:{source,diagnoses:[{diagnosis_id,obligation_id?},...]}}. ' +
+    'Use the returned source and diagnosis_id unchanged; obligation_id optionally restricts that entry. ' +
+    'For the complete inventory use {original:{source,view:"diagnoses"}} instead. ' +
+    'Top-level unit, focus and obligation_id must restate the original scope when supplied.',
+  correction: 'Preserve the retained source and your chosen diagnoses. Supply missing choices explicitly; ' +
+    'diagnoses is a nonempty ordered array, and view cannot be combined with it.' };
+  const replacement = structuredClone(args);
+  const original = replacement.original;
+  if (original === null || typeof original !== 'object' || Array.isArray(original)) return { details };
+  let changed = false;
+  for (const key of ['diagnoses', 'view']) {
+    if (!Object.hasOwn(replacement, key)) continue;
+    if (Object.hasOwn(original, key)) return { details };
+    original[key] = replacement[key];
+    delete replacement[key];
+    changed = true;
+  }
+  if (original.diagnoses !== null && typeof original.diagnoses === 'object' && !Array.isArray(original.diagnoses)) {
+    original.diagnoses = [original.diagnoses];
+    changed = true;
+  }
+  if (!changed || !inputSchema.safeParse(replacement).success) return { details };
+  return { details: { ...details, correction: 'The returned call preserves your supplied source, selections and scope in the required shape. ' +
+    'It was not run; the source and selections will be authenticated when called.' },
+  nextCalls: [contractAssessmentCall(replacement)] };
+}
+
 export function registerContractAssessmentTool({ registerTool, z, workspace,
   sessionEnv = process.env, responseEnv = process.env, sourceDeps = {}, assessmentDeps = {}, registeredTier }) {
   const surface = createContractAssessmentSurface({ workspace, z, sessionEnv, responseEnv, sourceDeps, assessmentDeps, registeredTier,
@@ -49,10 +79,17 @@ export function registerContractAssessmentTool({ registerTool, z, workspace,
       "Follow returned diagnosis and correction calls. Executes and credits no proofs.",
     ...surface.inputContract,
 
-    inputValidationErrorProjector: async ({ args, validationError }) => ({ terminal_result: errorContent(
-      createToolInputValidationError({ tool: CONTRACT_ASSESSMENT_ROUTE, validationError,
+    inputValidationErrorProjector: async ({ args, validationError }) => {
+      const guidance = { ...diagnosisReadCorrection(args, surface.inputContract.inputSchema),
         ...sliceFocusCorrection(args, surface.inputContract.inputSchema),
-        ...await initiativeUnitCorrection(args, registeredToolRequestContracts(registerTool)) }), { env: responseEnv }) })
+        ...await initiativeUnitCorrection(args, registeredToolRequestContracts(registerTool)) };
+      const failure = await projectToolInputValidationFailure({ tool: CONTRACT_ASSESSMENT_ROUTE, args, validationError,
+        inputSchema: surface.inputContract.inputSchema,
+        ownerGuidance: guidance.details ?? null,
+        notEvaluated: [{ path: [], cause: 'The rejected request was not run: no assessment, canonical write or proof execution occurred.' }] });
+
+      return { terminal_result: { ...jsonContent({ ...failure, next_calls: guidance.nextCalls ?? [] }, { env: responseEnv }), isError: true } };
+    }
   }, async (request) => {
     try {
       return await surface.respond(request);

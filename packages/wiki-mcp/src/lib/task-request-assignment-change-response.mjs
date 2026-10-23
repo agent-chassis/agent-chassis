@@ -3,6 +3,7 @@
 import { projectFailureDiagnosis } from "@agent-chassis/wiki-core/src/lib/diagnostic-projection.mjs";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import { projectToolInputValidationFailure } from "./register-tool.mjs";
+import { completionReconciliationCall } from "./task-deliver-work-worker-answer.mjs";
 
 const observeAssigned = () => buildNextCall({ tool: "get_run_result", arguments: { assigned: true } });
 const stopAccepted = "This worker must stop; no further worker action or completion is permitted. " +
@@ -18,7 +19,7 @@ export async function assignmentChangeInputFailure({ args, validationError, subj
       (handoffFields.length === 0 ? "" : ` Supply your own ${handoffFields.join(" and ")} as the handoff; acceptance ends this worker without a later report.`) };
 }
 
-export function assignmentChangeCompletionRefusal({ decision, subject, retained, pending = null }) {
+export function assignmentChangeCompletionRefusal({ decision, subject, retained, pending = null, release = null }) {
   const code = decision.code ?? decision.refusal?.code;
   const cause = decision.cause ?? decision.refusal?.reason;
   const base = { accepted: false, subject, code, ...(cause === undefined ? {} : { cause }) };
@@ -26,6 +27,12 @@ export function assignmentChangeCompletionRefusal({ decision, subject, retained,
     known_effects: "original handoff unchanged; this request was not accepted",
     recovery: { actor: "coordinator", action: stopAccepted }, next_calls: [] };
   if (code === "completion_delivery_intent_exists") {
+    if (release !== null) return { ...base, cause: "the failed delivery's completion release has not been established",
+      known_effects: Object.fromEntries(["commit_object", "delivery_ref", "submitted_for_review", "checkout"]
+        .map(field => [field, release.carrier.outcome.response[field]])),
+      recovery: { actor: "worker", action: "After the reported release cause is corrected within existing authority, follow the returned reconciliation call. It performs no delivery or review submission. After successful reconciliation, preserve your authored request and choose it again if the assignment gap remains." },
+      release_failure: projectFailureDiagnosis(release.carrier.outcome.response.completion_recovery),
+      next_calls: [completionReconciliationCall(release.result)] };
     const response = pending?.carrier.outcome.response;
     const complete = response?.submitted_for_review === true && response.checkout === "complete";
     const superseded = response?.checkout === "superseded";

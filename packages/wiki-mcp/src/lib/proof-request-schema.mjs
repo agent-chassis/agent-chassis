@@ -1,6 +1,7 @@
 
 
 import { declareRequestConstraints } from './zod-request-constraint-declarations.mjs';
+import { recordAuthoringSchemaValidator, RECORD_AUTHORING_FORMATS } from '@agent-chassis/wiki-core/src/lib/record-authoring-schema-validation.mjs';
 
 function referenceTarget(schema, defs) {
   const seen = new Set();
@@ -49,6 +50,10 @@ function convertRequestSchema(z, schema, defs, context) {
     const target = referenceTarget(schema, defs);
     result = convert(target);
   }
+  else if ((schema.anyOf || schema.oneOf) && schema.type) {
+    const { anyOf: _any, oneOf: _one, ...base } = schema;
+    result = convert(base);
+  }
   else if (schema.anyOf || schema.oneOf) result = z.union((schema.anyOf ?? schema.oneOf).map(convert));
   else if (schema.const !== undefined) result = z.literal(schema.const);
   else if (schema.enum) result = z.enum(schema.enum);
@@ -62,9 +67,18 @@ function convertRequestSchema(z, schema, defs, context) {
   else if (schema.type === 'boolean') result = z.boolean();
   else if (schema.type === 'string') {
     result = z.string();
-    if (schema.minLength !== undefined) result = result.min(schema.minLength);
-    if (schema.maxLength !== undefined) result = result.max(schema.maxLength);
-    if (schema.pattern) result = result.regex(new RegExp(schema.pattern));
+    if (schema.pattern) result = result.regex(new RegExp(schema.pattern, 'u'));
+    if (schema.minLength !== undefined || schema.maxLength !== undefined) {
+      const minimum = schema.minLength ?? 0, maximum = schema.maxLength ?? Infinity;
+      result = declareRequestConstraints(result.refine(value => {
+        const length = Array.from(value).length;
+        return length >= minimum && length <= maximum;
+      }, "String length must satisfy the declared Unicode code-point bounds"), [{ constraint: "string_length",
+        min_length: minimum, ...(Number.isFinite(maximum) ? { max_length: maximum } : {}) }]);
+    }
+    if (schema.max_utf8_bytes !== undefined) result = declareRequestConstraints(result.refine(value =>
+      Buffer.byteLength(value, "utf8") <= schema.max_utf8_bytes, `Text must fit ${schema.max_utf8_bytes} UTF-8 bytes`),
+      [{ constraint: "max_utf8_bytes", maximum: schema.max_utf8_bytes }]);
     if (schema.description) result = result.describe(schema.description);
   }
   else if (schema.type === 'array') {
@@ -90,8 +104,10 @@ function convertRequestSchema(z, schema, defs, context) {
       if (schema.minItems !== undefined) result = result.min(schema.minItems);
       if (schema.maxItems !== undefined) result = result.max(schema.maxItems);
     }
-    if (schema.uniqueItems) result = result.refine(items => new Set(items.map(value => JSON.stringify(value))).size === items.length,
-      'Values must be unique');
+    if (schema.uniqueItems) {
+      const unique = recordAuthoringSchemaValidator({ type: 'array', uniqueItems: true });
+      result = result.refine(items => unique(items), 'Values must be unique');
+    }
     if (schema.description) result = result.describe(schema.description);
   }
   else if (schema.type === 'object') {
@@ -119,7 +135,19 @@ function convertRequestSchema(z, schema, defs, context) {
         min_properties: minimum, ...(Number.isFinite(maximum) ? { max_properties: maximum } : {}) }]);
     }
   }
-  else throw new Error('Unsupported authored request-schema declaration');
+
+  else if (!schema.type && (schema.required || schema.properties || schema.allOf || schema.not || schema.if)) result = z.unknown();
+  else throw new Error(`Unsupported authored request-schema declaration: ${Object.keys(schema).join(', ')}`);
+  if (schema.allOf || schema.if || schema.not || schema.dependencies || schema.oneOf ||
+      (!schema.type && (schema.required || schema.properties)) ||
+      ((schema.anyOf || schema.oneOf) && schema.type) || RECORD_AUTHORING_FORMATS.includes(schema.format)) {
+    const validate = recordAuthoringSchemaValidator(schema, defs);
+    result = result.superRefine((value, ctx) => {
+      if (!validate(value)) for (const error of validate.errors) ctx.addIssue({ code: 'custom',
+        path: error.instancePath.split('/').slice(1).map(part => part.replaceAll('~1', '/').replaceAll('~0', '~')),
+        message: `${error.message}${error.params.missingProperty ? `: ${error.params.missingProperty}` : ''}` });
+    });
+  }
   if (schema.description) result = result.describe(schema.description);
   context.active.delete(schema);
   context.completed.set(schema, result);

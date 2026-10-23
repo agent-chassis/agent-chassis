@@ -10,6 +10,7 @@ import { resolveCommittedSliceIntegrationOriginal } from "@agent-chassis/agent-l
 import { captureDiagnosticEvidence } from "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import { readTerminalCandidateCurrentRef } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
 import { authenticateHistoricalTerminalCandidate } from "./dispatch-terminal-candidate-authentication.mjs";
+import { projectTerminalCandidateRecoveryReason, TERMINAL_CANDIDATE_RECOVERY_REASONS } from "./dispatch-terminal-candidate-coordinator.mjs";
 import { readSavedReviewDispositions } from "@agent-chassis/wiki-core/src/operations/work-record-dispositions.mjs";
 import { createIntegrateWorkInputContract, INTEGRATE_WORK_TOOL_NAME } from "./task-integrate-work-schema.mjs";
 import { createIntegrationOriginals, INTEGRATION_ORIGINAL_PRODUCER, prepareIntegrateWorkResponse } from "./task-integrate-work-result.mjs";
@@ -23,6 +24,14 @@ import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descr
 import { selectedResponseQueryInvalidError } from "./selected-response-snapshot.mjs";
 import { readSelectedResponseProjection } from "./selected-response-snapshot.mjs";
 import { activeMcpInlineByteLimit, measureMcpInlineResultBytes, jsonContent } from "./mcp-response.mjs";
+
+function movedCandidateCorrection(subject) {
+  return { reason: 'candidate_preparation_selection_moved',
+    message: 'The held version cannot be recovered while another candidate is selected. Inspect current state; choosing current publication is a new selection and does not recover the refused version.',
+    call: buildNextCall({ tool: 'workspace_inspect_candidate', arguments: { subject }, recommended: true }),
+    choice: { ...buildNextCall({ tool: 'workspace_publish_work', arguments: { subject } }), recommended: false,
+      condition: 'only if publication of the current candidate remains intended and authorized; this chooses current work' } };
+}
 
 export function integrateWorkBackendOptions({ workspace, sessionEnv = process.env, responseEnv = sessionEnv,
   backendOptions: { synchronizeIntegratedWkWorktree: synchronizeWkWorktree = synchronizeIntegratedWkWorktree,
@@ -69,26 +78,58 @@ export function integrateWorkBackendOptions({ workspace, sessionEnv = process.en
       const finalIntegration = integration.review_target != null ||
         integration.recovered === true && integration.integrated_state === 'final';
       const preparesCandidate = candidateVersion !== null || finalIntegration && prepareTerminalCandidate !== null;
-      if (preparesCandidate) {
+
+      const prior = candidateVersion === null ? null : originals.deliveryPreparation({
+        unit: approvedDelivery.subject, approvedDelivery });
+      if (prior !== null && (prior.result.delivery_sha !== integration.delivery_sha || prior.integrated !== integration.slice_sha)) {
+        throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME, 'retained_delivery_integration_disagrees');
+      }
+      const prepared = prior?.complete === true && prior.result.candidate_preparation?.version === candidateVersion
+        ? prior.result : null;
+      const cleanup = prepared?.cleanup;
+      if (preparesCandidate && prepared === null) {
 
         if (candidateVersion !== null) {
           if (recoverSelectedCandidateCheckout === null) throw new Error("Selected candidate checkout recovery is unavailable.");
-          await recoverSelectedCandidateCheckout({ wkId: approvedDelivery.subject.split('#')[0],
-            version: candidateVersion, integratedSha: integration.slice_sha });
-        } else await prepareTerminalCandidate({ integration: { ...integration, wk_sha: integration.slice_sha }, initiative: pair.wk_binding.initiative,
-          wkId: approvedDelivery.subject.split('#')[0], wkRef: integration.wk_ref,
-          baseSha: pair.wk_binding.base_sha, baseRef: pair.wk_binding.base_ref,
-          preserveSelectedCandidate: true });
+          try {
+            await recoverSelectedCandidateCheckout({ wkId: approvedDelivery.subject.split('#')[0],
+              version: candidateVersion, integratedSha: integration.slice_sha });
+          } catch (error) {
+            if (projectTerminalCandidateRecoveryReason(error) !== TERMINAL_CANDIDATE_RECOVERY_REASONS.EXPECTED_VERSION_MISMATCH) throw error;
+            return { ...integration, cleanup_pending: true, recovery_failure: captureDiagnosticEvidence(error),
+              correction: movedCandidateCorrection(approvedDelivery.subject.split('#')[0]) };
+          }
+        } else {
+          try {
+            await prepareTerminalCandidate({ integration: { ...integration, wk_sha: integration.slice_sha }, initiative: pair.wk_binding.initiative,
+              wkId: approvedDelivery.subject.split('#')[0], wkRef: integration.wk_ref,
+              baseSha: pair.wk_binding.base_sha, baseRef: pair.wk_binding.base_ref,
+              preserveSelectedCandidate: true });
+          } catch (error) {
+
+            if (projectTerminalCandidateRecoveryReason(error) !== TERMINAL_CANDIDATE_RECOVERY_REASONS.EXPECTED_VERSION_MISMATCH) throw error;
+            return { ...integration, cleanup_pending: true, recovery_failure: captureDiagnosticEvidence(error),
+              correction: { reason: 'selected_candidate_differs',
+                message: 'The selected candidate differs from the candidate for this integrated delivery. Inspect its state before ' +
+                  'deciding whether to advance it.',
+                call: buildNextCall({ tool: 'workspace_inspect_candidate',
+                  arguments: { subject: approvedDelivery.subject.split('#')[0] }, recommended: true }) } };
+          }
+        }
       }
       const finalized = await withDeliveryFinalization({ integration }, {
         status: { subject: approvedDelivery.subject, monitor_handle: approvedDelivery.launch_ref, run_id: pair.run_id },
         bindings: { wk: pair.wk_binding, slice: pair.slice_binding },
-        deps: { retireManagedWorkerIdentity: backendOptions.requireManagedProvisioning === true ? retireManagedWorkerIdentity : null,
+        deps: { retireManagedWorkerIdentity: backendOptions.requireManagedProvisioning === true
+          ? cleanup?.managed_identity_retirement?.state === 'complete'
+            ? async () => cleanup.managed_identity_retirement : retireManagedWorkerIdentity : null,
 
-          synchronizeIntegratedWkWorktree: () => synchronizeWkWorktree({ mainRepo: trustedWorkspace.dir,
-            wkBinding: pair.wk_binding, integratedSha: integration.slice_sha }),
+          synchronizeIntegratedWkWorktree: () => ['complete', 'superseded'].includes(cleanup?.wk_checkout?.state)
+            ? cleanup.wk_checkout.checkout : synchronizeWkWorktree({ mainRepo: trustedWorkspace.dir,
+              wkBinding: pair.wk_binding, integratedSha: integration.slice_sha }),
 
           reapIntegratedSliceCheckout: async () => {
+            if (cleanup?.slice_checkout?.state === 'complete') return cleanup.slice_checkout.reap;
             if (integration.delivery_sha !== approvedDelivery.commit) {
               throw Object.assign(new Error("the integration result does not state the approved delivery commit"),
                 { code: "slice_checkout_reap_delivery_unconfirmed" });
@@ -142,6 +183,7 @@ export function createIntegrateWorkTask({ workspace, sessionEnv = process.env, r
     let selection = null;
     let integrationRequested = false;
     let knownPreparation = null;
+    let establishedPreparation = null;
     try {
       const parsed = inputContract.inputSchema.safeParse(request);
       if (!parsed.success) throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME,
@@ -162,19 +204,32 @@ export function createIntegrateWorkTask({ workspace, sessionEnv = process.env, r
       }
       selection = { subject: identity.unit };
       if (parsed.data.candidate_version !== undefined) {
-        knownPreparation = await originals.unfinishedPreparation({ units: [identity.unit], delivery: parsed.data.delivery });
+        knownPreparation = originals.deliveryPreparation({ unit: identity.unit, delivery: parsed.data.delivery });
         if (knownPreparation === null) throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME,
           'unfinished_integration_preparation_unestablished');
         const wkId = identity.unit.split('#')[0];
         const historical = await authenticateHistoricalTerminalCandidate({ mainRepo: trustedWorkspace.dir,
           wkId, versionIdentity: parsed.data.candidate_version });
         const current = await readTerminalCandidateCurrentRef({ mainRepo: trustedWorkspace.dir, canonicalWkId: wkId });
-        if (historical.binding.candidate !== current) throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME,
-          'candidate_preparation_selection_moved');
-        const supported = await originals.unfinishedPreparation({ units: [identity.unit], delivery: parsed.data.delivery,
-          candidate: { ...historical.binding, version_decision: { version_identity: parsed.data.candidate_version } } });
-        if (supported === null) throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME,
-          'candidate_preparation_implementation_mismatch');
+        if (historical.binding.candidate !== current) throw Object.assign(new Error(
+          'The requested candidate version is no longer selected. Inspect current state before choosing whether to recover a different candidate.'),
+        { code: 'integrate_work.candidate_preparation_selection_moved.v1' });
+        if (knownPreparation.complete) {
+          if (knownPreparation.result.candidate_preparation?.version === parsed.data.candidate_version) {
+            establishedPreparation = knownPreparation.result.candidate_preparation;
+          }
+          if (establishedPreparation === null || knownPreparation.result.cleanup?.state !== 'pending') {
+            throw Object.assign(new Error(
+              'Candidate preparation for this delivery is already complete. This request made no integration or preparation changes.'),
+            { code: 'integrate_work.candidate_preparation_already_complete.v1' });
+          }
+        }
+        if (!knownPreparation.complete) {
+          const supported = await originals.unfinishedPreparation({ units: [identity.unit], delivery: parsed.data.delivery,
+            candidate: { ...historical.binding, version_decision: { version_identity: parsed.data.candidate_version } } });
+          if (supported === null) throw selectedResponseQueryInvalidError(INTEGRATE_WORK_TOOL_NAME,
+            'candidate_preparation_implementation_mismatch');
+        }
       }
       integrationRequested = true;
       result = await backend.requestCommittedSliceIntegration({ subject: identity.unit,
@@ -200,13 +255,27 @@ export function createIntegrateWorkTask({ workspace, sessionEnv = process.env, r
       }
     } catch (error) {
 
-      const completed = error?.detail?.completed_integration_result ?? error?.detail?.completed_recovery_result ?? knownPreparation?.result;
+      const completed = error?.detail?.completed_integration_result ?? error?.detail?.completed_recovery_result;
       result = { ...(completed ?? { integrated: false,
         ...(integrationRequested ? { integration_effects_unconfirmed: true } : {}) }),
         code: error?.code ?? null,
         reason: error?.envelope?.observed_facts?.["selected_response.invalid_reason"] ?? error?.message,
         ...(completed == null ? { cause: captureDiagnosticEvidence(error) }
           : { recovery_failure: captureDiagnosticEvidence(error) }) };
+      if (!integrationRequested && request?.candidate_version !== undefined) result.preparation_not_attempted = true;
+      if (establishedPreparation !== null) result.candidate_preparation = establishedPreparation;
+      if (knownPreparation !== null) {
+        const prior = knownPreparation.result;
+        result.prior_cleanup = prior.cleanup;
+        const record = prior.record_reconciliation?.state ?? (prior.transition?.written === true ? 'written' : null);
+        result.prior_integration = { integrated: true,
+          delivery: { commit: prior.delivery_sha, integrated_sha: prior.slice_sha },
+          ...(record === null ? {} : { record }),
+          ...(knownPreparation.complete ? { candidate_preparation: 'complete' } : {}) };
+      }
+      if (error?.code === 'integrate_work.candidate_preparation_selection_moved.v1') {
+        result.correction = movedCandidateCorrection(selection.subject.split('#')[0]);
+      }
 
       if (error?.envelope?.observed_facts?.["selected_response.invalid_reason"] === "source_binding_mismatch" &&
           inputContract.inputSchema.safeParse(request).success) {

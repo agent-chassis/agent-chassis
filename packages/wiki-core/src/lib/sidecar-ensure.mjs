@@ -1,3 +1,4 @@
+import { assertSidecarGeneratorInputsCurrent } from "./sidecar-generator-identity.mjs";
 import { collectSidecarCheckoutInputs } from "./sidecar-checkout-inputs.mjs";
 import { mkdir } from "node:fs/promises";
 
@@ -19,20 +20,18 @@ import {
   isSidecarCachePathIgnored,
   resolveSidecarArtifactPath,
   resolveSidecarBranchName,
+  resolveSidecarGeneratorIdentity,
   runSidecarGit
 } from "./sidecar-status.mjs";
 import {
   SIDECAR_UPDATER_LOCK_WAIT_MS,
-  sidecarPreparationCancelledError,
   throwIfSidecarPreparationCancelled,
   withSidecarUpdaterLock
 } from "./sidecar-store-lifecycle.mjs";
 import { readSidecarStoreStatus, resolveSidecarStorePaths } from "./sidecar-store.mjs";
 
-export const SIDECAR_PREPARATION_MAX_ACTIVE = 8;
-
-const activePreparations = new Map();
-const capacityWaiters = new Set();
+export { SIDECAR_PREPARATION_MAX_ACTIVE } from "./sidecar-preparation-pool.mjs";
+import { sidecarPreparationKey, withSidecarPreparation } from "./sidecar-preparation-pool.mjs";
 
 const OUTCOME_CHANGED = Object.freeze({
   prior_preserved: false,
@@ -73,71 +72,6 @@ function prepublicationFailure(error) {
   return error;
 }
 
-function wakeCapacityWaiters() {
-  for (const wake of [...capacityWaiters]) wake();
-}
-
-async function waitForCapacity(signal) {
-  while (activePreparations.size >= SIDECAR_PREPARATION_MAX_ACTIVE) {
-    throwIfSidecarPreparationCancelled(signal);
-    await new Promise((resolve, reject) => {
-      const onAbort = () => {
-        capacityWaiters.delete(wake);
-        reject(sidecarPreparationCancelledError(signal));
-      };
-      const wake = () => {
-        capacityWaiters.delete(wake);
-        signal?.removeEventListener("abort", onAbort);
-        resolve();
-      };
-      capacityWaiters.add(wake);
-      signal?.addEventListener("abort", onAbort, { once: true });
-    });
-  }
-}
-
-function startPreparation(key, work) {
-  const controller = new AbortController();
-  const entry = { waiters: 0, settled: false, controller, promise: null };
-  entry.promise = (async () => work(controller.signal))().finally(() => {
-    entry.settled = true;
-    if (activePreparations.get(key) === entry) activePreparations.delete(key);
-    wakeCapacityWaiters();
-  });
-  entry.promise.catch(() => {});
-  activePreparations.set(key, entry);
-  return entry;
-}
-
-function joinPreparation(entry, signal) {
-  entry.waiters += 1;
-  return new Promise((resolve, reject) => {
-    let attached = true;
-    const detach = () => {
-      if (!attached) return false;
-      attached = false;
-      entry.waiters -= 1;
-      signal?.removeEventListener("abort", onAbort);
-      return true;
-    };
-    function onAbort() {
-      if (!detach()) return;
-      if (entry.waiters === 0 && !entry.settled) entry.controller.abort(signal.reason);
-      reject(sidecarPreparationCancelledError(signal));
-    }
-    if (signal?.aborted) {
-      onAbort();
-      return;
-    }
-    signal?.addEventListener("abort", onAbort, { once: true });
-    entry.promise.then((value) => {
-      if (detach()) resolve(value);
-    }, (error) => {
-      if (detach()) reject(error);
-    });
-  });
-}
-
 async function reusablePublication(repoRoot, paths, head, retryDependencyLimited) {
   const observed = readSidecarStoreStatus({ repoRoot, cacheDir: paths.cache_dir });
   if (observed.state !== "available" || !observed.publication?.base_coverage?.checkout_identity) return null;
@@ -145,9 +79,11 @@ async function reusablePublication(repoRoot, paths, head, retryDependencyLimited
       sidecarDependencyLimitations(observed.publication.provider_coverage).length > 0) return null;
   const decision = await classifySidecarPreparation({
     publication: observed.publication, requestedCommit: head,
+    generatorIdentity: async () => (await resolveSidecarGeneratorIdentity()).generator_identity,
     requestedInputIdentity: (await collectSidecarCheckoutInputs(repoRoot)).identity,
     providerInputsChanged: async () => sidecarProviderInputsChangedAtCommit(observed.publication, process.env)
   });
+  assertSidecarGeneratorInputsCurrent();
   return decision.action === "reuse" ? { action: "reused", publication: observed.publication } : null;
 }
 
@@ -251,23 +187,13 @@ export async function ensureSidecarIndex({
         `repo code-index preparation requires one committed HEAD: ${cause?.message ?? cause}`,
         { code: "sidecar_head_unstable", cause });
     }
-    const key = JSON.stringify([repoRoot, paths.cache_dir, mode, retryDependencyLimited === true]);
-    const usable = (candidate) => candidate && !candidate.controller.signal.aborted ? candidate : undefined;
-    let entry = usable(activePreparations.get(key));
-    let joined = entry !== undefined;
-    if (!entry) {
-      await waitForCapacity(signal);
-      entry = usable(activePreparations.get(key));
-      joined = entry !== undefined;
-      entry ??= startPreparation(key, (ownedSignal) => prepareCheckout({ repoRoot, paths,
-        artifactPaths, head, mode, buildHooks, providerDeadlineMs, lockTimeoutMs, retryDependencyLimited,
-        signal: ownedSignal }).catch((error) => {
-        throw prepublicationFailure(error);
-      }));
-    }
-    let result;
+    const key = sidecarPreparationKey(repoRoot, paths.cache_dir, mode, retryDependencyLimited, "checkout");
+    let result, joined;
     try {
-      result = await joinPreparation(entry, signal);
+      ({ result, joined } = await withSidecarPreparation(key, (ownedSignal) =>
+        prepareCheckout({ repoRoot, paths, artifactPaths, head, mode, buildHooks,
+          providerDeadlineMs, lockTimeoutMs, retryDependencyLimited, signal: ownedSignal })
+          .catch((error) => { throw prepublicationFailure(error); }), signal));
     } catch (cause) {
       if (cause?.code === "sidecar_preparation_cancelled" && signal?.aborted) throw cause;
       throw new SidecarIndexEnsureError(

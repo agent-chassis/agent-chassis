@@ -16,7 +16,7 @@ The production composer registers `start_agent` for orchestrators with the same
 prepared backend used by result observation and explicit integration. Its closed
 request has three forms:
 
-- `{subject, role?, diff_base_sha?, reviewed_sha?, preview?:false}` starts the saved assignment.
+- `{subject, role?, diff_base_sha?, reviewed_sha?, material?, preview?:false}` starts the saved assignment.
 - The same subject-bearing request with `preview:true` previews that action without launching.
 - `{preview:true, role}` answers a configured-role capability question without inventing a subject.
 
@@ -29,6 +29,15 @@ fabricated. Trusted session identity, registration tier and the existing launch
 owners continue to decide authority and admission. Availability and offered calls
 grant no authorization. Current direct-to-main policy prohibits managed
 implementation dispatch.
+
+For a saved-design reviewer or blueteam, use
+`material:{kind:"canonical_design",supporting_sha?:<exact commit>}`. This selects
+the current saved design and its immutable entry material, with an optional
+exact supporting source checkout. It is findings-only and mutually exclusive
+with the code-range pair. Neither a source pin nor this material choice grants
+authorization. Omitted material keeps the existing canonical selector: a
+standalone read-only reviewer unit selects the saved design; an implementation
+slice or terminal review selects its corresponding implementation artifact.
 
 ### Preview answers
 
@@ -65,10 +74,11 @@ offers the root's current `workspace_read_wiki` context. Missing dispatch intent
 initiative, scope paths and validation definitions retain their own causes and
 correction subjects. A runtime failure is not a request to edit the work record.
 Actual worker start performs worker-input preflight before authored readiness.
-That owner can refuse with `exact_implementation_slice_unresolved` before the
-missing-initiative readiness diagnosis is reached. The documented root-authoring
-recovery does not establish that this earlier refusal supplies it; presentation
-does not reorder those checks or claim to resolve that routing gap.
+Unit identity is resolved first: combined missing-slice and missing-initiative
+faults retain `exact_implementation_slice_unresolved` until the caller selects or
+authors an existing slice; the next request can then report the initiative gap.
+The actual deciding cause and its served correction remain visible without
+reordering those checks or substituting a later diagnosis.
 
 Controlled-acceptance failure preserves `requested_unit`, `correction_unit`,
 `deciding_cause`, `deciding_causes`, `explanation` and `responsible_owner`.
@@ -136,19 +146,38 @@ launch uncertainty still lead to observation rather than a replacement start.
 
 For a pre-implementation design redteam, the selected saved slice design is the
 target and its supporting checkout is separate. A writable scope does not require
-completed implementation. The shared advisory material selector currently still
-selects implementation material for a writable slice with no explicit range,
-and rejects equal explicit range endpoints. Those are current limitations of
-that route, not capability or authorization failures. Refusals preserve the
-selected slice and actual cause; neither a parent assignment nor an arbitrary
-nonempty range is an equivalent recovery. The shared material-selection and
-runtime-contract owners must reconcile that behavior with the design target.
+completed implementation: ordinary redteam material selection without an explicit
+range captures the design and selects supporting source independently of that
+scope. An explicit range remains a caller source selection; equal endpoints
+retain the specific `range_empty` refusal. Neither a parent assignment nor an
+arbitrary nonempty range is an equivalent recovery for the selected design.
+
+A saved-design reviewer, including a design blueteam, receives the same
+`canonical_design` target meaning. Its startup names the saved design and
+selected findings as the review target and labels the checkout as supporting
+source context, never a reviewed implementation range. The saved assignment
+defines the predecessor findings and challenge scope; the launcher does not
+infer that purpose from prose or replace it with redteam objectives. The
+capture owner freezes the parent, selected unit, controlled design inputs and
+referenced immutable entry versions. Startup's bulk assignment read and its
+public selections read that authenticated frozen source, including an older
+selected findings version after a newer version exists. Reads do not relaunch,
+modify the saved assignment or fall back to live state.
+
+An empty explicit code range remains `range_empty` with no child start. When
+both pins name the same resolved commit, the refusal can offer an explicit
+saved-design choice using that commit only as supporting context. Choose it
+only when the intended task is the saved-design review, under existing or
+separate applicable authorization. The offer neither changes the rejected
+range nor launches the alternative. Contradictory selectors refuse before
+launch; unavailable checkout objects and missing, corrupt or moved captured
+material retain their own deciding causes. No nonempty replacement range or
+different predecessor is invented.
 
 ### Base selection and source movement
 
-Base selection behavior is unchanged: on an unallocated WK a saved root
-`base_branch` wins; otherwise actual start may save the configured checkout's
-current symbolic branch through revision-checked `save_record` and evaluate the
+On an unallocated WK a saved root `base_branch` wins; otherwise actual start saves the configured checkout's
+current symbolic branch through revision-checked `save_record` and evaluates the
 complete dispatch again. Responses identify the actual `root_unit`, `branch`,
 `selection` and `saved` state. A saved default is a start effect, not an operator
 choice, and remains saved if the subsequent attempt refuses. Preview's branch is
@@ -159,10 +188,32 @@ correction names the root, current revision, required `base_branch` choice and
 save tool, with the serving root read. No branch value is invented by correction
 guidance.
 
-There remains a conflict between this current-base default and provisioning
-recovery guidance requiring explicit operator selection and forbidding checkout
-fallback. Reporting the actual branch and effects does not resolve that policy
-conflict. Recovery must not silently choose another base, role, source or assignment.
+Preview, worker-input preflight and launch share the initial branch-selection
+owner and stable scope-base resolution. Preview and preflight write nothing;
+preview's proposed branch is not reserved. Actual start saves the branch current
+at that time through the root's revision-checked save owner, then reruns the
+complete dispatch. A concurrent explicit selection is preserved; it cannot be
+overwritten by the proposed default. A failed or stale save stops with its
+specific cause, known save effects and no child start. A later failure preserves
+an already-saved default.
+
+If the root has no saved branch and the configured checkout is detached,
+`scope_existence_base_selection_missing` states the cause and known no-child
+effect, names the root revision and required caller `base_branch` choice, and
+offers its focused authoring context through the serving reader. A failed Git
+read is `scope_existence_base_unresolved`, not evidence of a detached checkout.
+The context's returned schema call supplies any missing save grammar. Reading
+selects no base and changes no assignment; the caller saves an intended branch
+and retries the original action only if still authorized. Held grammar and
+revision can be used directly.
+A named unavailable branch remains a distinct resolution failure, with its
+selected name and cause; this missing-choice correction does not offer to
+replace it. An unavailable or rejecting reader is reported without advertising
+an unserved call.
+
+The checkout default applies only to an absent selection on an unallocated WK.
+Recovery never substitutes another branch for an explicit selection, changes
+the worker role or assignment, or replaces an authenticated allocated base.
 
 The private `createStartAgentTask` composition runs the existing pipeline and then
 `task-start-agent-presentation.mjs` projects only public task meaning. The
@@ -225,7 +276,7 @@ presentations and tool profiles remain distinct and their mutation authority is
 always empty.
 
 A canonical WK or slice contributes coordination context. Current canonical
-design bytes, an immutable implementation-slice delivery, a complete
+design bytes (also explicitly selected with `material.kind:"canonical_design"`), an immutable implementation-slice delivery, a complete
 `diff_base_sha` plus `reviewed_sha` pair, and a launcher-built terminal candidate
 are material selectors for that owner, not execution routes. A SHA pair is
 locator syntax, never authority. Each accepted action resolves immutable
@@ -251,13 +302,18 @@ receipt, continuation, recovery, or replay route.
 
 ## Supported families
 
-Confined Claude and Codex roles are supported when their runtime and bubblewrap
-contracts validate. Worker, reviewer, and redteam sessions use the same R union
+Confined Codex, Claude, Agy, and OpenCode roles are supported when their runtime
+and bubblewrap contracts validate. Worker, reviewer, and redteam sessions use the same R union
 W namespace construction and write-scope enforcement; reviewers and redteam
 have no writable repository paths. Claude preserves native-edit permission
 settings and settings masking. Codex preserves its isolated runtime home and
-launcher-generated configuration overrides. Agy remains unsupported and fails
-closed.
+launcher-generated configuration overrides. Agy and OpenCode compose the same
+shared assignment, conduit, isolation, supervision, and result owners, with
+private native state and launcher-generated configuration. Both require the
+qualified high-priority role-guide delivery. See [family runtime
+state](agent-launch-family-runtime-state.md#family-runtime-state) and the
+[confinement contract](agent-launch-confinement-mcp-conduit.md) for native
+prerequisites, result-mode limits, and exact-session resume behavior.
 
 ## Launch and monitoring
 
@@ -843,10 +899,11 @@ default. The rule never reads the process working directory and never names
 the root's `base_branch` through the revision-checked `save_record` owner
 after the launcher's pre-allocation missing-selection refusal, then runs the
 complete dispatch once more so the existing allocation captures the commit; the
-result carries `base_selection` with `saved: true`. If that save does not land,
+result carries `base_selection` with `saved: true`. If that save fails or refuses,
 dispatch stops before allocation and child start with
 `managed_worktree_base_selection_save_failed`, the save's own outcome under
-`base_selection_save`, and the root read below; nothing is retried. If the save
+`base_selection_save`, including any known publication effects, and the root
+read below; the failed save is not replayed. If the save
 lands and the rerun then refuses or fails, the saved choice stays and the
 rerun's actual result is returned with the same `base_selection`. With a
 detached `HEAD` there is no default, and dispatch refuses before worker start
@@ -866,7 +923,7 @@ selection provenance. Authored readiness is unchanged: no worker, tests, or
 proof execution began.
 
 A missing base selection with no default refuses before launching. Its returned
-`workspace_read_wiki({subject})` call reads the owning WK and its authoring
+`workspace_read_wiki({reads:[{subject,for_changes:["base_branch"]}]})` call reads the owning WK and its authoring
 context through the actual serving schema. The operator chooses the base
 branch; `save_record` writes that explicit choice against the current revision.
 Then a new `start_agent` call reassesses the saved source in full. Reading the

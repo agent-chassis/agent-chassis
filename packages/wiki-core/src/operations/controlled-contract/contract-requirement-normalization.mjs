@@ -34,11 +34,20 @@ export const termBinding = (id, type) => ({ type_term: type, identity: { kind: T
 export const isMembership = row => Object.hasOwn(row, "membership");
 
 const BINDING_CORRECTIONS = {
+  resolve_declarations_and_references: {
+    executable: false,
+    choices: [
+      { intent: 'correct_authored_reference', instruction: 'If a use names the wrong entity, correct that exact reference to the intended declared or established id.' },
+      { intent: 'correct_or_complete_declaration', instruction: 'If the declaration or binding is missing or mistaken, supply its intended id, type or typed identity and keep its intended uses consistent.' },
+      { intent: 'remove_genuinely_unused_declaration', instruction: 'Remove a declaration only if it is genuinely unwanted; this does not resolve any independently unfinished reference.' }
+    ],
+    preserve: 'Keep all intended meaning and unrelated edits. Unused declarations and unresolved references establish no correspondence; do not infer a match or normalize supplied spelling or quotation marks.'
+  },
   choose_established_or_distinct_entity: {
     executable: false,
     choices: [
       { intent: 'reuse_established_object', instruction: 'Only if the saved object is intended, omit the submitted declaration and reuse its established id and binding.' },
-      { intent: 'specify_distinct_object', instruction: 'If a different object is intended, declare its full intended binding under a fresh id and update its affected uses. Saved bindings remain immutable. Correct existing rows through row_id, or id with rebind_case_ids for a single claim; preserve intended verification/case and obligation associations through their existing amendments.' }
+      { intent: 'specify_distinct_object', instruction: 'If a different object is intended, declare its full intended binding under a fresh id and update its affected uses. Saved bindings remain immutable. Select each saved declaration by its semantic target and restate its complete intended meaning. When its assertion population changes, use replacement_key and explicit local claim selections for dependent associations; verification.key binds a submitted check separately. Preserve intended verification, case and obligation associations through their existing amendments. Dependencies outside the selected unit retain their existing revision and authority boundaries.' }
     ],
     preserve: 'Keep requested behavior, operands, applicability, source passages and occurrences, and intended evidence associations. The binding conflict establishes no intended object; the author chooses.'
   },
@@ -112,7 +121,8 @@ export function bindEntities({ uses, declared = {}, known, open = null }) {
       `${id} is an entity of the referenced specification, which leaves its type open. A check request cannot settle it; remove this declaration.`,
       null, { recovery: { kind: "remove_member", path: ["entities", id] } }));
     else if (!uses.some(row => row.id === id)) refusals.push(finding(["entities", id], "entity_not_referenced",
-      `${id} is declared and no statement or check refers to it; remove it`));
+      `${id} is declared and no statement or check refers to it; choose whether its declaration, a reference, or genuinely unused material needs correction`,
+      null, { id, submitted: clone(declared[id]), recovery: { kind: 'resubmit_corrected_batch', correct: 'resolve_declarations_and_references' } }));
   }
   for (const id of [...new Set(uses.map(row => row.id))]) {
     const mine = uses.filter(row => row.id === id);
@@ -138,7 +148,7 @@ export function bindEntities({ uses, declared = {}, known, open = null }) {
         `no one type lets ${id} be ${restricted.map(row => `${row.role} [${row.types.join(" | ")}]`).join(" and ")}; these are different entities, or one reference is wrong`));
       else if (candidates.length === 1) { bindings.set(id, termBinding(id, candidates[0])); inferred[id] = candidates[0]; }
 
-      else holes.push({ path: ["entities", id], accepts: restricted.length ? { oneOf: [{ enum: candidates }, { $ref: "#/$defs/entity_declaration" }] }
+      else holes.push({ id, uses: usesOf(id), path: ["entities", id], accepts: restricted.length ? { oneOf: [{ enum: candidates }, { $ref: "#/$defs/entity_declaration" }] }
         : { $ref: "#/$defs/entity" },
         question: `type of ${id}, which is ${[...new Set(mine.map(row => row.role))].join("; ")}` });
     }
@@ -330,7 +340,11 @@ export function createRequirementNormalizer({ schema, unit }) {
     const typed = facts.operand_kind === 'value' || statement.for_each !== undefined || statement.within !== undefined;
     let metadata = {};
     if (typed) {
-      if (!bindings.has(statement.subject) || valueReferences([...(statement.behavior.objects ?? []), ...(statement.for_each ?? []).map(row => row.domain)]).some(id => !bindings.has(id))) return out;
+      if (!bindings.has(statement.subject) || valueReferences([...(statement.behavior.objects ?? []), ...(statement.for_each ?? []).map(row => row.domain)]).some(id => !bindings.has(id))) {
+
+        prepareBehavior(statement.behavior, [...path, 'behavior'], bindings, out);
+        return out;
+      }
       if (!values) configureScopes([statement], bindings);
       if (scopeFailure) throw scopeFailure;
       metadata = values.normalize(statement);
@@ -397,8 +411,10 @@ export function createRequirementNormalizer({ schema, unit }) {
       const mine = (rows ?? []).map(row => row.identity);
       const repeated = mine.filter(identity => first.has(identity) && first.get(identity) !== index);
       if (repeated.length) refusals.push(finding(["requirements", index], "restates_requirement",
-        `${ids[index]} has ${repeated.length === mine.length ? "identical" : "overlapping"} authored formal predicates with ${[...new Set(repeated.map(identity => ids[first.get(identity)]))].join(", ")} `
-          + `(${repeated.join(", ")})`, null, { restated: repeated,
+        `${ids[index]} has ${repeated.length === mine.length ? "identical" : "overlapping"} authored formal predicates with ${[...new Set(repeated.map(identity => ids[first.get(identity)]))].join(", ")}`,
+        null, { restated: repeated,
+          overlap: repeated.length === mine.length ? 'identical' : 'partial',
+          conflicting: [...new Set(repeated.map(identity => first.get(identity))), index].map(at => ['requirements', at]),
           first_stated_by: [...new Set(repeated.map(identity => ids[first.get(identity)]))],
           recovery: { kind: 'resubmit_corrected_batch', correct: 'state_once_or_define_distinct_behaviors',
             ...(refusals.length === 0 ? { correction: { executable: false,

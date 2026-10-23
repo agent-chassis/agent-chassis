@@ -6,6 +6,7 @@ import { integrationReadOutcome, deliveryReadOutcome } from "../../packages/wiki
 import { createRegisteredToolRequestContractStore } from "../../packages/wiki-mcp/src/lib/registered-tool-request-contracts.mjs";
 import { GET_RUN_RESULT_RETAINED_INPUT_SCHEMA } from "../../packages/wiki-mcp/src/lib/task-get-run-result.mjs";
 import { captureDiagnosticEvidence } from "../../packages/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
+import { observedRunSourceFailure } from '../../packages/wiki-mcp/src/lib/get-run-result-source-failure.mjs';
 
 const subject = "WK-9732#SLICE-001";
 const attempt_id = "wkdb_selected";
@@ -13,6 +14,16 @@ const result = { ref_id: "readAAAA" };
 const detail = result_ => ({ tool: "get_run_result", arguments: { result: result_, detail: { member: "final_result" } } });
 const present = (facts, request = { subject, attempt_id }) => presentRunObservation({ accepted: true,
   subject, run_id: attempt_id, role: "worker", ...facts }, detail, {}, subject, request);
+
+test('an unexpected subordinate source failure preserves its native operation and cause', () => {
+  const error = Object.assign(new Error('The selected delivery source cannot be read.'),
+    { code: 'EIO', syscall: 'read', path: '/selected/delivery-source', stderr: 'server capture' });
+  const cause = observedRunSourceFailure(error);
+  assert.match(JSON.stringify(cause), /EIO/u);
+  assert.match(JSON.stringify(cause), /selected\/delivery-source/u);
+  assert.match(JSON.stringify(cause), /read/u);
+  assert.doesNotMatch(JSON.stringify(cause), /server capture|retained_evidence/u);
+});
 
 test('known assignment-change acceptance ends worker navigation while the coordinator receives its handoff', () => {
   for (const terminal of [false, true]) {
@@ -167,11 +178,13 @@ test("integration original read preserves unknown effects and confirmed recovery
   assert.equal(unknown.cause.code, "fixture.unknown");
   assert.deepEqual(unknown.next_calls, []);
   const partial = await integrationReadOutcome({ ...context, carrier: { request: {}, thrown,
-    completed_recovery_result: { integrated: true, wk_sha: "b".repeat(40), cleanup: { state: "pending" } } } });
+    completed_recovery_result: { integrated: true, slice_sha: "b".repeat(40), wk_sha: "c".repeat(40),
+      cleanup: { state: "pending" } } } });
   assert.equal(partial.effects.integrated, true);
   assert.equal(partial.outcome, "partial");
   assert.equal(partial.cause.code, "fixture.unknown");
   assert.equal(partial.delivery.integrated_sha, "b".repeat(40));
+  assert.notEqual(partial.delivery.integrated_sha, "c".repeat(40), "the WK tip cannot stand in for the integrated slice");
 });
 
 test("delivery original read offers only role-eligible optional inspection", async () => {

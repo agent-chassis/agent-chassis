@@ -348,6 +348,7 @@ function authoringSubject(occurrence, recoveryFacts) {
       ...(typeof typed.case_id === "string" && !Object.hasOwn(facts, "case_id") ? { case_id: typed.case_id } : {}),
       ...(typed.failed_fields === undefined ? {}
         : { failed_fields: typed.failed_fields.map(field => ({ ...field })) }),
+      ...(typed.component_requirement === undefined ? {} : { component_requirement: structuredClone(typed.component_requirement) }),
 
       ...(typed.association === undefined ? {} : { association: structuredClone(typed.association) }),
       corrections: [...typed.corrections] }) };

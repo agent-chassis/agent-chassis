@@ -280,7 +280,7 @@ export function upsertSlice(record, { slice } = {}) {
       storedPath: `slices[${sliceId}].acceptance.validation`
     });
     if (!composed.ok) {
-      return refusal(composed.diagnostic);
+      return composed.diagnostics ? { ...refusal(composed.diagnostic), diagnostics: composed.diagnostics } : refusal(composed.diagnostic);
     }
     incoming.acceptance = { ...incoming.acceptance, validation: composed.validation };
   }
@@ -535,8 +535,8 @@ export function resolveWorkRecordEditRegistryEntry({ field, kind, sliceId = null
   return { ok: true, entry, scope };
 }
 
-function editRefusal(code, message, path = "edit") {
-  return refusal(createDiagnostic(code, message, { path }));
+function editRefusal(code, message, path = "edit", details = {}) {
+  return refusal({ ...createDiagnostic(code, message, { path }), ...details });
 }
 
 function knownFieldOwner(field) {
@@ -559,7 +559,9 @@ function normalizeScalarValue(entry, value) {
     return { ok: false, message: `${entry.field} must not be blank` };
   }
   if (schema.max_utf8_bytes && Buffer.byteLength(normalized, "utf8") > schema.max_utf8_bytes) {
-    return { ok: false, message: `${entry.field} must be at most ${schema.max_utf8_bytes} UTF-8 bytes` };
+    return { ok: false, message: `${entry.field} must be at most ${schema.max_utf8_bytes} UTF-8 bytes`,
+      constraint: { keyword: "max_utf8_bytes", maximum: schema.max_utf8_bytes,
+        actual: Buffer.byteLength(normalized, "utf8"), rule: "Shorten the authored text to the UTF-8 byte limit; multibyte characters count by encoded bytes." } };
   }
   return { ok: true, value: normalized };
 }
@@ -588,11 +590,8 @@ export function validateWorkRecordProseDestination({
   if (!normalized.ok) {
     return {
       ok: false,
-      diagnostic: createDiagnostic(
-        "invalid_prose_destination",
-        normalized.message,
-        { path }
-      )
+      diagnostic: { ...createDiagnostic("invalid_prose_destination", normalized.message, { path }),
+        ...(normalized.constraint ? { constraint: normalized.constraint } : {}) }
     };
   }
   return { ok: true, value: normalized.value, entry };
@@ -663,7 +662,7 @@ function planAcceptanceValidationEdit(record, { sliceId, action, value }) {
     path: "edit.value",
     storedPath: field
   });
-  if (!planned.ok) return refusal(planned.diagnostic);
+  if (!planned.ok) return planned.diagnostics ? { ...refusal(planned.diagnostic), diagnostics: planned.diagnostics } : refusal(planned.diagnostic);
   if (!planned.changed) return finalizeEdit(selected.clone, []);
   selected.acceptance.validation = planned.validation;
   return finalizeEdit(selected.clone, [field]);
@@ -747,7 +746,8 @@ export function editWorkRecordByUnit(record, { sliceId = null, edit, repository 
 
   if (entry.kind === "scalar") {
     const normalized = normalizeScalarValue(entry, edit.value);
-    if (!normalized.ok) return editRefusal("invalid_edit_value", normalized.message, "edit.value");
+    if (!normalized.ok) return editRefusal("invalid_edit_value", normalized.message, "edit.value",
+      normalized.constraint ? { constraint: normalized.constraint } : {});
     const clone = cloneJson(record);
     const selected = selectScopedTarget(clone, sliceId);
     if (!selected.ok) return selected.refusal;

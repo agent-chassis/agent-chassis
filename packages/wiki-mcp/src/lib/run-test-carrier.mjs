@@ -262,6 +262,7 @@ export function runTestCarrier({ request, source = null, outcome = null, failure
       ...(comparison.failure === undefined ? {} : { failure: comparison.failure }),
       baseline_native: jsonText(withoutStreams(attempted?.result)) },
     failure: {
+      ...(failure?.input_validation === undefined ? {} : { input_validation: failure.input_validation }),
       ...(environmentSelection === null ? {} : { environment_selection: environmentSelection,
         ...(assignedCommand === null ? {} : { assigned_command: assignedCommand }) }),
       cause: { present: cause !== null, stage: cause?.stage ?? null, code: cause?.code ?? null,

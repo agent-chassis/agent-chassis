@@ -13,8 +13,13 @@ spill-reader tool, and retired task names are not aliases.
 ## Finding the next operation
 
 - Saved work, unknown record identities, documents and frozen assignments start
-  with `workspace_read_wiki`. Its first result is compact; select the returned
-  reference to read the chosen content and its complete input contract.
+  with `workspace_read_wiki({reads:[Read,...]})`. One selection is a request of
+  length one. Read known subjects and public semantic selections directly, mixing
+  needed fields, contract meaning, documents or other granted kinds in one call.
+  Use search, context or choice inventories only for missing information; a known
+  source and selection need no preliminary context read. Preserve issued source
+  bindings and resolve ambiguity using returned choices. See the [reader
+  contract](workspace-read-wiki.md).
 - New records start with `workspace_create_record`; changes use `save_record`
   with the unit's current combined revision. Ordinary prose, criteria, scopes,
   validation and slices remain supported. Selected schemas describe the session’s authorized operations; syntax alone grants no execution authority.
@@ -38,6 +43,14 @@ boundary. Actual registration, the central role grants and dispositions,
 registered tier, descriptor visibility and install/runtime posture compose the
 exposure decision. Audience prose grants no capability. Missing or inconsistent
 classification fails closed.
+
+The shared reader declaration lives in `data/tool-discovery/mcp-tools.json`
+inside `wiki-core`. The owner assembler feeds compact and verbose metadata
+projections and the architecture prototype's `operation-graph.mjs` and
+`tool-map.mjs` views. Those views reuse declared meaning; they neither override
+the reader contract nor establish live availability or behavioral analysis.
+Committed prototype renderings are snapshots and require their owning refresh
+when metadata changes.
 
 Descriptor metadata and runtime advertisement must agree. Conformance checks
 reconcile booted registration as well as static metadata; source inventories

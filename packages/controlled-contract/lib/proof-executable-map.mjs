@@ -283,6 +283,10 @@ function typedBindingFailures(diagnostic) {
 }
 
 const RUNTIME_MODULE_PATH = '/system_under_test_boundary/runtime_module_path';
+const RUNTIME_COMPONENT_REQUIREMENT = deepFreeze({ field: CASE_COMPONENT_FIELD,
+  identity: { kind: 'repository_path', required: ['repository', 'path'] },
+  reason: 'A runtime module location requires a repository_path component identity. A profile_term or other descriptive identity names no module source, even when it mentions a file.',
+  instruction: 'Author that component with the actual repository and path.' });
 
 const READ_TOOL = 'workspace_read_wiki';
 const SAVE_TOOL = 'save_record';
@@ -345,6 +349,7 @@ export function occurrenceRecoveryFacts(diagnostic) {
   const unselected = diagnostic.problem?.cause?.case_association;
   return deepFreeze({ failed_fields: failedFields, association_correction: association,
     module_source_correction: moduleSource, corrections,
+    ...(moduleSource ? { component_requirement: RUNTIME_COMPONENT_REQUIREMENT } : {}),
     ...(unselected === undefined ? {} : { association: structuredClone(unselected) }) });
 }
 
@@ -382,7 +387,7 @@ export function occurrenceRecoverySummary(diagnostic, recovery, { failedFields =
     ? ` Correct the case's verification association when the failed proposition identities must be derived from an eligible test_execution verification.`
     : ` The typed failures do not identify the verification association as invalid; preserve valid requirement/verification links and supply the omitted case meaning in ${OCCURRENCE_CORRECTION_CLAUSES.case_content.field}.`;
   const componentCorrection = facts.module_source_correction
-    ? ` The derived binding has no runtime module path, which is derived only from the resolved ${OCCURRENCE_CORRECTION_CLAUSES.component.field} when its identity is a repository_path (by value, or through the saved reference a reference_id selects); a profile_term or other descriptive identity names no module source, even when it mentions a file. Author that component with the actual repository and path.`
+    ? ` The derived binding has no runtime module path, which is derived only from the resolved ${RUNTIME_COMPONENT_REQUIREMENT.field} (by value, or through the saved reference a reference_id selects). ${RUNTIME_COMPONENT_REQUIREMENT.reason} ${RUNTIME_COMPONENT_REQUIREMENT.instruction}`
     : '';
   return `${pathSummary}${correction}${componentCorrection} Never supply or edit the derived binding itself.`;
 }

@@ -5,6 +5,7 @@ import { assessProofObligationAccounting } from "@agent-chassis/controlled-contr
 import { GRAMMAR_EXCEPTION_ENFORCEMENT, RECORD_AUTHORING_EXCEPTION_CONSEQUENCES,
   RECORD_AUTHORING_EXCEPTION_RATIONALE_PROVENANCE } from "../../lib/record-authoring-exception.mjs";
 import { inspectWorkRecordProofPosture } from "../../lib/work-record-proof-posture.mjs";
+import { unresolvedMeaningSelector } from './public-selection-schema.mjs';
 
 export const AUTHORING_EXCEPTION_SUMMARY_LIMITS = Object.freeze({ subjects: 8, text_scalars: 240 });
 
@@ -31,8 +32,7 @@ function proofDecisions(resolved, obligationId) {
 export function unresolvedSpecificationMeanings(resolved) {
   return (resolved.contract?.content?.authored_requirements?.unresolved ?? [])
     .map(entry => { const meaning = typeof entry === 'string' ? { text: entry } : structuredClone(entry);
-      const match = Object.fromEntries(['text', 'reason', 'candidate_concept'].filter(key => meaning[key] !== undefined).map(key => [key, meaning[key]]));
-      return { subject: { kind: 'unresolved', match }, ...meaning }; });
+      return { subject: unresolvedMeaningSelector(meaning), ...meaning }; });
 }
 
 function grammarResidue(resolved) {

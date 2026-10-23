@@ -1,12 +1,7 @@
 
 import { z } from "zod";
-import { buildSidecarIndex } from "@agent-chassis/wiki-core";
-import {
-  getSidecarSymbolCallers,
-  getSidecarSymbolCallees,
-  getSidecarSymbolDefinition,
-  getSidecarSymbolReferences
-} from "@agent-chassis/wiki-core/src/lib/sidecar-symbol-query.mjs";
+import { buildSidecarIndexInWorker } from "@agent-chassis/wiki-core/src/lib/sidecar-refresh.mjs";
+
 import { publishedQueryContext } from "@agent-chassis/wiki-core/src/lib/sidecar-published-preparation.mjs";
 import { registerCodeIndexQueryTools } from "./code-index-query-tools.mjs";
 import { resolveWorkspaceRepo } from "./workspace-repo-resolution.mjs";
@@ -15,7 +10,7 @@ function codeIndexWriterHandler({ rebuild, workspaceRepos, jsonContent, errorCon
   return async (args) => {
     try {
       const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-      const result = await buildSidecarIndex({
+      const result = await buildSidecarIndexInWorker({
         ...args,
         dir: workspace.dir,
         ...(rebuild ? { rebuild: true } : {})
@@ -33,7 +28,8 @@ const codeIndexWriterInputSchema = () => ({
 });
 
 export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonContent, errorContent,
-  env = process.env, published = publishedQueryContext() }) {
+  codeIntelligence, env = process.env, published = publishedQueryContext(), status }) {
+  if (codeIntelligence === undefined) throw new TypeError('Supply the captured codeIntelligence group, or null for free composition');
   const shared = { workspaceRepos, jsonContent, errorContent };
   registerTool(
     "workspace_code_index_build",
@@ -55,15 +51,18 @@ export function registerCodeIndexTools({ registerTool, workspaceRepos, jsonConte
     codeIndexWriterHandler({ rebuild: true, ...shared })
   );
 
+  if (codeIntelligence === null) return;
   registerCodeIndexQueryTools({
+    codeIntelligence,
     registerTool,
     env,
     published,
+    ...(status === undefined ? {} : { status }),
     navigation: {
-      definition: getSidecarSymbolDefinition,
-      references: getSidecarSymbolReferences,
-      callers: getSidecarSymbolCallers,
-      callees: getSidecarSymbolCallees
+      definition: codeIntelligence.getSidecarSymbolDefinition,
+      references: codeIntelligence.getSidecarSymbolReferences,
+      callers: codeIntelligence.getSidecarSymbolCallers,
+      callees: codeIntelligence.getSidecarSymbolCallees
     },
     ...shared
   });

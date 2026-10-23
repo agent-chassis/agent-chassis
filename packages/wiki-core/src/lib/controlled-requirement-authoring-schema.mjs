@@ -8,6 +8,7 @@ import { CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_DECLARED_INPUT_SCHEMA as
 import { CONTROLLED_CONTRACT_REQUIREMENT_LIMITS, deriveControlledContractAuthoringVocabulary } from
   '../operations/controlled-contract/contract-requirement-vocabulary.mjs';
 import { shareRecordAuthoringDefinitions } from './record-authoring-shared-definitions.mjs';
+import { REQUIREMENT_SOURCE_PASSAGES_SCHEMA } from './requirement-source-passage-schema.mjs';
 import { requirementCapabilities, relationCapability, scopePrimitiveValueDefinitions } from './requirement-schema-exposure.mjs';
 import { publicValueDefinitions } from '../operations/controlled-contract/contract-requirement-native-values.mjs';
 import { buildPublicSelectionSchema } from '../operations/controlled-contract/public-selection.mjs';
@@ -134,14 +135,14 @@ export const NATIVE_AUTHORING = Object.freeze({ vocabulary, relations: relationF
 
 const KEYWORDS = new Set(['$schema', '$id', '$defs', '$ref', 'title', 'description', 'type', 'enum', 'const', 'pattern', 'minLength', 'maxLength',
   'minimum', 'maximum', 'properties', 'required', 'additionalProperties', 'propertyNames', 'minProperties', 'maxProperties', 'items',
-  'minItems', 'maxItems', 'uniqueItems', 'oneOf', 'anyOf', 'prefixItems']);
-const SUBSCHEMAS = ['additionalProperties', 'propertyNames', 'items'];
+  'minItems', 'maxItems', 'uniqueItems', 'oneOf', 'anyOf', 'prefixItems', 'allOf', 'if', 'then', 'else']);
+const SUBSCHEMAS = ['additionalProperties', 'propertyNames', 'items', 'if', 'then', 'else'];
 
 export function assertInterpretable(node, where = '#') {
   for (const [keyword, value] of Object.entries(node)) {
     if (!KEYWORDS.has(keyword)) throw new TypeError(`${where}: keyword ${keyword} is not one admit() interprets`);
     if (keyword === '$defs' || keyword === 'properties') for (const [name, child] of Object.entries(value)) assertInterpretable(child, `${where}/${keyword}/${name}`);
-    else if (keyword === 'oneOf' || keyword === 'anyOf' || keyword === 'prefixItems') value.forEach((child, index) => assertInterpretable(child, `${where}/${keyword}/${index}`));
+    else if (keyword === 'oneOf' || keyword === 'anyOf' || keyword === 'prefixItems' || keyword === 'allOf') value.forEach((child, index) => assertInterpretable(child, `${where}/${keyword}/${index}`));
     else if (SUBSCHEMAS.includes(keyword) && isRecord(value)) assertInterpretable(value, `${where}/${keyword}`);
   }
 }
@@ -329,11 +330,12 @@ export function buildControlledRequirementDefinitions({ collectionMember, member
   const collection = { description: `A group of some or all of this request's requirements. ${memberWords} Each member once. "purpose" tells apart two groups over the same requirements.`,
     type: 'object', required: ['members'], additionalProperties: false,
     properties: { kind: described(nativeCollection.collection_kind.enum, kind => KIND_WORDS[kind] ?? drift(`collection kind ${kind} has no description`)),
-      members: { type: 'array', minItems: 1, items: collectionMember }, purpose: { type: 'string', pattern: nativeCollection.purpose.pattern } } };
+      members: { type: 'array', minItems: 1, uniqueItems: true, items: collectionMember }, purpose: { type: 'string', pattern: nativeCollection.purpose.pattern } } };
   const unresolvedMeaning = { description: 'An operative meaning fragment the grammar cannot faithfully encode, with the reason. "candidate_concept" may '
       + 'name a vocabulary opportunity; it creates no vocabulary and encodes nothing.',
     type: 'object', required: ['text', 'reason'], additionalProperties: false,
-    properties: { text: { type: 'string', minLength: 1, pattern: '\\S' }, reason: { enum: [...vocabulary.residue_reasons] }, candidate_concept: { type: 'string', minLength: 1, pattern: '\\S' } } };
+    properties: { text: { type: 'string', minLength: 1, pattern: '\\S' }, reason: { enum: [...vocabulary.residue_reasons] },
+      candidate_concept: { type: 'string', minLength: 1, pattern: '\\S' }, source_passages: REQUIREMENT_SOURCE_PASSAGES_SCHEMA } };
   const unresolved = { description: 'Meaning no relation carries: kept verbatim, keeps the specification incomplete, never rewritten. A compound meaning is '
       + 'not approximated by the nearest relation: what a relation\'s definition does not say goes here. Plain text, or text with why it '
       + 'cannot be encoded.',
@@ -374,6 +376,11 @@ export function buildRequirementBatchSchema({ label, labelReference, rebindCaseI
   const source = {
     user_requirement: { description: 'Exact saved user_requirements passage, compared literally without normalization, trimming or case folding. Omission infers no source.', type: 'string', minLength: 1 },
     user_requirement_occurrence: { description: '1-based left-to-right occurrence, including overlaps. Only with user_requirement; required for repeated passages.', type: 'integer', minimum: 1 } };
+  const sourceRole = { description: 'Explicit classification of this exact source passage as context, not normative coverage. Context requires a complete definition:true and an explicitly supplied user_requirement. Omission preserves an existing role only for the unchanged binding. A targeted restatement may use null to clear only the classification; converting to normative meaning requires this explicit clearing.',
+    ...(existingRows ? { oneOf: [{ const: 'context' }, { const: null }] } : { const: 'context' }) };
+  const roleRules = existingRows ? [{ if: { required: ['source_role'], properties: { source_role: { const: null } } }, then: { required: ['target'], properties: { target: buildPublicSelectionSchema({ kinds: ['requirement'] }) } } }] : [];
+  const contextualRules = [...roleRules, { if: { required: ['source_role'], properties: { source_role: { const: 'context' } } }, then: { required: ['user_requirement'] } }];
+  const ordinaryRole = existingRows ? { source_role: { description: sourceRole.description, const: null } } : {};
   const key = { key: { ...label, description: 'Request-local row label; "$key" names its collection member/claims.' } };
   const addressed = existingRows ? { ...key,
     target: buildPublicSelectionSchema({ kinds: ['requirement'] }) } : key;
@@ -384,11 +391,14 @@ export function buildRequirementBatchSchema({ label, labelReference, rebindCaseI
   const { requirement, membership_requirement: membership, ...statements } = shared.statements;
   const defs = { ...statements,
     definition_requirement: { ...statements.definition_requirement,
-      properties: { ...addressed, ...statements.definition_requirement.properties, ...source } },
+      properties: { ...addressed, ...statements.definition_requirement.properties, ...source, source_role: sourceRole },
+      allOf: [...(statements.definition_requirement.allOf ?? []), ...contextualRules] },
     requirement: { ...requirement, description: `${requirement.description}${existingRows ? ' Use key for a new declaration or target for a saved declaration, never both.' : ''}`,
-      properties: { ...addressed, ...corrected, ...requirement.properties, verification, ...source } },
+      properties: { ...addressed, ...corrected, ...requirement.properties, verification, ...source, ...ordinaryRole },
+      ...(existingRows ? { allOf: [...(requirement.allOf ?? []), ...roleRules] } : {}) },
     membership_requirement: { ...membership, description: `${membership.description}${existingRows ? ' Use key for a new declaration or target for a saved declaration, never both.' : ''}`,
-      properties: { ...addressed, ...membership.properties, verification, ...source } },
+      properties: { ...addressed, ...membership.properties, ...source, ...ordinaryRole },
+      ...(existingRows ? { allOf: [...(membership.allOf ?? []), ...roleRules] } : {}) },
     requirement_verification: { ...shared.verification, anyOf: shared.verification.anyOf.map(option => ({ ...option,
       properties: { key: verificationKey, ...option.properties } })) },
     collection: { ...shared.collection, properties: { key: label,
@@ -409,6 +419,7 @@ export function buildRequirementBatchSchema({ label, labelReference, rebindCaseI
     }
   }
   const batch = { description: 'Entities declared once by id; requirements: statements/memberships; collections: groups; unresolved: unencoded meaning. '
+      + 'Every declared entity must be referenced by a statement or its check; a case component does not reference a request entity label. '
       + 'Absent modality/objects/required applicability/type or pending values save incomplete, without identity/expression. Expressions generated, never supplied.',
     type: 'object', additionalProperties: false, minProperties: 1,
     properties: { entities: ref('entities'),
@@ -422,6 +433,8 @@ export function buildRequirementBatchSchema({ label, labelReference, rebindCaseI
       unresolved: { ...shared.unresolved, description: `${shared.unresolved.description} Supplied: replaces the list. Omitted: retains it.` } } };
   const factored = shareRecordAuthoringDefinitions({ properties: defs, shared: [
     ['requirement_key', key.key], ['verification_key', verificationKey],
+    ['requirement_source_role', sourceRole],
+    ...(existingRows ? [['cleared_requirement_source_role', ordinaryRole.source_role], ['requirement_source_role_clear_rule', roleRules[0]]] : []),
     ...Object.entries(source)
   ] });
   const definitions = { ...factored.properties, ...factored.$defs };
@@ -474,6 +487,12 @@ function discriminator(schema, options) {
 
 export function admit(schema, value, node = schema, path = []) {
   const at = resolve(schema, node);
+  if (at.allOf || at.if) {
+    const { allOf = [], if: condition, then: yes, else: no, ...base } = at;
+    const selected = condition === undefined ? undefined : admit(schema, value, condition, path).length === 0 ? yes : no;
+    return [...admit(schema, value, base, path), ...allOf.flatMap(child => admit(schema, value, child, path)),
+      ...(selected === undefined ? [] : admit(schema, value, selected, path))];
+  }
   const found = [];
   const bad = (cause, accepts = null, where = path) => found.push({ path: where, cause, accepts });
   if (at.oneOf) {

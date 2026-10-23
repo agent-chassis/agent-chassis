@@ -6,7 +6,11 @@ and closes nothing. Tool availability and returned calls grant no new authority.
 The underlying observer, authentication and effect owners are described in
 [terminal review](mcp-dispatch-terminal-review.md#handoff-destinations-and-landing-observation).
 
-The closed request is `{subject, selection?}`. Omitting `selection` asks about
+The closed request is `{subject, selection?, detail?}`. The optional
+`detail: {member: "landing_action"}` requests the human instructions as part
+of this observation. Omitting `detail` asks only for status; it does not request
+all available instructions. This selects response meaning, not permission to
+land or change a publication. Omitting `selection` asks about
 the publication resolved from the current candidate at invocation time. Exact
 intent requires the complete owner-issued publication selection, copied
 unchanged. Destination strings and proposal numbers are equality selectors,
@@ -21,20 +25,27 @@ routine cache effects and retention bookkeeping. The underlying semantic
 observer and authenticated retained bindings keep those facts internally.
 
 - `landed` is a complete answer and offers no required read or continuation.
-- `awaiting_human_landing` identifies the landing actor. When the observer
-  supplies an action target and the serving reader is available, an optional
+- `awaiting_human_landing` identifies the landing actor. With
+  `detail: {member: "landing_action"}`, the answer includes the complete action
+  directly when the actionable answer fits the ordinary delivery bound, even
+  if a retained reader exists. It offers no redundant action read.
+  For a status-only request, an optional
   `next_calls` entry with `purpose: "landing_action"` reads the retained human
-  action through `workspace_read_wiki({reference})`. It adds the exact Git
+  action through `workspace_read_wiki({reads: [{reference}]})`. It adds the exact Git
   head/base/ref or remote/branch, or the hosted proposal number, destination
-  remote, exact head, base and proposal URL supplied by the observer. The hosted action's
-  head identifies the publication to land; a proposal number alone cannot
+  remote, exact head, base and proposal URL supplied by the observer. The hosted
+  action's head identifies the publication to land; a proposal number alone cannot
   preserve intent when that proposal later publishes a different head.
-  Without a composed reader, the action is returned inline.
+  Larger requested instructions use the same authenticated selected read;
+  that read has `recommended: true` and is needed to finish the action request.
+  A status-only optional read
+  remains optional regardless of its size. Neither route repeats observation.
 - An authenticated pending publication offers `observe_later`, an exact
   `workspace_check_landing` call admitted by its serving request schema. This
   is an optional later observation, not a polling instruction. The caller
-  need not reconstruct its selector. Private compositions without a serving
-  call retain the issued selection as data and advertise no unavailable call.
+  need not reconstruct its selector. It preserves the requested action detail,
+  as do conditional retries after a correction. Private compositions without a
+  serving call retain the issued selection as data and advertise no unavailable call.
 - `contradictory` and `unavailable` preserve the specific cause and any
   producer-established recovery. Lookup failure does not prove a contradiction
   or that the publication never landed. An unauthenticated explicit selection
@@ -69,17 +80,17 @@ It supplies no placeholder prerequisite or unchanged retry. No publication or
 candidate advancement is inferred as recovery.
 
 Acquisition uncertainty, completed acquisition followed by observation failure,
-and unknown adapter effects remain explicit. Only a pending action with a
-composed detail reader needs a task-detail source. A complete answer that fits
-the ordinary delivery bound requires no response storage; larger diagnoses keep
-the existing authenticated whole-response delivery boundary. If that optional action cannot be stored, the answer supplies
-the complete action inline and the same usable later-observation call. No task
-information is withheld, so there is no response-storage recovery step.
-Only the retention operation's modeled refusal uses this inline path;
-authentication or projection failures are not caught as retention failures.
-Observation is never replayed to deliver an answer. Native observation failures remain immediate;
-raw process output, capture inventories and server authentication metadata are
-not detail content.
+and unknown adapter effects remain explicit. Separately selected or larger
+pending instructions use a task-detail source. Fitting requested instructions
+and complete status answers need no response storage; a status-only answer
+retains available instructions only to support their optional selection.
+If this retention fails, delivery uses the acquired answer without repeating
+observation: requested instructions remain requested and status-only stays
+status-only. Oversized content remains subject to the existing whole-response
+delivery and refusal boundary. Only the retention operation's modeled refusal
+uses this path; authentication or projection failures are not caught as
+retention failures. Raw process output, capture inventories and server
+authentication metadata are not detail content.
 
 Historical exact reads can establish landing, but pending still requires current
 applicability. Changed destination configuration is not

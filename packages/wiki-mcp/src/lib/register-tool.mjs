@@ -24,6 +24,7 @@ import {
   rejectedFieldPath
 } from "./compact-input-recovery.mjs";
 import { inputContractMechanicalRefusal } from "./tool-discovery-input-guidance-delivery.mjs";
+import { enrichValidationIssue, validationConstraintContext } from './tool-validation-constraints.mjs';
 import {
   bindRegisteredToolRequestContracts,
   createRegisteredToolRequestContractStore
@@ -238,14 +239,16 @@ function declarationOnlySchemaView(schema) {
 
 export const TOOL_INPUT_VALIDATION_FAILED = "tool_input_validation_failed";
 
-export function createToolInputValidationError({ tool, validationError, details = {}, nextCalls = [] }) {
-  const message = `${tool}: ${validationError.message}`;
+export function createToolInputValidationError({ tool, validationError, inputSchema = null, args,
+  details = {}, nextCalls = [] }) {
+  const message = `${tool}: correct the rejected input fields before calling again.`;
+  const context = validationConstraintContext(inputSchema);
   const refusal = inputContractMechanicalRefusal(TOOL_INPUT_VALIDATION_FAILED, message, {
     tool,
     rejected_field_paths: [...new Set(validationError.issues.map(
       (issue) => rejectedFieldPath(issue.path)
     ))],
-    validator_diagnostics: validationError.issues
+    validator_diagnostics: validationError.issues.map(issue => taskValidatorIssue(enrichValidationIssue(issue, context, args)))
   }, nextCalls);
   const error = new Error(message);
   error.envelope = { ...refusal, diagnostic: { ...details, ...refusal.diagnostic } };
@@ -273,26 +276,63 @@ function taskValidatorIssue(issue, depth = 0) {
       projected[key] = value;
     }
   }
+  if (typeof issue.path === 'string' && projected.message?.startsWith(`${issue.path} `))
+    projected.message = projected.message.slice(issue.path.length + 1);
   if (issue.keys !== undefined) {
     projected.unsupported_key_count = issue.keys.length;
     projected.key_bytes = issue.keys.reduce((total, key) => total + Buffer.byteLength(key, "utf8"), 0);
-    if (projected.message === undefined) projected.message = "Remove the unsupported keys at this input path.";
+    if (issue.code === 'unrecognized_keys' || projected.message === undefined)
+      projected.message = "These keys are not accepted at this input path; choose supported inputs or explicitly omit them.";
   }
   return projected;
 }
 
+function shareTaskConstraints(issues) {
+  const canonical = value => JSON.stringify(value, (_key, child) => child && typeof child === 'object' && !Array.isArray(child)
+    ? Object.fromEntries(Object.entries(child).sort(([left], [right]) => left.localeCompare(right))) : child);
+  const counts = new Map();
+  const walk = (value, visitor) => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(child => walk(child, visitor)); return; }
+    if (value.constraint && typeof value.constraint === 'object') visitor(value);
+    for (const [key, child] of Object.entries(value)) if (key !== 'constraint') walk(child, visitor);
+  };
+  walk(issues, issue => {
+    const key = canonical(issue.constraint);
+    const entry = counts.get(key) ?? { count: 0, constraint: issue.constraint };
+    entry.count++; counts.set(key, entry);
+  });
+  const definitions = {}, references = new Map();
+  for (const [key, entry] of counts) if (entry.count > 1) {
+    const name = `rule_${references.size + 1}`;
+    references.set(key, name); definitions[name] = entry.constraint;
+  }
+  walk(issues, issue => {
+    const reference = references.get(canonical(issue.constraint));
+    if (reference !== undefined) issue.constraint = { ref: reference };
+  });
+  return Object.keys(definitions).length ? { constraint_definitions: definitions } : {};
+}
+
 export async function projectToolInputValidationFailure({ tool, args, validationError,
-  ownerDiagnostics = null, ownerGuidance = null }) {
+  inputSchema = null, ownerDiagnostics = null, ownerGuidance = null, notEvaluated = null }) {
   const issues = ownerDiagnostics ?? validationError.issues;
 
   const missing = issues.filter(issue => issue.code === "invalid_type" && issue.received === "undefined");
   const { calls: guidanceCalls = [], ...guidance } = ownerGuidance ?? {};
   const guidanceFacts = Object.keys(guidance).length > 0 ? guidance : null;
+  const context = validationConstraintContext(inputSchema);
+  const invalidFields = issues.map(issue => taskValidatorIssue(enrichValidationIssue(issue, context, args)));
+  const constraints = shareTaskConstraints(invalidFields);
+  const rejected = member => invalidFields.some(issue => issue.path?.[0] === member ||
+    issue.path?.length === 0 && issue.keys?.includes(member));
+  const subjectMember = ['unit', 'subject'].find(member => typeof args?.[member] === 'string' && !rejected(member));
   return { code: TOOL_INPUT_VALIDATION_FAILED, accepted: false, tool,
-    ...(typeof (args?.unit ?? args?.subject) === "string" && (args.unit ?? args.subject).length <= 128
-      ? { subject: args.unit ?? args.subject } : {}),
+    ...(subjectMember !== undefined && args[subjectMember].length <= 128 ? { subject: args[subjectMember] } : {}),
     issue_count: issues.length,
-    invalid_fields: issues.map(issue => taskValidatorIssue(issue)),
+    invalid_fields: invalidFields,
+    ...constraints,
+    ...(notEvaluated === null ? {} : { not_evaluated: notEvaluated }),
     ...(missing.length === 0 ? {} : { required_inputs: missing.map(issue => ({
       path: issue.path, expected: issue.expected, choice: "caller_supplied_value_required"
     })) }),
@@ -320,6 +360,7 @@ function createEffectsEnforcingHandler(
         : await inputValidationErrorProjector({
           args,
           validationError: parsed.error,
+          inputSchema: effectsSchema,
           tool: name,
           role,
           tier
@@ -354,7 +395,7 @@ function createEffectsEnforcingHandler(
         }
         throw error;
       }
-      throw createToolInputValidationError({ tool: name, validationError: parsed.error });
+      throw createToolInputValidationError({ tool: name, validationError: parsed.error, inputSchema: effectsSchema, args });
     }
     const result = await downstreamHandler(parsed.data, extra);
     return compactContractRecovery

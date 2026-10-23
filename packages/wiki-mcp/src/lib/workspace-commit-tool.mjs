@@ -41,6 +41,8 @@ import {
 } from "../../../wiki-core/src/operations/work-record-slice-review-acceptance.mjs";
 import { serializeWorkRecordDiagnosticValue } from
   "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
+import { deliveryCompletionReleaseFacts } from
+  "../../../agent-launch-cli/src/lib/managed-run-completion-observation.mjs";
 
 export { WORKER_COMMIT_TOOL_NAME };
 
@@ -415,6 +417,7 @@ export function createWorkspaceCommitExecution({
       const progress = { stage: null, ref: null, materialized: null, sliceCodes: null };
 
       let deliveryIntent = null;
+      let completionBinding = null;
       const capture = { originals: null, observations: null, assignedUnit: null, settled: false, outcome: null };
 
       const outputOptions = () => ({ deliveryObservation: {
@@ -426,6 +429,20 @@ export function createWorkspaceCommitExecution({
       const respondJson = (payload) => jsonContent(payload, outputOptions());
       const respondError = (error) => errorContent(error, outputOptions());
       const settle = (outcome, { isError = false } = {}) => {
+        const releaseFacts = deliveryIntent === null ? null : deliveryCompletionReleaseFacts(outcome);
+        if (releaseFacts !== null) {
+          try {
+            const released = recordManagedCompletion({ ...completionBinding, completion: { alternative: "delivery",
+              intent_id: `release-${deliveryIntent.intent_id}`, released_intent_id: deliveryIntent.intent_id,
+              phase: "released_zero_effects", known_effects: releaseFacts } });
+            if (!released.ok) throw Object.assign(new Error("delivery completion claim release refused"),
+              { code: released.code ?? released.refusal?.code, cause: released });
+            outcome = { ...outcome, completion_recovery: { available: true } };
+          } catch (error) {
+            outcome = { ...outcome, completion_recovery: { available: false, code: error.code ?? null,
+              message: error.message, ...serializeTransactionCause(error, "workspace_commit.completion_release") } };
+          }
+        }
         const respond = (payload) => {
           if (!isError) return respondJson(payload);
           const declared = new Error(typeof payload.message === "string" ? payload.message : "delivery failed");
@@ -439,6 +456,7 @@ export function createWorkspaceCommitExecution({
 
           const original = {
             ...capture.observations,
+            completion_intent: deliveryIntent,
             outcome: { is_error: isError, response: JSON.parse(JSON.stringify(outcome)) }
           };
 
@@ -494,6 +512,7 @@ export function createWorkspaceCommitExecution({
                 if (!claimed.ok) throw Object.assign(new Error(claimed.cause ?? claimed.refusal?.reason ?? claimed.code),
                   { code: claimed.code ?? claimed.refusal?.code, completion: claimed });
                 deliveryIntent = intent;
+                completionBinding = { mainRepo, subject: rawAssignedUnit, sliceBinding: identityStoreBinding };
               } catch (error) {
                 bindingResolution.threw = true;
                 bindingResolution.error = error;
@@ -568,13 +587,6 @@ export function createWorkspaceCommitExecution({
             entry.startsWith(`${CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT}/`));
         if (scope.contained !== true && !(session.execution_backend.enforcement === "inactive" &&
             pureMutationScopeMismatch)) {
-
-          const released = recordManagedCompletion({ mainRepo, subject: rawAssignedUnit,
-            sliceBinding: identityStoreBinding, completion: { alternative: "delivery",
-              intent_id: `release-${deliveryIntent.intent_id}`, released_intent_id: deliveryIntent.intent_id,
-              phase: "released_zero_effects", known_effects: "delivery ref unchanged; canonical review not attempted" } });
-          if (!released.ok) throw Object.assign(new Error("zero-effect delivery intent release refused"),
-            { code: released.code ?? released.refusal?.code, cause: released });
           progress.stage = null;
           return settle(
             createCommitRefusal("commit.write_scope_refused.v1", [

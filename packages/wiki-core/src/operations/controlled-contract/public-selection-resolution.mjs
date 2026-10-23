@@ -1,12 +1,12 @@
 import Ajv from 'ajv/dist/2020.js';
 import { isDeepStrictEqual } from 'node:util';
-import { buildPublicSelectionSchema } from './public-selection-schema.mjs';
+import { buildPublicSelectionSchema, unresolvedMeaningSelector } from './public-selection-schema.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const privateFields = new Set(['row_id', 'collection_row_id', 'claim_id', 'claim_ids', 'constraint_id', 'constraint_ids',
   'proposition_id', 'proposition_ids', 'reference_id', 'reference_ids', 'verification_id', 'verification_claim_ids',
   'case_revision', 'source_digest', 'current_source_digest', 'content_digest', 'digest', 'compiler', 'compiled', 'expression', 'dependency_keys',
-  'controlled_contract_node_ids', 'defining_constraint_ids', 'defining_claim_ids', 'defining_proposition_ids', 'source_keys', 'available_definition_ids']);
+  'controlled_contract_node_ids', 'definition_identity', 'defining_constraint_ids', 'defining_claim_ids', 'defining_proposition_ids', 'source_keys', 'available_definition_ids']);
 const schema = buildPublicSelectionSchema({ kinds: ['requirement', 'claim', 'verification', 'collection', 'case', 'obligation', 'entity', 'criterion', 'unresolved'], allowLocalKeys: true });
 const validate = new Ajv({ strict: false }).compile(schema);
 const failure = (status, code, subject, cause, extra = {}) => ({ status, issue: { code, subject, cause, ...extra } });
@@ -84,6 +84,23 @@ function populationOf(coverage, { authorableNativeCaseTarget }) {
   const claims = new Map(coverage.requirements.map(row => [row.claim_id, row]));
   const linked = row => unique(row.claim_ids.flatMap(id => claims.get(id)?.meaning?.verifications ?? []).map(verification => ({
     id: verification.claim_id, meaning: runtimeMeaning(verification) })));
+  const definitionDiagnostic = (value, inheritedIdentity) => {
+    if (Array.isArray(value)) return value.map(child => definitionDiagnostic(child, inheritedIdentity));
+    if (!object(value)) return value;
+    const { definition_identity: identity, ...facts } = value;
+    const projected = Object.fromEntries(Object.entries(facts).map(([key, child]) =>
+      [key, key === 'literal' ? structuredClone(child) : definitionDiagnostic(child, identity ?? inheritedIdentity)]));
+    if (identity === undefined || identity === inheritedIdentity) return projected;
+    const matches = requirements.filter(match => match.row.constraint_ids.includes(identity));
+    const targets = unique(matches.map(match => match.selector));
+    const exact = targets.filter(target => requirements.filter(match => matchesPublicPattern(match.meaning.declaration, target.match)).length === 1);
+    return { ...projected, attribution: matches.length === 1 && exact.length === 1
+      ? { status: 'mapped', subject: exact[0] }
+      : { status: matches.length ? 'ambiguous' : 'unavailable',
+        ...(exact.length ? { choices: exact } : {}),
+        uncertainty: matches.length ? 'The failing definition does not identify one distinguishable authored declaration.'
+          : 'The failing definition has no established authored declaration correspondence in this source.' } };
+  };
   const definitions = row => {
     const descriptions = coverage.authored_requirements.descriptions;
     const roots = (descriptions?.roots ?? []).filter(root => isDeepStrictEqual(root.entity.identity, row.input.subject?.identity) &&
@@ -92,12 +109,13 @@ function populationOf(coverage, { authorableNativeCaseTarget }) {
     const nodes = (descriptions?.nodes ?? []).filter(node => keys.has(node.key));
     const missing = unique([...roots.flatMap(root => root.missing ?? []),
       ...(descriptions?.missing ?? []).filter(cause => cause.key === undefined || keys.has(cause.key))].map(cause => ({
-      ...publicValue(Object.fromEntries(Object.entries(cause).filter(([key]) => key !== 'key'))), ...(cause.key === undefined ? {} : { entity: publicValue((descriptions.nodes ?? []).find(node => node.key === cause.key)?.entity) }) })));
+      ...publicValue(definitionDiagnostic(Object.fromEntries(Object.entries(cause).filter(([key]) => key !== 'key')))), ...(cause.key === undefined ? {} : { entity: publicValue((descriptions.nodes ?? []).find(node => node.key === cause.key)?.entity) }) })));
     return { state: roots.length === 0 ? 'not_established' : missing.length || roots.some(root => root.state !== 'complete') ? 'incomplete' : 'complete',
       ...(roots.length ? {} : { cause: 'No dependency closure is established for this declaration; this is not evidence that no definitions are needed.' }),
       nodes: nodes.map(node => ({ entity: entity(node.entity),
+        state: node.uses.some(use => !use.established || use.missing?.length) ? 'incomplete' : 'complete',
         definitions: node.definitions.map(definition => publicValue(definition.constraint)),
-        uses: publicValue(node.uses.map(use => ({ ...use, missing: (use.missing ?? []).map(({ key: _key, ...cause }) => cause) }))), ...(node.source === undefined ? {} : { source: publicValue(node.source) }) })), missing };
+        uses: publicValue(node.uses.map(use => ({ ...use, missing: (use.missing ?? []).map(({ key: _key, ...cause }) => definitionDiagnostic(cause)) }))), ...(node.source === undefined ? {} : { source: publicValue(node.source) }) })), missing };
   };
   const declarations = rows.map(row => publicValue(row.input));
   const selectorFor = (declaration, extra = {}) => {
@@ -121,7 +139,7 @@ function populationOf(coverage, { authorableNativeCaseTarget }) {
         ...(source.user_requirement_occurrence === undefined ? {} : { user_requirement_occurrence: source.user_requirement_occurrence }) }) };
     const selector = selectorFor(publicValue(row.input));
     return { kind: 'requirement', internal: { row_id: row.row_id, claim_ids: [...row.claim_ids], state: row.state }, selector,
-      meaning: { declaration, state: row.state, ...(row.pending?.length ? { pending: publicValue(row.pending) } : {}),
+      meaning: { declaration, state: row.state, ...(row.source_role === undefined ? {} : { source_role: row.source_role }), ...(row.pending?.length ? { pending: publicValue(row.pending) } : {}),
         ...(source.state === 'absent' ? {} : { source: publicValue(source) }) },
       verifications: linked(row), dependencies: () => definitions(row), row };
   });
@@ -234,13 +252,12 @@ function populationOf(coverage, { authorableNativeCaseTarget }) {
       selector: { kind: 'criterion', match: { text: row.text, ...(row.identity_source === 'typed' ? { typed_identity: row.identity } : {}) } } })),
     unresolved: (coverage.authored_requirements.unresolved ?? []).filter(row => typeof row === 'string' || typeof row.text === 'string').map((row, index) => {
       const { id: _position, ...meaning } = typeof row === 'string' ? { text: row } : row;
-      const match = Object.fromEntries(['text', 'reason', 'candidate_concept'].filter(key => meaning[key] !== undefined).map(key => [key, meaning[key]]));
       const value = publicValue(meaning);
       if (value.grammar_exception) value.grammar_exception = Object.fromEntries(
         ['enforcement', 'rationale', 'source_passages', 'consequence'].filter(key => value.grammar_exception[key] !== undefined)
           .map(key => [key, value.grammar_exception[key]]));
       return { kind: 'unresolved', internal: { unresolved_index: index }, meaning: value,
-        selector: { kind: 'unresolved', match } };
+        selector: unresolvedMeaningSelector(meaning) };
     }),
     references: coverage.references.map(row => ({ kind: 'entity', internal: { reference_id: row.reference_id },
       selector: { kind: 'entity', identity: row.identity, ...(row.type_term === undefined ? {} : { type_term: row.type_term }) }, meaning: entity(row) })),
@@ -326,7 +343,14 @@ export async function resolvePublicSelections({ source, selectors, population, i
         return unavailable('Saved unresolved meaning is outside the authorized assigned closure; no complete fragment population is available.');
     if (selector.kind === 'criterion' || selector.kind === 'unresolved')
       return pick(populations[selector.kind === 'criterion' ? 'criteria' : 'unresolved']
-        .filter(match => matchesPublicPattern(match.meaning, selector.match)), selector, selector);
+        .filter(match => {
+          if (selector.kind !== 'unresolved' || selector.match.source_passages === undefined)
+            return matchesPublicPattern(match.meaning, selector.match);
+          const { source_passages: passages, ...fields } = selector.match;
+          const saved = match.meaning.source_passages;
+          return matchesPublicPattern(match.meaning, fields) && Array.isArray(saved) && saved.length === passages.length
+            && passages.every((passage, index) => matchesPublicPattern(saved[index], passage));
+        }), selector, selector);
     if (['claim', 'verification'].includes(selector.kind)) {
       if (selector.case !== undefined) {
         const row = source.coverage.cases.find(row => row.case_id === selector.case);
@@ -407,6 +431,7 @@ export function projectPublicSelection(resolution, { include = [] } = {}) {
     const value = { kind, ...(selector === undefined ? {} : { selector: structuredClone(selector) }), ...structuredClone(meaning) };
     if (kind === 'requirement') {
       const dependencies = match.dependencies();
+      if (meaning.declaration.definition === true && dependencies.state !== 'complete') value.state = 'incomplete';
       const definitions = dependencies.nodes.filter(node => node.definitions.length);
       if (definitions.length) value.definitions = definitions;
       if (include.includes('dependencies')) {

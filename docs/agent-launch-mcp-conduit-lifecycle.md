@@ -469,3 +469,15 @@ transport cleanup. A failed stop leaves acceptance pending and completion
 consumed, without a false death or release. Ordinary MCP close keeps its current
 healthy-client behavior. No request field, model prose or worker environment
 selects the process to stop.
+Before its existing producer probe, managed conduit composition validates the
+input and trusted authority through the same input owner as construction. It
+captures the branded host session profile once and supplies that profile to
+construction. The probe keeps an empty child environment and passes only the
+resolved tier to the fixed paid-composition helper selected from the actual
+serving entrypoint, including core forwarding. Free composition loads no private
+provider. Paid provider failures retain their `paid_provider_*` code, mechanical
+limb, cause, effects and installation repair through the shared refusal taxonomy;
+they occur before conduit construction and confined agent startup. Host startup
+validates again so a package changed after the probe cannot gain readiness.
+The existing generation, package documentation and per-generation authority
+checks remain in force.

@@ -2,6 +2,13 @@
 
 import { posix as pathPosix } from "node:path";
 
+export const REPOSITORY_SCOPE_FILE_SCHEMA = Object.freeze({ type: 'string', format: 'repository_scope_file',
+  description: 'One canonical repository-relative POSIX file path. No absolute path, drive, backslash, leading - or ~, control character, surrounding whitespace, empty/dot/traversal component, repeated slash, glob or trailing slash. Enumerate files; existence and authority are checked separately.' });
+export const NORMALIZED_REPOSITORY_SCOPE_FILE_SCHEMA = Object.freeze({ type: 'string', format: 'normalized_repository_scope_file',
+  description: 'One repository-relative POSIX file path. Surrounding whitespace and one leading ./ are normalized. No absolute path, drive, backslash, leading - or ~, control character, empty/dot/traversal component, repeated slash, glob or trailing slash. Enumerate files; existence and authority are checked separately.' });
+export const NORMALIZED_REPOSITORY_PATH_SCHEMA = Object.freeze({ type: 'string', format: 'normalized_repository_path',
+  description: 'A repository-relative POSIX path; surrounding whitespace and one leading ./ are normalized. No absolute path, drive, backslash, leading - or ~, control character, empty/dot/traversal component or repeated slash. This target syntax permits directory intent; it grants no scope or existence.' });
+
 function invalidRepositoryScopePath(input) {
   return Object.freeze({
     ok: false,

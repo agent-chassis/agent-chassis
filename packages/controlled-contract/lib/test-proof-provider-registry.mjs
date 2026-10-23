@@ -213,6 +213,8 @@ const TEST_PROOF_PROVIDER_AUTHORING_FACTS = deepFreeze(TEST_PROOF_PROVIDER_FAMIL
 
     selector: { kind, provider_qualified: family.selector.qualified,
       node_id_form: family.selector.grammar?.statement ?? null,
+      ...(family.selector.grammar === null ? {} : { path_schema: family.selector.grammar.path_schema,
+        literal_schema: family.selector.grammar.literal_schema }),
       ...(family.selector.grammar?.authored === undefined ? {}
         : { authored: { member: family.selector.grammar.authored.member,
           form: family.selector.grammar.authored.form,
@@ -299,7 +301,9 @@ function resolveAuthoredNativeTestTarget(target, { pointer = "/target" } = {}) {
   const other = Object.keys(selector).find((key) => key !== member);
   if (other !== undefined) {
     return Object.freeze({ ...nativeSelectorRefusal(`${pointer}/selector/${other}`,
-      `selector.${member}: ${form}`, selector[other] ?? null), replacement_member: member });
+      `selector.${member}: ${form}`, selector[other] ?? null), replacement_member: member,
+      ...(Object.hasOwn(selector, member) ? { replacement_present: true,
+        replacement_valid: resolveAuthoredNativeTestTarget({ ...target, selector: { [member]: selector[member] } }, { pointer }).valid } : {}) });
   }
   if (!Object.hasOwn(selector, member)) {
     return nativeSelectorRefusal(`${pointer}/selector/${member}`, form, null);

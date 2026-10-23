@@ -255,7 +255,7 @@
         "Operator is using the direct-directory read contract."
       ],
       "do_not_use_when": [
-        "Read the current session's repository through workspace_read_wiki with the document or record subject, then its returned reference."
+        "Read known document or record subjects directly with workspace_read_wiki({reads:[{subject,select}]}); discover missing choices only."
       ],
       "authoritative_for": [
         "direct-directory canonical page reads"
@@ -307,7 +307,7 @@
         "Operator is using the direct-directory record-read contract."
       ],
       "do_not_use_when": [
-        "Read the current session's repository through workspace_read_wiki with the document or record subject, then its returned reference."
+        "Read known document or record subjects directly with workspace_read_wiki({reads:[{subject,select}]}); discover missing choices only."
       ],
       "authoritative_for": [
         "direct-directory durable-record reads"
@@ -515,7 +515,7 @@
         "Operator explicitly requested the direct-directory persisted-index writer."
       ],
       "do_not_use_when": [
-        "The task needs ordinary search in the current repository; use workspace_read_wiki with search:{query}."
+        "The task needs ordinary search in the current repository; use workspace_read_wiki({reads:[{search:{query}}]})."
       ],
       "authoritative_for": [
         "direct-directory persisted search-index build"
@@ -567,7 +567,7 @@
         "Operator is using the direct-directory search contract."
       ],
       "do_not_use_when": [
-        "The task needs ordinary search in the current repository; use workspace_read_wiki with search:{query}."
+        "The task needs ordinary search in the current repository; use workspace_read_wiki({reads:[{search:{query}}]})."
       ],
       "authoritative_for": [
         "direct-directory canonical content search"
@@ -616,7 +616,7 @@
         "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
         "packages/wiki-core/src/operations/build-search-index.mjs"
       ],
-      "notes": "Operator-requested lexical wiki/docs index build for a configured workspace repository. reindex:true requests a full rebuild. Ordinary agent search uses workspace_read_wiki with search:{query}; the configured repository is session-bound.",
+      "notes": "Operator-requested lexical wiki/docs index build for the configured repository. reindex:true rebuilds it. Ordinary search uses workspace_read_wiki({reads:[{search:{query}}]}); the repository is session-bound.",
       "use_when": [
         "An operator explicitly refreshes the configured repository's lexical search cache."
       ],
@@ -725,20 +725,25 @@
       "source_files": [
         "packages/wiki-mcp/src/lib/task-read-wiki.mjs"
       ],
-      "notes": "Read compact canonical context, then one semantic selection from its returned reference. A WK subject's context facts carry the advisory terminal_review_designation; a findings unit's context facts and each inventory:\"slices\" member carry its effective review_purpose when one exists. Both are read-only observations of the saved record that grant or withhold no dispatch, admission, integration or handoff decision.",
+      "notes": "Read known subjects and public semantic selections directly in one bulk call, including mixed kinds. Use {reads:[Read,...]}; one selection is length one. Context/discovery fills missing information only. WK context exposes advisory terminal_review_designation; findings context and inventory:\"slices\" expose review_purpose. These read-only facts grant no dispatch, admission, integration or handoff authority.",
       "use_when": [
-        "Read compact canonical context, then one semantic selection from its returned reference."
+        "Read known subjects and public semantic selections directly in one bulk call, including mixed kinds."
       ],
       "do_not_use_when": [
         "The request needs an ungranted role, caller-selected repository or another task."
       ],
       "authoritative_for": [
-        "Read compact canonical context, then one semantic selection from its returned reference."
+        "Read known subjects and public semantic selections directly in one bulk call, including mixed kinds."
       ],
       "recommended_first_call": {
-        "operation": "Read compact canonical context, then one semantic selection from its returned reference.",
+        "operation": "Read known subjects and public semantic selections directly in one bulk call, including mixed kinds.",
         "arguments": {
-          "subject": "$canonical_subject"
+          "reads": [
+            {
+              "subject": "$canonical_subject",
+              "select": "$semantic_selection"
+            }
+          ]
         },
         "omit_null_arguments": true
       }

@@ -1,7 +1,8 @@
 
 
 import path from "node:path";
-import { activeCompletion, arbitrateCompletion, completionObservations, COMPLETION_OBSERVATION_KIND } from "./managed-run-completion-observation.mjs";
+import { activeCompletion, arbitrateCompletion, completionObservations, COMPLETION_OBSERVATION_KIND,
+  deliveryCompletionRelease, reconcileDeliveryCompletion } from "./managed-run-completion-observation.mjs";
 import {
   CRASH_DURABLE_RESULTS,
   createSyncEffects,
@@ -457,6 +458,15 @@ export function readManagedCompletion({ mainRepo, subject, attemptId = null, sli
   if (!selected.ok) return selected;
   return { ok: true, dispatch_tuple: selected.selected.dispatch_tuple,
     completion: activeCompletion(completionObservations(read.events, selected.selected.dispatch_tuple)) };
+}
+
+export function reconcileManagedDeliveryCompletion({ mainRepo, subject, sliceBinding, original }) {
+  const evidence = deliveryCompletionRelease({ subject, sliceBinding, original });
+  if (!evidence.ok) return evidence;
+  const { intent, completion } = evidence;
+  return recordManagedInvocationObservation({ mainRepo, subject, sliceBinding,
+    invocationId: completion.intent_id, kind: COMPLETION_OBSERVATION_KIND, field: "completion", value: completion,
+    predicate: ({ events, selected }) => reconcileDeliveryCompletion({ events, selected, intent, completion }) });
 }
 
 export function findManagedDeliveryReceipt({ mainRepo, refId, subject = null, assignmentChange = false }) {

@@ -31,14 +31,22 @@ acceptance and its terminal behavior without another completion event.
 An unacknowledged completion publication returns `accepted:null`, the specific
 failure, and `get_run_result({assigned:true})` for inspection. Implementation,
 delivery and request retries must wait while acceptance is unresolved. Missing
-authentication, binding, frozen assignment, termination or retention is
+authentication, binding, termination or retention is
 identified by its specific cause and affected assignment; these responses do not invent
 an external repair or grant access. A known earlier acceptance stays binding
 even if a later operation fails. Accepted handoff does not prove termination.
-An unavailable frozen assignment can prevent both its read and submission of a
-correction request. Preserve both failures and the precise unsupported step;
-do not assume this tool can accept every context gap. Internal ownership and
-capability identifiers are not agent recovery actions.
+An otherwise authenticated, exactly bound worker can report unavailable frozen
+content. The server requires the session's single current-unit assignment pin
+and its configured digest-named artifact location. A read failing with `ENOENT`,
+`EACCES` or `EPERM` retains the exact caller testimony and specific read failure,
+with assignment content explicitly unavailable. The trusted digest pin remains
+the completion binding; it is not evidence that absent bytes were read or verified.
+No content is invented, substituted from live state or automatically repaired.
+Invalid immutable evidence, an unpinned/malformed location, a mismatched
+presentation and other I/O failures still refuse. These states do not become
+ordinary absence. All credential, exact run/source binding, competing completion
+and launcher termination checks still apply. Internal ownership and capability
+identifiers are not agent recovery actions.
 
 If delivery already owns completion, a recoverable receipt returns only its
 submission and checkout effects. An already complete delivery needs no repeated
@@ -50,6 +58,19 @@ stay internal. No new commit or assignment-change request is implied.
 When no receipt can be recovered, the response preserves the failed read and
 uncertain effects and stops without a blind retry. A terminal attempt cannot accept a
 first request and has no worker continuation.
+
+A failed completion-claim release has a narrower recovery when an authenticated
+retained transaction proves non-publication or exact compensation with no
+canonical write, and names the exact active intent. The refusal reports its
+known object/ref/review/checkout effects and release failure, with the issued
+`workspace_deliver_work({reconcile:{ref_id}})` call. After that release cause is
+corrected within existing authority, reconciliation releases only that claim
+through the completion owner; it performs no delivery or review submission and
+creates no successful delivery receipt. Successful reconciliation restores the
+choice of completion. Preserve the authored handoff and request it again if the
+assignment gap remains. Missing testimony grants no acceptance. Unknown effects,
+failed compensation, missing evidence, foreign bindings, competing completion
+and terminal attempts cannot use this recovery.
 
 The coordinator follows the exact attempt observation selected by its launch or
 previous observation, retrieves the handoff through returned result/detail
@@ -68,6 +89,11 @@ An assigned worker observing known acceptance gets the stop instruction and no
 handoff or wait call. The coordinator retains its handoff navigation. Optional
 assignment detail delivers the frozen guidance once, without its digest, encoded
 copy or authentication metadata; reading it executes nothing.
+For a handoff accepted with unavailable content, the coordinator receives the
+specific failure immediately beside the requested correction and completed/
+remaining work. There is no required detail read for the same failure and no
+claim to know the missing guidance. Retained reads preserve this original
+unavailable extent even if the artifact later becomes readable.
 
 When the missing instruction is an authored parent decision, the coordinator can
 save an immutable entry on the owning record, select its required version through

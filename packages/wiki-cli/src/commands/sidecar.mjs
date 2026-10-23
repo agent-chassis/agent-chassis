@@ -1,18 +1,13 @@
+import { buildSidecarIndexInWorker } from "@agent-chassis/wiki-core/src/lib/sidecar-refresh.mjs";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import {
   SidecarIndexEnsureError,
-  buildSidecarIndex,
-  getSidecarContextForPath,
-  getSidecarIndexStatus,
-  getSidecarQueryImpact
+  getSidecarIndexStatus
 } from "@agent-chassis/wiki-core";
-import {
-  getSidecarSymbolCallers,
-  getSidecarSymbolCallees,
-  getSidecarSymbolDefinition,
-  getSidecarSymbolReferences
-} from "@agent-chassis/wiki-core/src/lib/sidecar-symbol-query.mjs";
+import { PaidProviderError } from '@agent-chassis/wiki-core/src/lib/paid-capability-contract.mjs';
+import { loadPaidCapabilities } from '@agent-chassis/wiki-core/src/lib/paid-capability-loader.mjs';
+const queryCapabilities = () => loadPaidCapabilities({ resolve: specifier => import.meta.resolve(specifier) });
 import { sidecarDependencyLimitations } from "@agent-chassis/wiki-core/src/lib/sidecar-scip-projects.mjs";
 import { resolveScipProviderDeadlineMs } from "@agent-chassis/wiki-core/src/lib/sidecar-scip-provision.mjs";
 import { optionalOption, parseArgs } from "../lib/cli.mjs";
@@ -199,7 +194,7 @@ async function runBuild(argv, { rebuild = false } = {}) {
   const request = codeIndexBuildRequest(options, { rebuild });
   let result;
   try {
-    result = await buildSidecarIndex(request);
+    result = await buildSidecarIndexInWorker(request);
   } catch (error) {
     if (options.json && error instanceof SidecarIndexEnsureError) {
       console.log(JSON.stringify(error.envelope, null, 2));
@@ -256,7 +251,8 @@ async function runImpact(argv) {
   } else {
     query.liveGit = true;
   }
-  printQueryResult(await getSidecarQueryImpact(query), options);
+  const { codeIntelligence } = await queryCapabilities();
+  printQueryResult(await codeIntelligence.getSidecarQueryImpact(query), options);
 }
 
 async function runContextForPath(argv) {
@@ -275,7 +271,8 @@ async function runContextForPath(argv) {
   if (pathCount !== 1) {
     throw new Error("context-for-path requires exactly one path via --path <path> or one positional path");
   }
-  const result = await getSidecarContextForPath({ ...transportQuery(options),
+  const { codeIntelligence } = await queryCapabilities();
+  const result = await codeIntelligence.getSidecarContextForPath({ ...transportQuery(options),
     path: options.path ?? positionals[0] });
   printQueryResult(result, options);
 }
@@ -287,10 +284,10 @@ const NAVIGATION_OPTIONS = {
 };
 
 const NAVIGATION_QUERIES = Object.freeze({
-  "find-references": getSidecarSymbolReferences,
-  definition: getSidecarSymbolDefinition,
-  callers: getSidecarSymbolCallers,
-  callees: getSidecarSymbolCallees
+  "find-references": "getSidecarSymbolReferences",
+  definition: "getSidecarSymbolDefinition",
+  callers: "getSidecarSymbolCallers",
+  callees: "getSidecarSymbolCallees"
 });
 
 async function runNavigation(command, argv) {
@@ -310,10 +307,12 @@ async function runNavigation(command, argv) {
     ["character", options.character], ["cacheDir", options["cache-dir"]]]) {
     if (value !== undefined) query[key] = value;
   }
-  printQueryResult(await NAVIGATION_QUERIES[command](query), options);
+  const { codeIntelligence } = await queryCapabilities();
+  printQueryResult(await codeIntelligence[NAVIGATION_QUERIES[command]](query), options);
 }
 
 export async function runSidecar(argv) {
+  try {
   const [command, ...rest] = argv;
 
   switch (command) {
@@ -346,5 +345,10 @@ export async function runSidecar(argv) {
       return;
     default:
       throw new Error(`Unknown code-index command: ${command}\n\n${HELP_TEXT}`);
+  }
+  } catch (error) {
+    if (!(error instanceof PaidProviderError)) throw error;
+    console.error(JSON.stringify(error.envelope));
+    process.exitCode = 1;
   }
 }

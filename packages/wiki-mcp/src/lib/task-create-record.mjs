@@ -102,7 +102,7 @@ const unpublishedCandidate = allocation => allocation?.publication_state === "no
 
 export function createCreateRecordSurface({ workspace, z, responseEnv = process.env, sessionEnv = process.env,
   generateAndLint, assessment = null, resolveRetainedFindingsSource = null, dispatchSessionIdentity = null,
-  registeredTier = null, birthOptions = {}, maintenanceOptions = {} }) {
+  registeredTier = null, requirementAuthoring, birthOptions = {}, maintenanceOptions = {} }) {
   const contract = createCreateRecordInputContract(z, registeredTier);
   const role = parseToolProfile(sessionEnv);
   let context = null;
@@ -137,7 +137,7 @@ export function createCreateRecordSurface({ workspace, z, responseEnv = process.
             ...(resolveExternalReference === null ? {} : { resolveExternalReference }),
             resolveRetainedGraphEvidence: source => readRetainedGraphImpact(source, { repository: workspace.repo, responseEnv }),
 
-            ...birthOptions.owners, registeredTier },
+            ...birthOptions.owners, registeredTier, requirementAuthoring },
           ...(assessment === null ? {} : { assess: async ({ wkId }) => {
             const { body: observed } = await assessment.prepare({ unit: wkId });
             return { assessment: observed.assessment, original: observed.original };
@@ -257,7 +257,7 @@ export function createCreateRecordTask(configuration) {
       tool: 'save_record', arguments: { unit: body.unit, maintenance_observe: { save_result: body.original.locator } }, recommended: true });
     if (request.recover !== undefined && body.outcome === 'mutation_outcome_unknown') nextCalls.push({
       tool: CREATE_RECORD_TOOL_NAME, arguments: request, recommended: true });
-    if (body.original?.available && body.maintenance?.state !== 'maintenance_attempt_in_progress' && body.maintenance?.members?.some(row => row.state !== "succeeded")) {
+    if (recovery?.state !== 'no_supported_route' && body.original?.available && body.maintenance?.state !== 'maintenance_attempt_in_progress' && body.maintenance?.members?.some(row => row.state !== "succeeded")) {
       nextCalls.push({ ...buildRetryCall(body.unit, body.original.locator), recommended: false });
     }
     const conflict = creationConflictSubject(body);

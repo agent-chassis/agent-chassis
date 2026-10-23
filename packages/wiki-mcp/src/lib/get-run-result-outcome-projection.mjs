@@ -63,8 +63,8 @@ export async function integrationReadOutcome({ carrier, result, responseEnv, rol
   const { body } = await prepareIntegrateWorkResponse({ result: effects,
     original: { captured: true, retained: { subject, original: { available: true, locator: result } } },
     request: carrier.request, responseEnv, receivingRole: role, requestContracts });
-  const answer = Object.fromEntries(["outcome", "effects", "delivery", "cause", "remaining", "recovery",
-    "correction", "selection", "continuation_limitations"].filter(key => Object.hasOwn(body, key))
+  const answer = Object.fromEntries(["outcome", "effects", "effects_scope", "delivery", "cause", "remaining", "recovery",
+    "correction", "selection", "candidate_version", "prior_integration", "candidate_preparation", "observed_facts", "continuation_limitations"].filter(key => Object.hasOwn(body, key))
     .map(key => [key, body[key]]));
   if (carrier.result?.blocker !== undefined) answer.blocker = distillDispatchFailureDetail(carrier.result.blocker,
     { nested: true }).detail;

@@ -68,7 +68,8 @@ function definitionCorrection(subject, registeredTier) {
 }
 
 export function assessmentDefinitionIdentityRecovery(carrier, diagnosis, registeredTier) {
-  if (!writable(carrier) || !recordAuthoringAvailability(registeredTier).compile_requirements) return null;
+  if (!writable(carrier) || carrier.focus != null || !recordAuthoringAvailability(registeredTier).compile_requirements ||
+    !['description_source_missing', 'description_symbol_missing', 'description_symbol_ambiguous'].includes(diagnosis.code)) return null;
   const subject = diagnosis.subjects.find(row => row.authored_identity_correction === true);
   if (subject === undefined) return null;
   const correction = definitionCorrection(subject, registeredTier);
@@ -194,9 +195,11 @@ export function assessmentAuthoringGuidance(carrier, { purpose, subjects = [], c
     ? ["controlled_acceptance.disposition"]
     : codes.includes("obligation_coverage_node_unknown") ? ["obligations[].claims"]
     : purpose === "criterion_coverage"
-      ? ["obligations[].criteria associations chosen by the author; incomplete obligations must also be repaired"]
+      ? ["Choose only missing or stale obligations[].criteria associations; preserve current links and repair invalid obligation content through its diagnosis"]
       : purpose === "definition"
-        ? ["requirements: supply the typed definition for each diagnosed required_uses; the author supplies meaning"]
+        ? [subjects.some(subject => subject.authored_identity_correction === true)
+          ? "requirements: the caller chooses an existing-source identity correction or planned functionality, preserving authored behavior and all listed uses"
+          : "requirements: supply the typed definition for each diagnosed required_uses; the author supplies meaning"]
       : competition ? recovery.choices.flatMap(choice => [
         `${choice.field} when ${choice.when}`, ...(choice.then ? [choice.then] : [])])
       : fields.length > 0 ? fields
@@ -232,6 +235,7 @@ export function assessmentAuthoringGuidance(carrier, { purpose, subjects = [], c
         semantic_identity: subject.semantic_identity, evidence: subject.evidence }),
       ...(subject.failed_fields === undefined ? {} : { failed_fields: subject.failed_fields }),
       ...(subject.association === undefined ? {} : { association: subject.association }),
+      ...(subject.component_requirement === undefined ? {} : { component_requirement: subject.component_requirement }),
       ...(inputs(subject).length === 0 ? {} : { missing_authored_input: inputs(subject).map(clause => ({
         field: clause.field, ...(typeof clause.operation === "string" ? { operation: clause.operation } : {}),
         ...(typeof clause.when === "string" ? { when: clause.when } : {}) })) }) })),
@@ -244,6 +248,31 @@ export function assessmentAuthoringGuidance(carrier, { purpose, subjects = [], c
           : competition && compilation ? ["requirements", "obligations"] : ["obligations"] } };
 }
 
+export function shareAssessmentSubjects(subjects, project = value => value, { always = false, prefix = 'definition' } = {}) {
+  const definitions = {};
+  const associations = subjects.map(({ obligation_id, ...meaning }) => {
+    let id = Object.keys(definitions).find(key => isDeepStrictEqual(definitions[key], meaning));
+    if (id === undefined) { id = `${prefix}-${Object.keys(definitions).length + 1}`; definitions[id] = meaning; }
+    return { ...(obligation_id === undefined ? {} : { obligation_id }), definition_id: id };
+  });
+  return always || Object.keys(definitions).length < subjects.length
+    ? { subjects: associations, subject_definitions: Object.fromEntries(Object.entries(definitions).map(([id, value]) => [id, project(value)])) }
+    : { subjects: subjects.map(project) };
+}
+
+export function shareAssessmentRequirements(choices) {
+  const subjects = choices.flatMap(({ facts }) => facts.subject_definitions === undefined
+    ? facts.subjects : Object.values(facts.subject_definitions));
+  const shared = shareAssessmentSubjects(subjects.flatMap(subject => subject.requirements ?? []),
+    value => value, { prefix: 'requirement' });
+  if (shared.subject_definitions === undefined) return {};
+  let index = 0;
+  for (const subject of subjects) if (subject.requirements !== undefined) {
+    subject.requirements = subject.requirements.map(() => shared.subjects[index++]);
+  }
+  return { requirement_definitions: shared.subject_definitions };
+}
+
 export function projectAssessmentDiagnosis(carrier, diagnosis, clauses = {}, registeredTier) {
   const { correction_call: _call, recovery, requires_authored_values: _values,
     correction_route: _route, ...facts } = diagnosis;
@@ -254,14 +283,10 @@ export function projectAssessmentDiagnosis(carrier, diagnosis, clauses = {}, reg
     || diagnosis.subjects?.some(selects);
 
   let subjects = diagnosis.subjects;
-  const definitions = {};
+  let definitions = {};
   if (diagnosis.family === "definition") {
-    facts.subjects = subjects.map(({ obligation_id, ...definition }) => {
-      let id = Object.keys(definitions).find(key => isDeepStrictEqual(definitions[key], definition));
-      if (id === undefined) { id = `definition-${Object.keys(definitions).length + 1}`; definitions[id] = definition; }
-      return { ...(obligation_id === undefined ? {} : { obligation_id }), definition_id: id };
-    });
-    facts.subject_definitions = definitions;
+    Object.assign(facts, shareAssessmentSubjects(subjects, value => value, { always: true }));
+    definitions = facts.subject_definitions;
     subjects = Object.values(definitions);
   }
   const authoring = authored ? assessmentAuthoringGuidance(carrier, {
@@ -313,10 +338,6 @@ export function projectSelectedDiagnosisGuidance(carrier, diagnosis, corrections
     delete projected.recovery.authoring.current_read;
   }
   if (guidance.save_guidance?.changes_schema_from?.current_read != null) delete projected.inspection;
-  if (guidance.save_guidance && carrier.assessment.acceptance_coverage?.correction != null) {
-    const { purpose, required_authored_input, executable } = assessmentAuthoringGuidance(carrier, { purpose: "criterion_coverage" }, registeredTier);
-    guidance.save_guidance.criterion_coverage = { purpose, required_authored_input, executable };
-  }
   const obligations = [...new Set(diagnosis.subjects.map(subject => subject.obligation_id).filter(id => typeof id === "string"))];
   if (guidance.save_guidance?.changes_schema_from && projected.recovery.authoring?.save.authored_members.includes("obligations") && obligations.length > 0) {
     guidance.save_guidance.readback = {
@@ -425,10 +446,8 @@ export function projectAssessmentGuidance(carrier, assessment, registeredTier, {
 
 export function assessmentCurrentRead(body) {
   return body.assessment?.save_guidance?.changes_schema_from?.current_read
-    ?? body.selected_diagnosis?.save_guidance?.changes_schema_from?.current_read
     ?? body.assessment?.authoring?.current_read ?? body.assessment?.acceptance_coverage?.correction?.current_read
-    ?? body.selected_diagnosis?.diagnosis.recovery?.authoring?.current_read
-    ?? body.selected_diagnosis?.diagnosis.inspection ?? body.assessment?.specification?.inspection
+    ?? body.assessment?.specification?.inspection
     ?? body.assessment?.user_requirements_comparison?.read_call
     ?? (body.assessment?.parent_source_accounting?.recovery === undefined
       ? null : body.assessment.parent_source_accounting.correction);

@@ -36,7 +36,7 @@
       ],
       "source_files": [
         "packages/wiki-cli/src/commands/sidecar.mjs",
-        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
+        "packages/paid/src/code-intelligence/sidecar-symbol-query.mjs"
       ],
       "notes": "Compact CLI fallback for SCIP-derived symbol reference lookup. It auto-ensures the committed-HEAD index and may write its ignored derived cache. Prefer the MCP `query_code_index` route for structured agent use."
     },
@@ -70,7 +70,7 @@
       ],
       "source_files": [
         "packages/wiki-cli/src/commands/sidecar.mjs",
-        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
+        "packages/paid/src/code-intelligence/sidecar-symbol-query.mjs"
       ],
       "notes": "CLI lookup of SCIP-derived definitions. Ensures the committed-HEAD index and may write its ignored cache. Agents should prefer query_code_index."
     },
@@ -104,7 +104,7 @@
       ],
       "source_files": [
         "packages/wiki-cli/src/commands/sidecar.mjs",
-        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
+        "packages/paid/src/code-intelligence/sidecar-symbol-query.mjs"
       ],
       "notes": "Compact CLI fallback for SCIP-derived callers lookup. It auto-ensures the committed-HEAD index and may write its ignored derived cache. Prefer the MCP `query_code_index` route for structured agent use."
     },
@@ -138,7 +138,7 @@
       ],
       "source_files": [
         "packages/wiki-cli/src/commands/sidecar.mjs",
-        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
+        "packages/paid/src/code-intelligence/sidecar-symbol-query.mjs"
       ],
       "notes": "Compact CLI fallback for SCIP-derived callees lookup. It auto-ensures the committed-HEAD index and may write its ignored derived cache. Prefer the MCP `query_code_index` route for structured agent use."
     }

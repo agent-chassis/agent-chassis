@@ -21,7 +21,7 @@ function correctionFor(code) {
   switch (code) {
     case 'feedback_report_too_large': return 'Author a sufficient concise observation within the stated limit, or stop feedback and continue work. Do not silently truncate it; whitespace minification does not reduce the parsed size.';
     case 'feedback_stdin_too_large': return 'Minify the same lossless JSON to fit the 256 KiB raw stdin transport.';
-    case 'feedback_input_invalid': return 'Correct the named field with known facts, preserving session and relation intent; otherwise stop feedback and continue work.';
+    case 'feedback_input_invalid': return 'Correct the input with known facts, preserving session and relation intent; otherwise stop feedback and continue work.';
     case 'feedback_busy': return 'Stop reporting and continue the original work; do not poll or automatically retry.';
     case 'feedback_session_unknown': return 'Choose a known returned session_id from this repository, or explicitly choose new_session:true when no usable handle is available. Do not guess an identity. Otherwise stop reporting and continue the original work.';
     case 'feedback_reference_unknown': return 'Supply a known returned related_feedback_id from this repository. Omit it only if you explicitly intend an independent observation; otherwise stop reporting. No feedback lookup is supported.';

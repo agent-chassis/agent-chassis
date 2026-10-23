@@ -1,4 +1,4 @@
-import { shareReadWikiDefinitions } from './read-wiki-contract-presentation.mjs';
+import { shareReadWikiDefinitions, offerReadWikiDefinitionSources } from './read-wiki-contract-presentation.mjs';
 import { completeProducedContent } from './mcp-response.mjs';
 import { scopeDirectory, entryJson, entryNode, entryNodeValue } from './read-wiki-semantic-navigation.mjs';
 import { readTaskSelection, readDocumentSections } from './read-wiki-focused-selections.mjs';
@@ -10,7 +10,7 @@ import { readWikiRefusal } from "./read-wiki-refusal.mjs";
 import { createReadWikiInputDiagnosis } from './read-wiki-input-diagnosis.mjs';
 import { readWikiCurrentness } from "./read-wiki-currentness.mjs";
 import { decodeSearchToken } from "@agent-chassis/wiki-core/src/lib/search-source-reader.mjs";
-import { sessionRequirementAuthoringGuidance, requirementGuidanceRevision, requirementGuidanceDetailNavigation } from "./requirement-authoring-guidance.mjs";
+import { sessionRequirementAuthoringGuidance, requirementGuidanceRevision, requirementGuidanceDetailNavigation, requirementGuidanceDiscovery } from "./requirement-authoring-guidance.mjs";
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
@@ -139,7 +139,8 @@ export function createReadWikiTask({
 }) {
   const sessionGuidance = sessionRequirementAuthoringGuidance(registeredTier, exceptionPublication);
   const sessionGuidanceRevision = requirementGuidanceRevision(registeredTier, undefined, exceptionPublication);
-  const sessionGuidanceTopics = Object.keys(sessionGuidance).filter(member => !["schema_version", "overview"].includes(member)).map(member => [member]);
+  const sessionGuidanceDiscovery = requirementGuidanceDiscovery(registeredTier, exceptionPublication);
+  const sessionGuidanceTopics = sessionGuidanceDiscovery.selections.map(selection => selection.guidance);
   const grants = createReadWikiGrants(policy, sessionRole);
   const inputSchema = createReadWikiInputSchema(z, grants);
   if (inputSchema === null) return null;
@@ -194,18 +195,13 @@ export function createReadWikiTask({
       const focused = await inputNavigation.focusedContext({ unit: resource.unit,
         reference: result.reference, members: forChanges });
       if (focused?.refusal) {
-        const { code, ...details } = focused.refusal;
-        throw correctable(code, { subject: resource.subject, ...details,
-          effects: { reads: [resource.source_kind], writes: [] } },
-          { reference: result.reference, select: { context: true } },
-          'The requested members must be distinct members of this saved unit; none was selected or dropped.',
-          'Returns ordinary context and complete job choices for the same unit; the caller chooses valid members.');
+        throw authoringMemberRefusal(focused.refusal, resource, forChanges);
       }
       if (focused.unavailable) throw invalid('authoring_context_unavailable', { subject: resource.subject,
         requested_members: forChanges, ...focused.unavailable,
         effects: { reads: [resource.source_kind], writes: [] } });
       return { subject: resource.subject, revision: result.revision, reference: result.reference,
-        authoring_context: focused.identity, next_calls: [focused.call] };
+        authoring_context: focused.identity, next_calls: [{ ...focused.call, recommended: false }] };
     }
 
     if (resource.source_kind === KIND.RECORD_KIND) {
@@ -216,6 +212,18 @@ export function createReadWikiTask({
     if (typeof resource.unit !== "string" || !granted(resource.source_kind, "input_contract")) return result;
     const choices = await inputNavigation.jobChoices({ unit: resource.unit, reference: result.reference });
     return choices.length === 0 ? result : { ...result, next_calls: [...result.next_calls, ...choices.filter(choice => choice.job !== undefined)] };
+  }
+
+  function authoringMemberRefusal(refusal, resource, members) {
+    const { code, ...details } = refusal;
+    const not_applicable = members.filter(member => !details.valid_members.includes(member));
+    const invalid_fields = members.flatMap((member, index) => !details.valid_members.includes(member) || members.indexOf(member) !== index
+      ? [{ path: ['for_changes', index], cause: !details.valid_members.includes(member)
+        ? 'This member is not applicable to the selected unit.' : 'This member is repeated.',
+      expected: 'distinct members chosen from valid_members' }] : []);
+    return invalid(code, { subject: resource.subject, ...details, not_applicable, invalid_fields,
+      effects: { reads: [resource.source_kind], writes: [] },
+      recovery: { state: 'caller_choice', correction: 'Choose distinct valid_members for for_changes; preserve the intended edit. No member was dropped or selected for you.' } });
   }
 
   const findingsSession = sessionRole === "reviewer" || sessionRole === "redteam";
@@ -269,11 +277,9 @@ export function createReadWikiTask({
       { subject: REQUIREMENT_GUIDANCE_SUBJECT },
       "Compilation guidance is unavailable in this serving session; no schema was disclosed and nothing changed. Required meaning and applicability remain unchanged.",
       "Read supported authoring information; reading repairs no capability and changes no required meaning or applicability.");
-    const correctionSubject = resolved.code === "case_guidance_family_not_supported"
-      ? { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: ["case_authoring"] } : REQUIREMENT_GUIDANCE_SUBJECT;
     return correctable("requirement_guidance_topic_not_found", { guidance: [...path], code: resolved.code,
       segment_index: resolved.segment_index, resolved_path: resolved.resolved_path, expected: resolved.expected },
-    { subject: correctionSubject }, "the path must name a member of the requirement-authoring guidance",
+    { subject: REQUIREMENT_GUIDANCE_SUBJECT }, "the path must name a member of the requirement-authoring guidance",
     "the call returns the guidance context, whose selections are the readable topics");
   }
 
@@ -360,7 +366,14 @@ export function createReadWikiTask({
     }
     if (DOCUMENT_PATH_PATTERN.test(subject)) {
       requireGrant(KIND.DOCUMENT, "context");
-      const page = await owners.readWikiPage({ dir: workspace.dir, path: subject, include_body: true, include_raw: true });
+      let page;
+      try {
+        page = await owners.readWikiPage({ dir: workspace.dir, path: subject, include_body: true, include_raw: true });
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        throw invalid('subject_not_found', { subject, cause: `No saved document exists at ${subject}.`,
+          recovery: { state: 'caller_choice', correction: 'Supply the intended existing document path; no alternate subject was inferred.' } });
+      }
       if (page.format !== "markdown") throw invalid("subject_not_document", { subject });
       return { source_kind: KIND.DOCUMENT, subject, unit: subject, value: page,
         revision: sha256(page.markdown),
@@ -368,6 +381,8 @@ export function createReadWikiTask({
           body_scalars: scalars(page.body), backlink_count: page.backlink_count } };
     }
     throw invalid("subject_not_canonical", { subject,
+      cause: 'The subject is not in a supported canonical form.',
+      recovery: { state: 'caller_choice', correction: 'Supply the intended subject using one of the accepted forms; no subject was inferred.' },
       accepted: ["WK-0000", "WK-0000#SLICE-000", "DEC-0000", "IN-0000", "docs/<path>.md", "wiki/<path>.md",
         "{repository:true}", "{contract:true}",
         ...(granted(KIND.REQUIREMENT_GUIDANCE, "context") ? ["{requirement_guidance:true}"] : []),
@@ -579,6 +594,8 @@ export function createReadWikiTask({
       ...context, ...extra, reference,
       ...(choices.length ? { selections: choices,
         selection_context: { tool: READ_WIKI_TOOL,
+          ...(resource.source_kind === KIND.REQUIREMENT_GUIDANCE && resource.subject.topic === undefined
+            ? sessionGuidanceDiscovery.meaning : {}),
           binding: "Choose needed selections; call {reads:[{reference,select:selections[i]},...]} with this answer's reference unchanged. Choices are optional, not continuations." } } : {}),
       next_calls: nextCalls
     };
@@ -609,6 +626,9 @@ export function createReadWikiTask({
     if (![KIND.RECORD, KIND.CANONICAL_RECORD].includes(resource.source_kind) || sessionRole === 'worker' || findingsSession && launcherBound())
       throw invalid('authoring_context_unavailable', { subject: resource.subject,
         cause: 'This source is frozen, historical or not a current writable saved unit. No current write revision is supplied.' });
+    const focused = await inputNavigation.focusedContext({ unit: resource.unit, reference, members });
+    if (focused?.refusal) throw authoringMemberRefusal(focused.refusal, resource, members);
+    if (focused.unavailable) throw invalid('authoring_context_unavailable', { subject: resource.subject, ...focused.unavailable });
     const scopes = bulkScope.getStore().writeRequests;
     const held = scopes.get(resource.unit);
     if (held && held.resource.authoring_revision !== resource.authoring_revision)
@@ -738,7 +758,7 @@ export function createReadWikiTask({
           return { inventory: "slices", members,
             ...(members.length > 0 && granted(KIND.RECORD, "context") ? {
               selection_context: { tool: READ_WIKI_TOOL,
-                binding: "Use {reads:[{subject:members[i].unit}]} unchanged to open each slice's context, then its returned reference and selections to read its contents." },
+                binding: 'Combine related reads: {"reads":[{"subject":"$unit","select":"$selection"}]}. Bind $unit to members[i].unit and $selection to the needed role-authorized selection; repeat items for mixed reads. If field choices are missing, select {inventory:"fields"}. Request context only for missing context information.' },
               next_calls: [] } : { next_calls: [] }) };
         }
       }
@@ -1182,17 +1202,36 @@ export function createReadWikiTask({
       "the call reads the requested content from the saved unit's current source; it does not replay the save");
   }
 
-  async function referenceRead(args) {
-    if (args.reference.ref !== undefined) return ownerReferenceRead(args);
-    if (args.reference.tool_name !== undefined) return packageDocumentRead(args);
-    const source = { ref_id: args.reference.ref_id };
+  function inspectReference(reference) {
+    const source = { ref_id: reference.ref_id };
 
-    const stored = readSelectedResponseSource(source, { env, expected: {}, route: READ_WIKI_TOOL }).binding;
+    let retained;
+    try {
+      retained = readSelectedResponseSource(source, { env, expected: {}, route: READ_WIKI_TOOL });
+    } catch (error) {
+      const envelope = error.envelope ?? {};
+      const step = envelope.reason ?? envelope.observed_facts?.['content_reference.failed_step'] ?? envelope.diagnostic?.observed_facts?.['content_reference.failed_step'];
+      if (envelope.code !== 'mcp_response.content_reference_ranged_read_unavailable.v1') throw error;
+      const absent = step === 'content_reference_not_found';
+      throw invalid(absent ? 'reference_not_found' : 'reference_unavailable', { subject: reference,
+        cause: { code: step ?? 'retained_reference_unavailable', message: absent
+          ? 'No retained source is available for this reference. It may be unissued or expired; its subject is not established.'
+          : 'The retained source cannot be read or authenticated; its subject is not established.' },
+        recovery: { state: 'caller_choice', correction: 'Use an intact issued reference, or supply the intended known subject and the same selection in a new bulk request. No subject or replacement content was inferred.' } });
+    }
+    const stored = retained.binding;
     const workspace = stored.route === READ_WIKI_TOOL && sessionRole === "worker"
       ? resolveWorkspaceRepo(workspaceRepos, undefined) : resolveWorkspaceReadRepo({});
     if (stored.repository !== workspace.repo) {
       throw invalid("reference_repository_mismatch", { session_repository: workspace.repo });
     }
+    return { source, stored, workspace, carrier: retained.carrier };
+  }
+
+  async function referenceRead(args) {
+    if (args.reference.ref !== undefined) return ownerReferenceRead(args);
+    if (args.reference.tool_name !== undefined) return packageDocumentRead(args);
+    const { source, stored, workspace } = inspectReference(args.reference);
     if (stored.route !== READ_WIKI_TOOL) {
       if (args.for_changes !== undefined) throw invalid('authoring_context_unavailable', {
         subject: stored.unit, cause: 'A captured operation receipt supplies no current write context. Request the current target unit separately.' });
@@ -1287,7 +1326,25 @@ export function createReadWikiTask({
   async function readItem(args) {
     try {
       const parsed = await readSchema.safeParseAsync(args);
-      if (!parsed.success) return { status: 'refused', issue: inputDiagnosis.item(args, parsed.error) };
+      if (!parsed.success) {
+        let referenceDiscovery = false, sourceIssue;
+        if (args?.reference?.ref_id !== undefined && readSchema.innerType().shape.reference.safeParse(args.reference).success) {
+          try {
+            authenticateFrozenReviewSource();
+            const { source, stored, workspace, carrier } = inspectReference(args.reference);
+            if (stored.route === READ_WIKI_TOOL) {
+              readSelectedResponseSource(source, { env, expected: await bindingFor(workspace, stored.unit) });
+              referenceDiscovery = granted(carrier.source_kind, 'context');
+            }
+          } catch (error) {
+            sourceIssue = issueResult(error, args).issue;
+          }
+        }
+        const diagnosis = inputDiagnosis.item(args, parsed.error, { referenceDiscovery });
+        return { status: 'refused', issue: { ...diagnosis,
+          ...(sourceIssue ? { source_issue: sourceIssue, next_calls: [],
+            recovery: { state: 'caller_choice', correction: 'Correct the stated source failure and selection fields; preserve the intended selection and constraints. No replacement subject is established.' } } : {}) } };
+      }
       args = parsed.data;
       if (args.for_changes !== undefined && (args.select?.version !== undefined || args.select?.history === true ||
           args.reference?.ref !== undefined || args.reference?.tool_name !== undefined))
@@ -1364,6 +1421,10 @@ export function createReadWikiTask({
                   ...(results[index].next_calls ? { next_calls: results[index].next_calls } : {}) }
                 : issueResult(error, args.reads[index]);
         }
+      }
+
+      if (results.some(result => result.value?.members?.length)) {
+        await offerReadWikiDefinitionSources(results, { requestContracts, repository: resolveWorkspaceRepo(workspaceRepos, undefined).repo });
       }
       const shared = shareReadWikiDefinitions(results, args.reads.map(read => {
         if (read === null || typeof read !== 'object' || Array.isArray(read)) return null;

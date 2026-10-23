@@ -224,11 +224,17 @@ export function prefixSliceField(sliceId, fieldPath) {
   return sliceId ? `slices[${sliceId}].${fieldPath}` : fieldPath;
 }
 
+const REVIEW_SCOPE_WORK_KIND = 'review';
+export function workRecordReviewScopeConstraint() {
+  return { if: { required: ['work_kind'], properties: { work_kind: { const: REVIEW_SCOPE_WORK_KIND } } },
+    then: { description: "work_kind 'review' requires an empty write_scope; choosing a review does not clear saved scope automatically.",
+      properties: { write_scope: { maxItems: 0 } } } };
+}
 export function collectContractPolicyDiagnostics(record) {
   const diagnostics = [];
 
   if (
-    record.work_kind === "review" &&
+    record.work_kind === REVIEW_SCOPE_WORK_KIND &&
     Array.isArray(record.write_scope) &&
     record.write_scope.length > 0
   ) {
@@ -258,7 +264,7 @@ export function collectContractPolicyDiagnostics(record) {
         seen.add(slice.id);
       }
       if (
-        slice.work_kind === "review" &&
+        slice.work_kind === REVIEW_SCOPE_WORK_KIND &&
         Array.isArray(slice.write_scope) &&
         slice.write_scope.length > 0
       ) {

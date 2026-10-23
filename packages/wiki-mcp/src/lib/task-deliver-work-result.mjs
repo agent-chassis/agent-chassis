@@ -4,6 +4,7 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { recordManagedDeliveryReceipt, findManagedDeliveryReceipt, readManagedRunObservation } from
   "../../../agent-launch-cli/src/lib/managed-run-process-identity-store.mjs";
+import { deliveryCompletionRelease } from "../../../agent-launch-cli/src/lib/managed-run-completion-observation.mjs";
 import { deriveManagedRunIdentityTupleFromBindingPair, sameTuple } from
   "../../../agent-launch-cli/src/lib/managed-run-process-identity-contract.mjs";
 
@@ -190,6 +191,22 @@ export function pendingDeliveryReceiptForSession({ workspace, sessionEnv, respon
   if (pending[0]?.current === false) throw selectedResponseLocatorNotCurrentError(DELIVERY_ORIGINAL_PRODUCER,
     { committed_delivery_original: true });
   return pending[0] ?? null;
+}
+
+export function pendingDeliveryCompletionReleaseForSession({ workspace, sessionEnv, responseEnv, intent }) {
+  if (intent?.alternative !== "delivery") return null;
+  const state = resolveLauncherRunState(sessionEnv);
+  const credential = state.credential;
+  const binding = resolveWorktreeBinding({ mainRepo: path.resolve(workspace.dir),
+    launchRef: credential.launchRef, runId: credential.runId, retryId: credential.retryId });
+  const originals = createDeliveryOriginals({ workspace, binding, credential, assignedUnit: state.assignedUnit, responseEnv });
+  const matches = originals.sources().filter(({ carrier }) => isDeepStrictEqual(carrier.completion_intent, intent) &&
+    deliveryCompletionRelease({ subject: state.assignedUnit, sliceBinding: binding, original: carrier }).ok);
+  if (matches.length > 1) throw selectedResponseQueryInvalidError(DELIVERY_ORIGINAL_PRODUCER,
+    "completion_release_evidence_ambiguous");
+  if (matches[0]?.current === false) throw selectedResponseLocatorNotCurrentError(DELIVERY_ORIGINAL_PRODUCER,
+    { completion_release_original: true });
+  return matches[0] ?? null;
 }
 
 export function composeDeliveryCheckoutRetryOriginal({ pending, checkout }) {

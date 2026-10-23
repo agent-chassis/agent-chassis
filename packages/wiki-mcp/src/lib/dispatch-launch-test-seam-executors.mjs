@@ -397,7 +397,7 @@ export function buildConfinedWorkerProbeCodexExecutorTestSeams({
 
 export const ADVISORY_REVIEW_MATERIAL_PROBE_PATH = "review-material/witness.txt";
 
-const ADVISORY_REVIEW_MATERIAL_PROBE_SOURCE = `${FIXED_PROBE_PHYSICAL_ACCESS_SOURCE}` + String.raw`
+const ADVISORY_REVIEW_MATERIAL_PROBE_SOURCE = FIXED_PROBE_PHYSICAL_ACCESS_SOURCE + String.raw`
 const { createHash } = require("node:crypto");
 const { writeFileSync } = require("node:fs");
 const finalPath = process.argv[1];
@@ -405,12 +405,67 @@ const prompt = Buffer.from(process.argv[2], "base64").toString("utf8");
 const materialPath = ` + JSON.stringify(ADVISORY_REVIEW_MATERIAL_PROBE_PATH) + String.raw`;
 const read = sourceRead(materialPath);
 const bytes = read.readable ? Buffer.from(read.text, "utf8") : null;
+async function observeSavedDesign() {
+  if (!prompt.includes('Review target: the saved canonical design')) return null;
+  const instruction = prompt.match(/workspace_read_wiki with arguments (\{[^\n]+\})\./u);
+  if (!instruction) throw new Error('saved design startup omitted its assignment read');
+  const mcp = await connectFixedProbeMcp({ clientName: 'saved-design-review-probe' });
+  const responses = [];
+  async function follow(call) {
+    const result = await mcp.callTool(call.tool, call.arguments);
+    if (result.isError) throw new Error('saved design read refused:' + JSON.stringify(result));
+    const body = result.structuredContent;
+    if (body.results.some(row => row.status !== 'ok')) throw new Error('saved design selection refused:' + JSON.stringify(body));
+    responses.push({ call, body });
+    return body;
+  }
+  try {
+    const first = await follow({ tool: 'workspace_read_wiki', arguments: JSON.parse(instruction[1]) });
+    const contexts = first.results.map(row => row.value);
+    for (const context of contexts) {
+      const select = context.selections.find(select => select.inventory === 'fields');
+      if (!select) throw new Error('saved design context omitted its field choices');
+      const result = await follow({ tool: context.selection_context.tool,
+        arguments: { reads: [{ reference: context.reference, select }] } });
+      const value = result.results[0].value;
+      const fields = value.members.filter(row => row.present &&
+        ['sections.summary', 'sections.user_requirements', 'sections.material_refs'].includes(row.field));
+      if (fields.length) {
+        const selected = await follow({ tool: value.selection_context.tool, arguments: {
+          reads: fields.map(row => ({ reference: value.selection_context.reference, select: { field: row.field } })) } });
+        const material = selected.results.find(row => row.value.field === 'sections.material_refs')?.value.value;
+        for (const reference of material || []) {
+          const opened = await follow({ tool: 'workspace_read_wiki', arguments: { reads: [{ reference }] } });
+          const entry = opened.results[0].value;
+          const text = entry.selections.find(select => select.field === 'text');
+          if (!text) throw new Error('selected findings omitted its text selection');
+          await follow({ tool: entry.selection_context.tool,
+            arguments: { reads: [{ reference: entry.reference, select: text }] } });
+        }
+      }
+    }
+    // Replaying the issued exact selections is a read, never another launch.
+    const retained = responses.at(-1).call;
+    const repeated = await follow(retained);
+    const altered = structuredClone(retained);
+    altered.arguments.reads[0].reference = { ref_id: 'altered-selection' };
+    const control = await mcp.callTool(altered.tool, altered.arguments);
+    const missing = structuredClone(retained);
+    delete missing.arguments.reads[0].reference;
+    const missingControl = await mcp.callTool(missing.tool, missing.arguments);
+    return { responses, repeated, altered_selection: control.structuredContent, altered_is_error: control.isError === true,
+      missing_selection: missingControl.structuredContent, missing_is_error: missingControl.isError === true, startup: prompt };
+  } finally { mcp.socket.end(); }
+}
+(async () => {
+const assignment = await observeSavedDesign();
 writeFileSync(finalPath, JSON.stringify({
   schema_version: "advisory-review-material-probe-receipt.v1",
   ok: read.readable === true,
   pid: process.pid,
   cwd: process.cwd(),
   assignment_sha256: "sha256:" + createHash("sha256").update(prompt).digest("hex"),
+  ...(assignment === null ? {} : { saved_design: assignment }),
   material: {
     path: materialPath,
     kind: fileKind(materialPath),
@@ -421,6 +476,7 @@ writeFileSync(finalPath, JSON.stringify({
     code: read.readable ? null : read.code
   }
 }) + "\n", "utf8");
+})().catch(error => { writeFileSync(finalPath, JSON.stringify({ ok: false, cause: error.message })); process.exitCode = 1; });
 `;
 
 export function buildAdvisoryReviewMaterialProbeCodexExecutorTestSeams() {

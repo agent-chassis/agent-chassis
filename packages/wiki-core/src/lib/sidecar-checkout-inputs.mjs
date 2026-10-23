@@ -3,10 +3,11 @@ import { lstat, readFile, readlink } from "node:fs/promises";
 import path from "node:path";
 import { filterSidecarSourcePaths, validateExistingSidecarPath, validateVirtualSidecarPath } from "./sidecar-paths.mjs";
 import { runSidecarGit } from "./sidecar-status.mjs";
+import { projectFailureDiagnosis } from "./diagnostic-projection.mjs";
 
 export const checkoutContentIdentity = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-export async function collectSidecarCheckoutInputs(repoRoot, { selectedPaths = null } = {}) {
+export async function collectSidecarCheckoutInputs(repoRoot, { selectedPaths = null, captureFileFailures = false } = {}) {
   const selected = selectedPaths === null ? null : new Set(selectedPaths);
   if (selected !== null) for (const value of selected) validateVirtualSidecarPath(value);
 
@@ -23,6 +24,7 @@ export async function collectSidecarCheckoutInputs(repoRoot, { selectedPaths = n
   const gitlinks = new Set(listed.filter((entry) => entry.mode === "160000").map((entry) => entry.path));
   const filtered = filterSidecarSourcePaths(paths);
   const files = [];
+  const unavailableFiles = [];
   for (const value of filtered.included) {
     try {
       const target = path.join(repoRoot, value);
@@ -35,7 +37,9 @@ export async function collectSidecarCheckoutInputs(repoRoot, { selectedPaths = n
       files.push({ path: value, mode, blob_oid, input_identity: `${blob_oid}:${mode}` });
     } catch (error) {
       if (error?.code === "ENOENT") continue;
-      throw error;
+      if (!captureFileFailures) throw error;
+      unavailableFiles.push({ path: value, state: "unavailable", reason: "checkout_source_read_failed",
+        operation: "read_source_file", cause: projectFailureDiagnosis(error) });
     }
   }
   return { tracked: files, tracked_paths: files.map((file) => file.path), files,
@@ -43,7 +47,9 @@ export async function collectSidecarCheckoutInputs(repoRoot, { selectedPaths = n
     symlink_count: files.filter(({ mode }) => mode === "120000").length,
     gitlink_count: filtered.included.filter((value) => gitlinks.has(value)).length,
     rejected: filtered.rejected,
-    identity: checkoutContentIdentity(JSON.stringify(files)) };
+
+    ...(captureFileFailures ? { unavailable_files: unavailableFiles } : {}),
+    identity: unavailableFiles.length ? null : checkoutContentIdentity(JSON.stringify(files)) };
 }
 
 export function compareSidecarCheckoutFiles(prior, current) {

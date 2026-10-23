@@ -1,6 +1,6 @@
 
 
-import { createRequire } from "node:module";
+import { recordAuthoringSchemaValidator } from './record-authoring-schema-validation.mjs';
 import { sourceAreaBirthSchema } from "../operations/record-birth-plan.mjs";
 
 import { CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA } from "./controlled-contract-tools.mjs";
@@ -8,9 +8,11 @@ import { admit, buildRequirementBatchSchema } from
   "./controlled-requirement-authoring-schema.mjs";
 import { buildPublicSelectionSchema } from '../operations/controlled-contract/public-selection.mjs';
 import { kindRecordEditableScalarFields } from "./kind-record-edit.mjs";
-import { WORK_RECORD_EDIT_FIELD_REGISTRY, WORK_RECORD_TASK_EDIT_ACTIONS } from
+import { WORK_RECORD_EDIT_FIELD_REGISTRY } from
   "./work-record-contract-edit-operations.mjs";
-import { ADVISORY_DISPOSITION_JUDGMENTS } from "./review-disposition.mjs";
+import { workRecordDispositionRowSchema } from '../operations/work-record-dispositions.mjs';
+import { WORK_RECORD_TASK_ACTION_SCHEMA } from './work-record-task-selection.mjs';
+import { WORK_RECORD_ENTRY_CONTENT_SCHEMA, WORK_RECORD_ENTRY_TITLE_SCHEMA, WORK_RECORD_ENTRY_KIND_SCHEMA } from './work-record-entry-schema.mjs';
 import {
   WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA,
   WORK_RECORD_READY_SLICE_ACCEPTED_VALUES,
@@ -20,21 +22,26 @@ import {
   WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA,
   WORK_RECORD_READY_SLICE_SHAPING_MODES,
   emptyWorkRecordReadySliceCreationFields,
-  missingWorkRecordReadySliceCreationFields
+  missingWorkRecordReadySliceCreationFields,
+  readySliceControlledValueSchema, workRecordReadySliceRowConstraints, workRecordReadySliceAcceptanceSchema
 } from "./work-record-ready-slice-contract.mjs";
 import { getRecordKindSpec } from "./work-record-kind-registry.mjs";
+import { VALIDATION_NOTE_SCHEMA } from "./work-record-test-proof-bindings.mjs";
 import { recordAuthoringDefinitionName, resolveRecordAuthoringDefinition, shareRecordAuthoringDefinitions } from
   "./record-authoring-shared-definitions.mjs";
-import { WORK_RECORD_EXPECTED_EDIT_TARGET_SCHEMA } from "./work-record-schema-structure.mjs";
+import { WORK_RECORD_EXPECTED_EDIT_TARGET_SCHEMA, workRecordOrdinarySliceProperties, WORK_RECORD_SLICE_FINDINGS_ROLE_CONSTRAINTS, workRecordSliceFindingsRoleConstraints } from "./work-record-schema-structure.mjs";
+import { REPOSITORY_SCOPE_FILE_SCHEMA, NORMALIZED_REPOSITORY_SCOPE_FILE_SCHEMA } from './work-record-repository-path.mjs';
+import { WORK_RECORD_BASE_BRANCH_SCHEMA } from './work-record-base-branch.mjs';
+import { workRecordReviewScopeConstraint } from './work-record-contract-edit-shared.mjs';
 import {
   WORK_RECORD_CLOSURE_FIELD_NAMES,
-  WORK_RECORD_STATUS_VALUES
+  WORK_RECORD_STATUS_VALUES, WORK_RECORD_AGENT_ROLE_VALUES, WORK_RECORD_WORK_KIND_VALUES, SLICE_ID_PATTERN
 } from "./work-record-schema-constants.mjs";
 
 export const RECORD_AUTHORING_SLICE_CONTEXT = "existing_slice";
 export const RECORD_AUTHORING_CONTEXTS = Object.freeze(["existing", RECORD_AUTHORING_SLICE_CONTEXT, "birth"]);
-export const RECORD_AUTHORING_LABEL_PATTERN = "^[a-z][a-z0-9-]{0,63}$";
-export const RECORD_AUTHORING_LABEL_REFERENCE_PATTERN = "^\\$[a-z][a-z0-9-]{0,63}$";
+import { RECORD_AUTHORING_LABEL_PATTERN, RECORD_AUTHORING_LABEL_REFERENCE_PATTERN } from '../operations/controlled-contract/public-selection-schema.mjs';
+export { RECORD_AUTHORING_LABEL_PATTERN, RECORD_AUTHORING_LABEL_REFERENCE_PATTERN };
 
 const semantic = CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA;
 const upsertObligation = semantic.properties.obligations.items.properties;
@@ -58,10 +65,7 @@ const optionallyKeyed = (id, properties, required = []) => ({ [ROW]: "key_option
   closed({ key: label, ...properties }, required),
   closed({ id, ...properties }, ["id", ...required])] });
 
-const contentLeaf = { oneOf: [closed({ text: { type: "string" } }, ["text"]),
-  closed({ ref: { type: "string", minLength: 1 } }, ["ref"])] };
-const contentCarrier = { oneOf: [...contentLeaf.oneOf,
-  closed({ parts: { type: "array", minItems: 1, items: contentLeaf } }, ["parts"])] };
+const contentCarrier = WORK_RECORD_ENTRY_CONTENT_SCHEMA;
 
 export const WORK_ITEM_ORDINARY_MEMBERS = Object.freeze([
   ["title", "title"], ["summary", "sections.summary"],
@@ -101,13 +105,9 @@ export function sliceContractMemberPlacementDiagnostics(members, context = "exis
 
 const ordinaryEditTargets = () => ({ type: "array", items: WORK_RECORD_EXPECTED_EDIT_TARGET_SCHEMA });
 
-const regressionTests = () => ({ type: "array", items: { type: "string" } });
+const regressionTests = () => ({ type: "array", uniqueItems: true, items: REPOSITORY_SCOPE_FILE_SCHEMA });
 
-const SLICE_BODY_MEMBERS = Object.freeze({ title: { type: "string" }, work_kind: { type: "string" },
-  priority: { type: "string" }, owner: { type: "string" }, depends_on: strings, read_scope: strings,
-  repo_paths: strings, write_scope: strings, dispatch_intent: open, acceptance: open, sections: open,
-  expected_edit_targets: ordinaryEditTargets(), expected_changed_line_budget: { type: "integer", minimum: 0 },
-  review_purpose: { type: "string" }, regression_tests: regressionTests() });
+const SLICE_BODY_MEMBERS = Object.freeze(workRecordOrdinarySliceProperties({ validation: WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA.properties.validation }));
 
 const SLICE_ROW_IDENTITY_NOTE = "key creates a slice; id selects an existing one. The server allocates the slice " +
   "ID and returns it in bindings.slice[key]; later selected-unit operations use WK#<returned ID>.";
@@ -133,10 +133,10 @@ export const WORK_ITEM_READY_DISPATCH_ASSERTION_NOTES = Object.freeze(Object.fro
 
 export const WORK_ITEM_READY_CLOSED_VALUE_NOTES = Object.freeze(Object.fromEntries(Object.entries({
   status: "", priority: "", work_kind: "Normally omit: shaping derives it. ",
-  review_purpose: "Reviewer shaping only. ", completion_policy: "terminal_whole_wk review only. "
+  review_purpose: "Review or redteam shaping; redteam accepts standalone only. ", completion_policy: "terminal_whole_wk review only. "
 }).map(([member, applies]) =>
   [member, `${applies}One of: ${WORK_RECORD_READY_SLICE_ACCEPTED_VALUES[member].join(", ")}.`])));
-const readyClosedValue = (member) => ({ type: "string", description: WORK_ITEM_READY_CLOSED_VALUE_NOTES[member] });
+const readyClosedValue = (member) => ({ ...readySliceControlledValueSchema(WORK_RECORD_READY_SLICE_ACCEPTED_VALUES[member]), description: WORK_ITEM_READY_CLOSED_VALUE_NOTES[member] });
 
 const withSliceListNotes = (properties) => ({ ...properties,
   slices: { ...properties.slices, description: WORK_ITEM_SLICE_LIST_NOTES.slices },
@@ -150,13 +150,19 @@ export const WORK_ITEM_CRITERION_NOTES = Object.freeze({
 function registryValueSchema(field) {
   const entry = WORK_RECORD_EDIT_FIELD_REGISTRY.find((candidate) => candidate.field === field);
   const declared = entry.value_schema;
+  if (field === 'base_branch') return WORK_RECORD_BASE_BRANCH_SCHEMA;
+  if (['read_scope', 'write_scope', 'repo_paths'].includes(field)) return { type: 'array', items: REPOSITORY_SCOPE_FILE_SCHEMA };
   if (declared.type === "string") {
-    const text = { type: "string", ...(declared.enum ? { enum: [...declared.enum] } : {}) };
+    const text = { type: "string", ...(declared.enum ? { enum: [...declared.enum] } : {}),
+      ...(declared.min_length ? { pattern: "\\S", description: "Supply a nonblank string." } : {}),
+      ...(declared.max_utf8_bytes ? { max_utf8_bytes: declared.max_utf8_bytes,
+        description: `At most ${declared.max_utf8_bytes} UTF-8 bytes, including resolved content and separators; characters may occupy multiple bytes.` } : {}) };
 
-    return declared.entry_content === true ? { anyOf: [text, contentCarrier] } : text;
+    return declared.entry_content === true ? { anyOf: [text, contentCarrier],
+      ...(text.description ? { description: text.description } : {}) } : text;
   }
 
-  const items = declared.items?.shape === "acceptance_note" ? { anyOf: [{ type: "string" }, open] }
+  const items = declared.items?.shape === "acceptance_note" ? VALIDATION_NOTE_SCHEMA
     : declared.items?.shape === "acceptance_criterion" ? { anyOf: [{ type: "string" }, open] }
       : declared.items?.type === "object" ? closed({ ref: { type: "string" } }, ["ref"]) : { type: "string" };
   const list = { type: "array", items, ...(declared.max_items ? { maxItems: declared.max_items } : {}) };
@@ -175,10 +181,16 @@ function requirementBatch(existing) {
   return requirementBatches.get(existing);
 }
 
-export const workItemRequirementBatchSchema = (context = "existing", capabilities = null) => capabilities === null
-  ? requirementBatch(context !== "birth").schema
-  : buildRequirementBatchSchema({ label, labelReference,
-    rebindCaseIds: upsertRequirement.properties.rebind_case_ids, existingRows: context !== "birth", capabilities }).schema;
+export function workItemRequirementBatchSchema(context = "existing", capabilities = null) {
+  const schema = capabilities === null ? requirementBatch(context !== "birth").schema
+    : buildRequirementBatchSchema({ label, labelReference,
+      rebindCaseIds: upsertRequirement.properties.rebind_case_ids, existingRows: context !== "birth", capabilities }).schema;
+  if (context === "birth") return schema;
+
+  const factored = shareRecordAuthoringDefinitions({ properties: schema.properties, definitions: schema.$defs,
+    shared: [["requirement_selector", buildPublicSelectionSchema({ kinds: ["requirement"] }), { equivalent: true }]] });
+  return { ...schema, properties: factored.properties, $defs: factored.$defs };
+}
 
 function workItemChangeComposition(context) {
   const { obligation_id: obligationId, controlled_contract_node_ids: _nodes,
@@ -199,33 +211,27 @@ function workItemChangeComposition(context) {
       [member, registryValueSchema(field)])),
     retained_graph_evidence: closed({ ref_id: { type: "string", pattern: "^[A-Za-z0-9_-]{8}$" } }, ["ref_id"]),
     initiative: { type: "string", pattern: "^IN-[0-9]{4}$" },
-    work_kind: { type: "string", minLength: 1 },
-    target_unit: { type: "string", minLength: 1 },
-    agent_role: { type: "string", minLength: 1 },
+    work_kind: { enum: WORK_RECORD_WORK_KIND_VALUES.filter(value => value !== 'tracker') },
+    target_unit: { const: 'slice' },
+    agent_role: { anyOf: [{ enum: [...WORK_RECORD_AGENT_ROLE_VALUES] }, { type: 'null' }] },
     expected_edit_targets: ordinaryEditTargets(),
-    expected_changed_line_budget: { type: "integer", minimum: 0 },
+    expected_changed_line_budget: { type: ["integer", "null"], minimum: 0 },
     regression_tests: regressionTests(),
 
-    tasks: { type: "array", minItems: 1, items: { type: "object", additionalProperties: false,
-      required: ["action"], properties: { action: { type: "string", enum: [...WORK_RECORD_TASK_EDIT_ACTIONS] },
-        text: { type: "string" }, index: { type: "integer", minimum: 0 }, value: { type: "string" } } } },
+    tasks: { type: "array", minItems: 1, items: WORK_RECORD_TASK_ACTION_SCHEMA },
 
     entries: { type: "array", minItems: 1, items: keyed({ type: "integer", minimum: 1 },
-      { title: { type: "string" }, kind: { type: "string" }, content: contentCarrier }, ["title", "content"]) },
+      { title: WORK_RECORD_ENTRY_TITLE_SCHEMA, kind: WORK_RECORD_ENTRY_KIND_SCHEMA, content: contentCarrier }, ["title", "content"]) },
 
-    dispositions: { type: "array", minItems: 1, items: keyed({ type: "integer", minimum: 1 }, {
-      entry: { type: "object", additionalProperties: false, required: ["id"], properties: {
-        id: orLabel({ type: "integer", minimum: 1 }), version: { type: "integer", minimum: 1 } } },
-      finding_id: { type: "string", minLength: 1 },
-      selected_text: { type: "object", additionalProperties: false, required: ["text"], properties: {
-        text: { type: "string", minLength: 1 }, occurrence: { type: "integer", minimum: 0 } } },
-      disposition: { type: "string", enum: [...ADVISORY_DISPOSITION_JUDGMENTS] },
-      rationale: { type: "string" } }) },
+    dispositions: { type: "array", minItems: 1, items: workRecordDispositionRowSchema({ label,
+      entryId: orLabel({ type: 'integer', minimum: 1 }) }) },
     criteria: { type: "array", minItems: 1, description: WORK_ITEM_CRITERION_NOTES.criteria,
-      items: { oneOf: [closed({ key: label, text: { type: "string", minLength: 1 } }, ['text']),
-        closed({ target: buildPublicSelectionSchema({ kinds: ['criterion'] }), text: { type: "string", minLength: 1 } }, ['target', 'text'])] } },
+      items: { oneOf: [closed({ key: label, text: { type: "string", pattern: '\\S', description: 'Supply nonblank criterion text.' } }, ['text']),
+        closed({ target: buildPublicSelectionSchema({ kinds: ['criterion'] }), text: { type: "string", pattern: '\\S', description: 'Supply nonblank criterion text.' } }, ['target', 'text'])] } },
     requirements: requirementBatch(context !== "birth").batch,
     obligations: { type: "array", minItems: 1, items: keyed(obligationId, { ...obligation,
+      statement: { ...obligation.statement, pattern: '^(?!\\s)(?![\\s\\S]*[\\r\\n])[\\s\\S]*\\S$',
+        description: 'Supply one nonempty trimmed statement on a single line; no leading/trailing whitespace or newline.' },
       criteria: { type: "array", uniqueItems: true, description: WORK_ITEM_CRITERION_NOTES.obligation_criteria,
         items: buildPublicSelectionSchema({ kinds: ['criterion'], allowLocalKeys: true }) },
       claims: { type: "array", uniqueItems: true,
@@ -234,25 +240,27 @@ function workItemChangeComposition(context) {
         parameters, clear_parameters: clearParameters, refresh } },
       case: obligationCase }) },
     controlled_acceptance: semantic.properties.controlled_acceptance,
-    slices: { type: "array", minItems: 1, items: keyed({ type: "string", minLength: 1 },
+    slices: { type: "array", minItems: 1, items: keyed({ type: "string", pattern: SLICE_ID_PATTERN.source },
       SLICE_BODY_MEMBERS) },
 
     ready_slices: { type: "array", minItems: 1, items: keyed({ type: "string", pattern: "^SLICE-[0-9]{3}$" }, {
-      shaping_mode: { type: "string", description: WORK_ITEM_SLICE_LIST_NOTES.shaping_mode },
-      completion_policy: readyClosedValue("completion_policy"), title: { type: "string" },
+      shaping_mode: { ...readySliceControlledValueSchema(WORK_RECORD_READY_SLICE_ACCEPTED_VALUES.shaping_mode), description: WORK_ITEM_SLICE_LIST_NOTES.shaping_mode },
+      completion_policy: readyClosedValue("completion_policy"), title: { type: "string", pattern: '\\S' },
       status: readyClosedValue("status"), work_kind: readyClosedValue("work_kind"), priority: readyClosedValue("priority"),
-      owner: { type: "string" }, depends_on: strings, read_scope: strings, repo_paths: strings,
-      write_scope: strings, acceptance: WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA,
+      owner: { type: "string", pattern: '\\S' }, depends_on: { type: 'array', items: { type: 'string', pattern: '\\S' } },
+      read_scope: { type: 'array', minItems: 1, items: NORMALIZED_REPOSITORY_SCOPE_FILE_SCHEMA },
+      repo_paths: { type: 'array', minItems: 1, items: NORMALIZED_REPOSITORY_SCOPE_FILE_SCHEMA },
+      write_scope: { type: 'array', items: NORMALIZED_REPOSITORY_SCOPE_FILE_SCHEMA }, acceptance: workRecordReadySliceAcceptanceSchema(),
       dispatch_intent: closed({
         ...Object.fromEntries(Object.entries(WORK_ITEM_READY_DISPATCH_ASSERTION_NOTES).map(([member, description]) =>
-          [member, { type: "string", description }])),
+          [member, { ...readySliceControlledValueSchema(WORK_RECORD_READY_SLICE_DISPATCH_INTENT_ASSERTION_VALUES[member]), description }])),
         ...Object.fromEntries(WORK_RECORD_READY_SLICE_DISPATCH_INTENT_CONTROL_FLAGS.map((member) =>
           [member, { type: "boolean" }])) }),
       expected_edit_targets: readySliceEditTargets,
-      expected_changed_line_budget: { type: "integer", minimum: 0 },
-      summary: { anyOf: [{ type: "string" }, contentCarrier] },
-      why_it_matters: { anyOf: [{ type: "string" }, contentCarrier] },
-      agent_notes: { anyOf: [{ type: "string" }, contentCarrier] },
+      expected_changed_line_budget: { type: ["integer", "null"], minimum: 0 },
+      summary: registryValueSchema("sections.summary"),
+      why_it_matters: registryValueSchema("sections.why_it_matters"),
+      agent_notes: registryValueSchema("sections.agent_notes"),
       review_purpose: readyClosedValue("review_purpose"),
       material_refs: { type: "array", items: closed({ ref: { type: "string" } }, ["ref"]) },
       regression_tests: regressionTests() },
@@ -270,10 +278,14 @@ function workItemChangeComposition(context) {
       slices: { type: "array", minItems: 1, uniqueItems: true,
         items: { type: "string", minLength: 1 } } } },
     status: { type: "string", enum: [...WORK_RECORD_STATUS_VALUES] },
-    closure: { type: "object", additionalProperties: false,
+    closure: { type: "object", additionalProperties: false, minProperties: 1,
       properties: Object.fromEntries(WORK_RECORD_CLOSURE_FIELD_NAMES.map((name) =>
         [name, name === "summary" ? { type: "string" } : strings])) }
   };
+  properties.ready_slices.items.oneOf.forEach((row, index) => {
+    row.allOf = workRecordReadySliceRowConstraints({ create: index === 0 });
+  });
+  properties.slices.items.oneOf.forEach(row => { row.allOf = [...WORK_RECORD_SLICE_FINDINGS_ROLE_CONSTRAINTS, workRecordReviewScopeConstraint()]; });
 
   const names = WORK_ITEM_SHARED_DEFINITIONS;
   return { properties, definitions: requirementBatch(context !== "birth").$defs,
@@ -281,20 +293,22 @@ function workItemChangeComposition(context) {
       ...['statement', 'criteria', 'claims', 'proof'].map(member => [
         `obligation_${member}`, properties.obligations.items.oneOf[0].properties[member]]),
       [names.caseComponent, component], [names.caseTarget, caseBody.target],
-      [names.caseFalsification, caseBody.falsification], [names.readySliceEditTargets, readySliceEditTargets],
+      [names.caseFalsification, caseBody.falsification],
+      ...(context === RECORD_AUTHORING_SLICE_CONTEXT ? [] : [[names.readySliceEditTargets, readySliceEditTargets]]),
       [WORK_ITEM_BIRTH_SHARED_DEFINITIONS.contentCarrier, contentCarrier],
-      [WORK_ITEM_BIRTH_SHARED_DEFINITIONS.editTargetProvenance, readyProvenance]] };
+      ...(context === RECORD_AUTHORING_SLICE_CONTEXT ? [] : [[WORK_ITEM_BIRTH_SHARED_DEFINITIONS.editTargetProvenance, readyProvenance]])] };
 }
 
-const KIND_SCALAR_SCHEMAS = Object.freeze({ string: { type: "string" },
+const KIND_SCALAR_SCHEMAS = Object.freeze({ string: { type: "string", pattern: '\\S', description: 'Supply a nonblank string.' },
   nullable_string: { anyOf: [{ type: "string" }, { type: "null" }] }, string_array: strings,
-  reserved: { anyOf: [open, { type: "array", items: open }, { type: "string" }, { type: "null" }] } });
+  reserved: true });
 
 function kindRecordChangeProperties(kind) {
   const spec = getRecordKindSpec(kind);
   return {
     ...Object.fromEntries(kindRecordEditableScalarFields(kind).map((field) => [field,
-      KIND_SCALAR_SCHEMAS[(spec.optionalTopLevel[field] ?? spec.requiredTopLevel[field]).type]])),
+      (spec.optionalTopLevel[field] ?? spec.requiredTopLevel[field]).allowEmpty === true ? { type: 'string' }
+        : KIND_SCALAR_SCHEMAS[(spec.optionalTopLevel[field] ?? spec.requiredTopLevel[field]).type]])),
     sections: { type: "object", additionalProperties: false,
       properties: Object.fromEntries(Object.keys(spec.sectionSpec).map((name) =>
         [name, { type: "string" }])) },
@@ -359,19 +373,28 @@ export function recordAuthoringChangeSchema(kind, context = "existing") {
           properties[member] = { ...properties[member], description: WORK_ITEM_SLICE_CONTRACT_MEMBER_NOTE };
         } else delete properties[member];
       }
+      if (context === RECORD_AUTHORING_SLICE_CONTEXT) {
+        for (const { member, field } of WORK_ITEM_ORDINARY_MEMBERS) {
+          const entry = WORK_RECORD_EDIT_FIELD_REGISTRY.find(candidate => candidate.field === field);
+          if (!entry.applicability.includes('slice')) delete properties[member];
+        }
+        for (const member of ['slices', 'ready_slices', 'initiative']) delete properties[member];
+        const { slices: _slices, ...removals } = properties.remove.properties;
+        properties.remove = { ...properties.remove, properties: removals };
+      }
     }
 
-    if (kind === "work_item" && context !== "birth") properties = withSliceListNotes(properties);
+    if (kind === "work_item" && context === "existing") properties = withSliceListNotes(properties);
     if (context === "birth") {
       const copies = new Map();
       properties = birthRowSchema(properties, copies);
       for (const member of ["remove", "status", "closure"]) delete properties[member];
       if (kind === "work_item") {
-        const task = properties.tasks.items.properties;
-        properties.tasks = { ...properties.tasks, items: closed({
-          action: { ...task.action, enum: WORK_RECORD_TASK_EDIT_ACTIONS.filter(action => action === "append_todo") },
-          value: task.value
-        }, ["action", "value"]) };
+        properties.tasks = { ...properties.tasks,
+          items: properties.tasks.items.oneOf.find(row => row.properties.action.const === 'append_todo') };
+        for (const member of ['criteria', 'claims']) properties.obligations.items.properties[member].items = labelReference;
+        const caseSchema = properties.obligations.items.properties.case;
+        caseSchema.properties.verification = labelReference;
         ({ properties, $defs: definitions } = shareRecordAuthoringDefinitions({ properties, definitions,
           shared: [[WORK_ITEM_BIRTH_SHARED_DEFINITIONS.contentCarrier, copies.get(contentCarrier)],
             [WORK_ITEM_BIRTH_SHARED_DEFINITIONS.editTargetProvenance, readyEditTargetProvenance(properties.ready_slices.items.properties.expected_edit_targets)]] }));
@@ -381,12 +404,20 @@ export function recordAuthoringChangeSchema(kind, context = "existing") {
     if (kind === "work_item" && context !== "birth") {
       ({ properties, $defs: definitions } = shareRecordAuthoringDefinitions({ properties, definitions, shared: composed.shared }));
     }
+    if (kind === "work_item") {
+      ({ properties, $defs: definitions } = shareRecordAuthoringDefinitions({ properties, definitions,
+        shared: [
+          ...(context === "birth" ? [] : [["requirement_selector", buildPublicSelectionSchema({ kinds: ["requirement"] }), { equivalent: true }]]),
+          ["validation_input", properties.validation, { equivalent: true }]
+        ] }));
+    }
     const refresh = kind === 'work_item' && context === 'existing';
     if (refresh) properties.refresh_proofs = { type: 'boolean', const: true, description:
       'Root WK only, alone in changes. Refresh saved references across this WK and all current slices at each exact selected name/version. ' +
       'Preserve authored inputs; select, upgrade and execute no proof. Incompatible or unavailable definitions refuse the whole refresh.' };
     schemas.set(cacheKey, Object.freeze({ type: "object", additionalProperties: false,
       ...(context === "birth" ? {} : { minProperties: 1 }), $defs: definitions, properties,
+      ...(context === RECORD_AUTHORING_SLICE_CONTEXT ? { allOf: [...workRecordSliceFindingsRoleConstraints({ flat: true }), workRecordReviewScopeConstraint()] } : {}),
       ...(refresh ? { if: { required: ['refresh_proofs'] }, then: { maxProperties: 1 } } : {}) }));
   }
   return schemas.get(cacheKey);
@@ -410,15 +441,23 @@ export function readySliceAuthoringProjection(schema, context, requested) {
     scope: { effective, excluded: available.filter(mode => !effective.includes(mode)) }, guidance: topics => topics };
 }
 
-const require = createRequire(import.meta.url);
-const validators = new Map();
-function validatorFor(schema) {
-  if (!validators.has(schema)) {
-    const loaded = require("ajv");
-    const Ajv = loaded.default ?? loaded;
-    validators.set(schema, new Ajv({ strict: false, allErrors: true }).compile(schema));
-  }
-  return validators.get(schema);
+const validatorFor = recordAuthoringSchemaValidator;
+
+const commonRows = new WeakMap();
+function commonRowSchema(rowSchema) {
+  if (commonRows.has(rowSchema)) return commonRows.get(rowSchema);
+  const arms = rowSchema.oneOf;
+  const names = [...new Set(arms.flatMap(arm => Object.keys(arm.properties)))];
+  const properties = Object.fromEntries(names.map(name => {
+    const declarations = arms.map(arm => arm.properties[name]);
+    const same = declarations.every(node => node !== undefined && JSON.stringify(node) === JSON.stringify(declarations[0]));
+    return [name, same ? declarations[0] : {}];
+  }));
+  const required = (arms[0].required ?? []).filter(name => arms.every(arm => arm.required?.includes(name)));
+  const common = { type: 'object', properties, required,
+    ...(arms.every(arm => arm.additionalProperties === false) ? { additionalProperties: false } : {}) };
+  commonRows.set(rowSchema, common);
+  return common;
 }
 
 const pathOf = (instancePath) => `changes${instancePath.replace(/\/([0-9]+)(?=\/|$)/gu, "[$1]")
@@ -442,6 +481,29 @@ function targetVariant(node, instance) {
   return 0;
 }
 
+function unionCandidates(schema, node, instance) {
+  if (!instance || typeof instance !== 'object' || Array.isArray(instance)) return null;
+  const arms = node.oneOf ?? node.anyOf;
+  if (!arms) return null;
+  const properties = arms.map(arm => resolveRecordAuthoringDefinition(schema, arm).properties);
+  let candidates = arms.map((_arm, index) => index);
+  for (const field of ['action', 'kind']) {
+    if (!Object.hasOwn(instance, field)) continue;
+    const selected = candidates.filter(index => {
+      const declared = properties[index]?.[field];
+      return declared && Object.hasOwn(declared, 'const') && declared.const === instance[field];
+    });
+    if (selected.length) candidates = selected;
+  }
+
+  if (candidates.every(index => properties[index])) {
+    const selected = candidates.filter(index => Object.keys(instance).some(key => Object.hasOwn(properties[index], key) &&
+      candidates.some(other => !Object.hasOwn(properties[other], key))));
+    if (selected.length) candidates = selected;
+  }
+  return candidates.length === arms.length ? null : candidates;
+}
+
 function definitionUses(schema, changes, at) {
   const visit = (declared, instance, consumed, occurrence) => {
     const definition = recordAuthoringDefinitionName(declared);
@@ -452,12 +514,15 @@ function definitionUses(schema, changes, at) {
     if (kind !== undefined) {
       if (instance === null || typeof instance !== "object" || Array.isArray(instance)) return consumed === at.length ? here : null;
       const selected = rowVariant(kind, instance);
-      if (selected === null) return { row: pathOf(consumed === 0 ? "" : `/${at.slice(0, consumed).join("/")}`) };
+      if (selected === null) return { row: pathOf(consumed === 0 ? "" : `/${at.slice(0, consumed).join("/")}`), rowSchema: node,
+        rowValue: instance };
       const within = visit(node.oneOf[selected], instance, consumed, occurrence * node.oneOf.length + selected);
       return within === null || (within.row !== undefined || within.target !== undefined) ? within : [...here, ...within];
     }
     if (consumed === at.length) return here;
     for (const [index, alternative] of (node.anyOf ?? node.oneOf ?? []).entries()) {
+      const choices = unionCandidates(schema, node, instance);
+      if (choices && !choices.includes(index)) continue;
       const target = targetVariant(node, instance);
       if (target === null) return { target: pathOf(consumed === 0 ? '' : `/${at.slice(0, consumed).join('/')}`) };
       if (target !== undefined && index !== target) continue;
@@ -474,9 +539,12 @@ function definitionUses(schema, changes, at) {
   return uses === null || (uses.row !== undefined || uses.target !== undefined) ? uses : [{ definition: null, node: schema, consumed: 0, occurrence: 0 }, ...uses];
 }
 
-function followSchemaPath(tokens, at, changes, { node, consumed }) {
+function followSchemaPath(schema, tokens, at, changes, { node, consumed }) {
   let instance = at.slice(0, consumed).reduce((value, segment) => value?.[segment], changes);
-  const verdict = (result) => ({ result, reached: node !== undefined && node !== null && consumed === at.length });
+  let rule = node?.description;
+  const otherForms = [];
+  const verdict = (result) => ({ result, reached: node !== undefined && node !== null && consumed === at.length,
+    rule: node?.description ?? rule, ...(otherForms.length ? { alternatives: otherForms } : {}) });
   for (let index = 0; index < tokens.length && node !== undefined && node !== null; index += 1) {
     const token = tokens[index];
     if (token === "properties") {
@@ -489,6 +557,23 @@ function followSchemaPath(tokens, at, changes, { node, consumed }) {
     } else if (token === "oneOf" || token === "anyOf") {
       const kind = node[ROW];
       const branch = Number(tokens[index + 1]);
+      const instanceType = Array.isArray(instance) ? "array" : instance === null ? "null" : typeof instance;
+      const alternatives = node[token];
+      const choices = unionCandidates(schema, node, instance);
+      if (choices && (!Number.isInteger(branch) || !choices.includes(branch))) return verdict({ drop: true });
+
+      if (Array.isArray(alternatives) && alternatives.some(option => option.type === instanceType)) {
+        for (const alternative of alternatives.filter(option => typeof option.type === 'string' && option.type !== instanceType)) {
+          const inline = value => Array.isArray(value) ? value.map(inline) : value !== null && typeof value === 'object'
+            ? Object.fromEntries(Object.entries(resolveRecordAuthoringDefinition(schema, value)).map(([key, child]) => [key, inline(child)])) : value;
+          otherForms.push({ path: pathOf(consumed === 0 ? '' : `/${at.slice(0, consumed).join('/')}`), schema: inline(alternative) });
+        }
+        if (Number.isInteger(branch) && typeof alternatives[branch]?.type === "string" &&
+            alternatives[branch].type !== instanceType) return verdict({ drop: true });
+        if (!Number.isInteger(branch) && alternatives.every(option => typeof option.type === "string")) {
+          return verdict({ drop: true });
+        }
+      }
       const target = targetVariant(node, instance);
       if (target === null) return verdict({ target: pathOf(consumed === 0 ? '' : `/${at.slice(0, consumed).join('/')}`) });
       if (target !== undefined && (!Number.isInteger(branch) || branch !== target)) return verdict({ drop: true });
@@ -497,7 +582,7 @@ function followSchemaPath(tokens, at, changes, { node, consumed }) {
         if (instance === null || typeof instance !== "object" || Array.isArray(instance)) return verdict({});
         const selected = rowVariant(kind, instance);
         const rowPath = pathOf(consumed === 0 ? "" : `/${at.slice(0, consumed).join("/")}`);
-        if (selected === null) return verdict({ row: rowPath });
+        if (selected === null) return verdict({ row: rowPath, rowSchema: node, rowValue: instance });
         if (Number.isInteger(branch) && branch !== selected) return verdict({ drop: true });
 
         if (!Number.isInteger(branch)) return verdict({ drop: true });
@@ -505,7 +590,11 @@ function followSchemaPath(tokens, at, changes, { node, consumed }) {
       if (!Number.isInteger(branch)) break;
       node = node[token]?.[branch];
       index += 1;
-    } else break;
+    } else if (token === 'allOf') {
+      node = node.allOf?.[Number(tokens[index += 1])];
+    } else if (['if', 'then', 'else', 'not'].includes(token)) node = node[token];
+    else break;
+    rule = node?.type === 'array' ? undefined : node?.description ?? rule;
   }
   return verdict({});
 }
@@ -520,11 +609,11 @@ function classifyError(schema, changes, error, evaluation) {
   const candidates = named ? uses.filter(use => use.definition === tokens[1]) : uses;
   const relative = named ? tokens.slice(2) : tokens;
   for (const use of [...candidates].reverse()) {
-    const { result, reached } = followSchemaPath(relative, at, changes, use);
+    const { result, reached, rule, alternatives } = followSchemaPath(schema, relative, at, changes, use);
     if (result.drop || result.target !== undefined || result.row !== undefined) return result;
     if (!reached) continue;
     if (use.definition !== null && evaluation !== use.occurrence) return { drop: true };
-    return result;
+    return { ...result, ...(rule ? { rule } : {}), ...(alternatives ? { alternatives } : {}) };
   }
   return {};
 }
@@ -577,13 +666,17 @@ export function validateRecordAuthoringChanges(kind, context, changes) {
 
   const selectorConflicts = kind === "work_item" ? requirementRowSelectorConflicts(changes) : [];
   const orphanRebinds = kind === "work_item" ? requirementRowOrphanRebinds(changes) : [];
-  if (validate(changes) && selectorConflicts.length === 0 && orphanRebinds.length === 0) return Object.freeze([]);
+  const valid = validate(changes);
+  const readyCreationGaps = kind === 'work_item' && Array.isArray(changes?.ready_slices) && changes.ready_slices.some(row =>
+    rowVariant('key_or_id', row) === 0 && (missingWorkRecordReadySliceCreationFields(row).length || emptyWorkRecordReadySliceCreationFields(row).length));
+  if (valid && !readyCreationGaps && selectorConflicts.length === 0 && orphanRebinds.length === 0) return Object.freeze([]);
 
   const byPath = new Map();
   const misplaced = kind === "work_item" && context !== RECORD_AUTHORING_SLICE_CONTEXT
     ? WORK_ITEM_SLICE_CONTRACT_MEMBERS : [];
 
   const raised = new Map();
+  const unresolvedRows = new Map();
 
   const batchFindings = kind === "work_item" && has(changes, "requirements")
     ? admit(workItemRequirementBatchSchema(context), changes.requirements) : [];
@@ -606,6 +699,7 @@ export function validateRecordAuthoringChanges(kind, context, changes) {
     constraint: { keyword: "dependentRequired", members: ["target"] } });
   }
   for (const error of validate.errors ?? []) {
+    if (error.keyword === 'if') continue;
     if (batchFindings.length > 0 && /^\/requirements(?:\/|$)/u.test(error.instancePath)) continue;
 
     if (error.keyword === "additionalProperties" && error.instancePath === "" &&
@@ -626,6 +720,7 @@ export function validateRecordAuthoringChanges(kind, context, changes) {
       continue;
     }
     if (classified.row !== undefined) {
+      unresolvedRows.set(classified.row, classified);
       byPath.set(classified.row, { message: "must carry exactly one of key (a new row) or id (an existing row)",
         constraint: { keyword: "oneOf", members: ["key", "id"] } });
       continue;
@@ -635,8 +730,28 @@ export function validateRecordAuthoringChanges(kind, context, changes) {
       : error.keyword === "required" ? error.params.missingProperty : null;
     const path = `${pathOf(error.instancePath)}${member === null ? "" : `.${member}`}`;
     const message = unknown ? "is not an accepted member" : error.message;
+
+    const rule = classified.rule;
     if (!byPath.has(path) || unknown) byPath.set(path, { message,
-      constraint: { keyword: error.keyword, ...error.params } });
+      constraint: { keyword: error.keyword, ...error.params, ...(rule ? { rule } : {}),
+        ...(classified.alternatives ? { alternatives: classified.alternatives } : {}) } });
+  }
+  for (const [rowPath, { rowSchema, rowValue }] of unresolvedRows) {
+    const common = commonRowSchema(rowSchema), validateCommon = validatorFor(common, schema.$defs);
+    validateCommon(rowValue);
+    const occurrences = new Map();
+    for (const error of validateCommon.errors ?? []) {
+      if (error.keyword === 'if') continue;
+      const identity = `${error.schemaPath}\u0000${error.instancePath}\u0000${JSON.stringify(error.params)}`;
+      const occurrence = occurrences.get(identity) ?? 0; occurrences.set(identity, occurrence + 1);
+      const classified = classifyError({ ...common, $defs: schema.$defs }, rowValue, error, occurrence);
+      if (classified.drop || classified.row || classified.target) continue;
+      const member = error.keyword === 'additionalProperties' ? error.params.additionalProperty
+        : error.keyword === 'required' ? error.params.missingProperty : null;
+      const path = `${rowPath}${pathOf(error.instancePath).slice('changes'.length)}${member === null ? '' : `.${member}`}`;
+      if (!byPath.has(path)) byPath.set(path, { message: error.keyword === 'additionalProperties' ? 'is not an accepted member in either row variant' : error.message,
+        constraint: { keyword: error.keyword, ...error.params, ...(classified.rule ? { rule: classified.rule } : {}) } });
+    }
   }
 
   if (kind === "work_item" && Array.isArray(changes?.ready_slices)) {

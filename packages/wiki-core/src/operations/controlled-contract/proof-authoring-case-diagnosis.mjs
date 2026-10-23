@@ -25,6 +25,38 @@ const unavailable = cause => ({ state: 'unavailable', cause });
 const publicCasePath = value => typeof value === 'string' ? value.replaceAll('/verification_id', '/verification') : value;
 
 export async function caseAuthoringFailureMeaning(error, captured, { authoringContext = null, prospective = null, rebinding = null } = {}) {
+
+  if (error.code === 'obligation_coverage_case_target_invalid' && authoringContext !== null) {
+    const { pointer: _pointer, limb: _limb, ...details } = error.details;
+    for (const key of ['field', 'correction_field', 'preserve_field'])
+      if (typeof details[key] === 'string') details[key] = details[key].replace(/^obligations\[/u, 'changes.obligations[');
+    return details;
+  }
+  if (error.code === 'obligation_coverage_case_verification_conflict' &&
+      error.details?.condition === 'competing_submitted_cases' && authoringContext !== null) {
+    const submitted = (authoringContext.submittedObligations ?? []).filter(row => error.details.obligation_ids.includes(row.obligation_id));
+    const cases = submitted.map(({ index }) => {
+      const row = authoringContext.changes.obligations[index];
+      return { field: `changes.obligations[${index}].case`, ...(row.key === undefined ? {} : { obligation_key: row.key }),
+        ...(row.id === undefined ? {} : { obligation_id: row.id }),
+        ...(row.case.key === undefined ? {} : { case_key: row.case.key }),
+        verification: { field: `changes.obligations[${index}].case.verification`, selection: row.case.verification },
+        claims_field: `changes.obligations[${index}].claims` };
+    });
+    const verifications = (authoringContext.rows ?? []).filter(row => row.verification_claim_id === error.details.verification_id)
+      .map(row => ({ state: 'submitted', field: `changes.requirements.requirements[${row.index}].verification`,
+        ...(row.verification_key === undefined ? {} : { request_local_binding: `$${row.verification_key}` }) }));
+    return { condition: error.details.condition, submitted_cases: cases, ...(verifications.length ? { verification: verifications } : {}),
+      changed: false, effects: { canonical_written: false, proofs_executed: false }, correction: error.details.correction,
+      recovery: { caller_decision_required: true,
+        choices: ['distinct_tests', 'shared_evidence', 'require_atomic_amendment'],
+        after_initial_save: { tool: 'workspace_read_wiki', arguments: { reads: [{ subject: unitOf(captured),
+          select: { contract: 'requirements' }, for_changes: ['requirements', 'obligations'] },
+        { subject: unitOf(captured), select: { contract: 'verifications' } }] } } },
+      ...(cases.length === error.details.obligation_ids.length && cases.length > 1 ? {} : {
+        attribution: { state: 'incomplete', cause: 'Some competing case uses could not be mapped to submitted fields. No correspondence is inferred.' } }),
+      next_calls: [] };
+  }
   let population;
   try {
     const source = await createPublicSelectionSource({ captured: { ...captured,

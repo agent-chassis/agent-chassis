@@ -204,7 +204,7 @@ function resolveRemainingDelta({ runGit, mainRepo, diffBaseSha, wkSha, reviewedS
     throw refusal;
   }
   const appliedTree = oid(
-    String(merged.stdout ?? "").split(/\r?\n/u)[0].trim(),
+    interpreted.tree,
     "applied_tree"
   );
   const wkTree = oid(

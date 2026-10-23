@@ -631,8 +631,8 @@ test('schema choices retain a callable whole-member route when no requirement br
   const source = bindInputSchemaExposure(declarations()).source('work_item');
   const choices = inputContractChoices({ source, tool: 'save_record', reference: { ref_id: 'AAAAAAAA' },
     members: ['title'], readTool: 'workspace_read_wiki' });
-  assert.deepEqual(choices.map(call => call.arguments), [{ reference: { ref_id: 'AAAAAAAA' },
-    select: { input_contract: { tool: 'save_record', members: ['title'] } } }]);
+  assert.deepEqual(choices.map(call => call.arguments), [{ reads: [{ reference: { ref_id: 'AAAAAAAA' },
+    select: { input_contract: { tool: 'save_record', members: ['title'] } } }] }]);
 });
 
 test('schema navigation omits the more expensive full-equivalent scoped twin', () => {
@@ -640,9 +640,10 @@ test('schema navigation omits the more expensive full-equivalent scoped twin', (
   const choices = inputContractChoices({ source, tool: 'save_record', reference: { ref_id: 'AAAAAAAA' },
     members: ['criteria', 'requirements'], readTool: 'workspace_read_wiki' });
   assert.equal(choices.length, 3);
-  assert.deepEqual(choices.slice(0, 2).map(call => call.arguments.select.input_contract.branches.requirements),
+  assert.ok(choices.every(call => call.arguments.reads[0].select.input_contract.members.join() === 'criteria,requirements'));
+  assert.deepEqual(choices.slice(0, 2).map(call => call.arguments.reads[0].select.input_contract.branches.requirements),
     [['relationships'], ['relationships', 'scalar_values']]);
-  assert.equal(choices.at(-1).arguments.select.input_contract.branches, undefined);
+  assert.equal(choices.at(-1).arguments.reads[0].select.input_contract.branches, undefined);
   assert.match(choices.at(-1).purpose, /typed relationships/u);
 });
 

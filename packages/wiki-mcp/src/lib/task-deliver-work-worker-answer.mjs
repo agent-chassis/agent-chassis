@@ -1,8 +1,12 @@
 
 
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { projectFailureDiagnosis } from "@agent-chassis/wiki-core/src/lib/diagnostic-projection.mjs";
 
 const retry = () => buildNextCall({ tool: "workspace_deliver_work", arguments: {} });
+export const completionReconciliationCall = result => buildNextCall({ tool: "workspace_deliver_work",
+  arguments: { reconcile: result }, recommended: false,
+  reason: "Only after the reported completion-release cause is corrected; reconcile this transaction without replaying delivery." });
 const stop = instruction => ({ action: "stop", instruction });
 const completionFailures = new Set([
   "completion_binding_consumed", "completion_delivery_intent_exists", "completion_attempt_terminal"
@@ -17,7 +21,7 @@ function failureMeaning(value) {
   return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, failureMeaning(child)]));
 }
 
-export function prepareWorkerDeliveryAnswer(frame, { scopeRefusal = null, inputInvalid = false } = {}) {
+export function prepareWorkerDeliveryAnswer(frame, { scopeRefusal = null, inputInvalid = false, completionRecovery = null } = {}) {
   const source = frame.body;
   const outputFailed = source.output.state === "failed";
   if (source.outcome === "delivered" && !frame.isError && !outputFailed) {
@@ -32,7 +36,7 @@ export function prepareWorkerDeliveryAnswer(frame, { scopeRefusal = null, inputI
     }, next_calls: [] };
   }
 
-  const priorUnresolved = source.stage === "receipt_recovery";
+  const priorUnresolved = ["receipt_recovery", "completion_recovery"].includes(source.stage);
   const effects = priorUnresolved ? {
     commit_object: "unknown", delivery_ref: "unknown", submitted_for_review: null, checkout: null
   } : Object.fromEntries(["commit_object", "delivery_ref", "submitted_for_review", "checkout"]
@@ -56,6 +60,8 @@ export function prepareWorkerDeliveryAnswer(frame, { scopeRefusal = null, inputI
   const answer = { outcome: priorUnresolved ? "uncertain"
     : source.outcome === "delivered" && outputFailed ? "partial" : source.outcome,
     subject: source.subject, stage: source.stage, effects, diagnostics, next_action: null, next_calls: [] };
+  if (completionRecovery?.available === false) diagnostics.push({ stage: "completion_release",
+    ...projectFailureDiagnosis(completionRecovery) });
 
   if (source.selected_delivery !== null) answer.selected_delivery = { commit: source.selected_delivery.commit };
   if (scopeRefusal !== null) answer.scope = Object.fromEntries(
@@ -76,7 +82,7 @@ export function prepareWorkerDeliveryAnswer(frame, { scopeRefusal = null, inputI
       "Report the specific limitation without claiming completed.");
   } else if (inputInvalid) {
     answer.next_action = { action: "correct_arguments", instruction:
-      "Delivery accepts only {} for the authenticated assignment. Explicitly resolve the rejected inputs before choosing delivery; " +
+      "Use {} for delivery, or the issued {reconcile:{ref_id}} call for completion-release reconciliation. Explicitly resolve the rejected inputs before choosing delivery; " +
       "no corrected mutation was selected." };
   } else if (completionCode === "completion_binding_consumed") {
     answer.next_action = stop("An accepted assignment-change request already consumed completion and ends this worker. " +
@@ -111,6 +117,15 @@ export function prepareWorkerDeliveryAnswer(frame, { scopeRefusal = null, inputI
   } else if (checkoutSuperseded && effects.submitted_for_review === true) {
     answer.next_action = stop("The commit and review submission stand, but the checkout is superseded. " +
       "No same-delivery checkout retry can finish it. Report this specific limitation without claiming completed.");
+  } else if (completionRecovery?.available === false) {
+    const result = source.original?.locator;
+    answer.next_action = result == null ? stop("The reported transaction effects stand, but completion recovery could not be established. " +
+      "Do not retry delivery or request assignment change while this claim remains unresolved. " +
+      "No callable claim reconciliation is available; report both the transaction cause and recovery failure.")
+      : { action: "reconcile_completion", instruction: "The reported transaction effects stand; completion release failed. " +
+        "After its specific cause is corrected within existing authority, follow the returned reconciliation call. It checks this retained transaction " +
+        "and releases only its claim when safe; it performs no delivery or review submission. Do not retry either completion alternative before reconciliation succeeds." };
+    if (result != null) answer.next_calls = [completionReconciliationCall(result)];
   } else if (scopeRefusal !== null) {
     answer.next_action = { action: "correct_scope", instruction:
       "The reported paths violate the assigned scope or path-kind restrictions. Correct only your authorized accidental changes, " +
@@ -119,6 +134,16 @@ export function prepareWorkerDeliveryAnswer(frame, { scopeRefusal = null, inputI
       "This refusal grants no widening or discard authority." };
     answer.next_calls = [buildNextCall({ tool: "workspace_deliver_work", arguments: {}, recommended: false,
       reason: "Only after the reported task-owned scope violation is corrected and affected behavior is checked." })];
+  } else if (completionRecovery?.available === true) {
+
+    answer.outcome = "refused";
+    answer.next_action = { action: "correct_delivery", instruction:
+      "No delivery publication or review submission remains from this call. Preserve the reported object effects. " +
+      "Correct the specific reported cause within existing authority, recheck affected behavior, then choose the returned delivery request. " +
+      "If a genuine assignment gap prevents correction, request_assignment_change requires your own assignment_fact, evidence, prevents, " +
+      "requested_change, completed_work and remaining_work; acceptance immediately ends this worker with no later report." };
+    answer.next_calls = [buildNextCall({ tool: "workspace_deliver_work", arguments: {}, recommended: false,
+      reason: "Only after the specific reported cause is corrected and affected behavior is checked." })];
   } else if (["authentication", "binding_resolution"].includes(source.stage)) {
     answer.next_action = stop("The reported launcher assignment or binding condition prevents delivery. " +
       "No callable provisioning repair is available. Request arguments cannot replace the session, binding or credentials. " +

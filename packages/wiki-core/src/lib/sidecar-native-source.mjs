@@ -1,5 +1,5 @@
 import { assembleCommittedOccurrenceSource } from "./sidecar-occurrence-source.mjs";
-import { isNativeDefinition, nativeOccurrenceIdentity, nativeMultiplicityRows } from "./sidecar-navigation-resolution.mjs";
+import { isNativeDefinition, nativeOccurrenceIdentity, nativeMultiplicityRows } from "./sidecar-native-identity.mjs";
 
 function compareText(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -72,8 +72,8 @@ function publicCandidate(candidate, hits, order) {
   };
 }
 
-export async function assembleNativeNavigationResult({ repoRoot, selection, navigation, queryKind }) {
-  const includeReferences = queryKind === "find_references";
+export async function assembleNativeSourceFacts({ repoRoot, selection, navigation, includeReferences }) {
+  if (typeof includeReferences !== "boolean") throw new TypeError("native source facts require an explicit includeReferences boolean");
   const { results, selected } = narrowedRows(navigation.candidates, includeReferences);
   const source = await assembleCommittedOccurrenceSource({ repoRoot,
     selection: narrowedSelection(selection, navigation.candidates, selected) });

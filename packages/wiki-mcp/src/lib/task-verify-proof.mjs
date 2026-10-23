@@ -7,7 +7,7 @@ import { createVerifyProofExecutionHandler } from "./verify-proof-execution-hand
 import { preparedVerifyProofCalls, projectVerifyProofRecoveryForRegisteredTools } from "./verify-proof-delivery.mjs";
 import { registeredToolRequestContracts } from "./registered-tool-request-contracts.mjs";
 import { resolveObligationCoverageQueryContext } from "./controlled-contract-query-context.mjs";
-import { MCP_WRITE_SEMANTICS } from "./register-tool.mjs";
+import { MCP_WRITE_SEMANTICS, projectToolInputValidationFailure } from "./register-tool.mjs";
 import { selectedResponseDetailSchema, selectedResponseRequestSchema } from "./selected-response-snapshot.mjs";
 
 export const VERIFY_PROOF_TASK = "verify_proof";
@@ -19,7 +19,7 @@ export const VERIFY_PROOF_EXECUTION_INPUT_SCHEMA = z.object({
   branch: z.string().min(1).max(128).optional()
     .describe("Orchestrator only: the execution branch as a WK ID, slice ID or canonical WK or slice branch name; runs the commit it names now. Not with git_sha."),
   git_sha: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u).optional()
-    .describe("Orchestrator only: an exact full commit. Neither given: the subject's WK or slice branch."),
+    .describe("Orchestrator only: an exact full hexadecimal commit; branch selectors belong in branch. Neither given: the subject's WK or slice branch."),
   environment: z.string().min(3).max(512).regex(TEST_RUNTIME_ENVIRONMENT_ID_RE).optional()
     .describe("One existing prepared environment identity serving every selected proof. Omitted: route each proof independently to its owning prepared environment."),
   timeout: verifyProofTimeoutInputSchema(z)
@@ -28,6 +28,11 @@ export const VERIFY_PROOF_EXECUTION_INPUT_SCHEMA = z.object({
 const retainedRequestSchema = selectedResponseRequestSchema(z.object({
   result: selectedResponseDetailSchema(z).shape.source
 }).strict());
+
+async function inputFailure(args, validationError) {
+  return { ...await projectToolInputValidationFailure({ tool: VERIFY_PROOF_TASK, args, validationError,
+    inputSchema: VERIFY_PROOF_EXECUTION_INPUT_SCHEMA }), executed: false };
+}
 
 export function verifyProofExecutionCall(request, { recommended = false } = {}) {
   return Object.freeze({ tool: VERIFY_PROOF_TASK, ...(recommended ? { recommended: true } : {}),
@@ -45,21 +50,9 @@ export function createVerifyProofTask({ workspace, sessionEnv, responseEnv,
   return async (request, extra = undefined) => {
     const parsed = VERIFY_PROOF_EXECUTION_INPUT_SCHEMA.safeParse(request);
     if (!parsed.success) {
-      const issues = parsed.error.issues;
-      return errorContent(Object.assign(new Error("verify_proof execution request is invalid"), {
-        code: "verify_proof.execution_request_invalid.v1",
-        envelope: { code: "verify_proof.execution_request_invalid.v1", accepted: false,
-          stage: "request_validation", executed: false,
-          subject: typeof request?.subject === "string" && request.subject.length <= 512
-            ? request.subject : null,
-          invalid_fields: issues.slice(0, 12).map(({ path, code, keys }) => ({ path, code,
-            ...(keys === undefined ? {} : {
-              unsupported_keys: keys.filter((key) => key.length <= 128).slice(0, 12),
-              unsupported_key_count: keys.length }) })),
-          issue_count: issues.length,
-          correction: "Supply subject and only source, branch, git_sha, environment or timeout execution selectors.",
-          next_calls: [] }
-      }));
+      const envelope = await inputFailure(request, parsed.error);
+      return errorContent(Object.assign(new Error('verify_proof execution request is invalid'), {
+        code: envelope.code, envelope }));
     }
     return handler(parsed.data, extra);
   };
@@ -69,6 +62,9 @@ export function registerVerifyProofTask({ registerTool, ...host }) {
   registerTool(VERIFY_PROOF_TASK, {
     writeSemantics: MCP_WRITE_SEMANTICS.NONE,
     description: "Execute an authorized saved proof selection; cases, targets and providers come from saved prerequisites. Source selects authored meaning; branch/git_sha separately select orchestrator code. Workers and eligible reviewers use their bound code. A slice selection also runs its entire regression_tests list once, even when proofs are narrowed. Returns the observed outcome and deciding problems; process success alone establishes no requirement credit. Use offered get_run_result calls only for needed diagnosis; reads never execute. Advisory results.",
-    inputSchema: VERIFY_PROOF_EXECUTION_INPUT_SCHEMA
+    inputSchema: VERIFY_PROOF_EXECUTION_INPUT_SCHEMA,
+    advertisedInputSchema: VERIFY_PROOF_EXECUTION_INPUT_SCHEMA,
+    inputValidationErrorProjector: async ({ args, validationError }) => ({ terminal_result: {
+      ...host.jsonContent(await inputFailure(args, validationError)), isError: true } })
   }, createVerifyProofTask({ ...host, requestContracts: registeredToolRequestContracts(registerTool) }));
 }

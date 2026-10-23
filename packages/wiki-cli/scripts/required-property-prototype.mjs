@@ -7,8 +7,8 @@ import { parseArgs } from "node:util";
 import { inspectParameterSource } from "@agent-chassis/controlled-contract/pack-parameters";
 import { loadPinnedProofSelection } from "@agent-chassis/controlled-contract/proof-selection";
 import { validateRecordByKind } from "@agent-chassis/wiki-core/src/lib/work-record-kind-registry.mjs";
-import { previewRequiredPropertyCoverage } from
-  "@agent-chassis/wiki-core/src/operations/controlled-contract/required-property-preview.mjs";
+import { loadPaidCapabilities } from "@agent-chassis/wiki-core/src/lib/paid-capability-loader.mjs";
+const { requirementAuthoring } = await loadPaidCapabilities({ resolve: specifier => import.meta.resolve(specifier) });
 
 const OUTPUT_SCHEMA_VERSION = "required-property-prototype.v1";
 const ENFORCEMENT_SCHEMA_VERSION = "decision-required-properties.prototype.v1";
@@ -261,7 +261,7 @@ const requiredPopulation = async (source, context = {}) => Promise.all(source.pr
 
 function preview(request) {
   try {
-    return previewRequiredPropertyCoverage(request);
+    return requirementAuthoring.previewRequiredProperties(request);
   } catch (error) {
     throw new Refusal(error?.code ?? "required_property_preview_failed", error?.message ?? String(error),
       isRecord(error?.details) ? error.details : {});

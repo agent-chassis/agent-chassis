@@ -5,17 +5,14 @@ import { createHash } from "node:crypto";
 
 const fields = new Set(["event", "conversation_id", "result", "step_update",
   "result.status", "result.error", "result.conversation_id", "result.response", "result.denied_actions",
-  "step_update.conversation_id", "step_update.step_index", "step_update.step_type", "step_update.state", "step_update.tool_name",
-  "step_update.error", "step_update.tool_info.name", "step_update.tool_info.error",
-  "step_update.tool_info.error.type", "step_update.tool_info.error.message",
-  "step_update.tool_info", "step_update.tool_info.parameters",
-  "step_update.tool_info.parameters.ServerName", "step_update.tool_info.parameters.ToolName"]);
+  "step_update.conversation_id", "step_update.step_index", "step_update.step_type", "step_update.state",
+  "step_update.error", "step_update.tool_info"]);
 
 export async function* readAgyNativeExport(file) {
   const source = createReadStream(file, { highWaterMark: 64 * 1024 });
   const iterator = source[Symbol.asyncIterator]();
   const decoder = new TextDecoder("utf-8", { fatal: true });
-  let chunk = "", position = 0, ended = false, parameterHash = null;
+  let chunk = "", position = 0, ended = false;
   const invalid = () => { throw Object.assign(new Error("Malformed Agy stream-json export"), { code: "agy_result_malformed" }); };
   async function peek() {
     while (position === chunk.length && !ended) {
@@ -25,15 +22,14 @@ export async function* readAgyNativeExport(file) {
     }
     return chunk[position];
   }
-  function consume(length = 1, hash = true) {
+  function consume(length = 1) {
     const text = chunk.slice(position, position + length); position += length;
-    if (hash) parameterHash?.update(text);
     return text;
   }
   async function whitespace(lines = false) {
     let newlines = 0;
     while ((lines ? /^[\t\r\n ]$/ : /^[\t\r ]$/).test(await peek() ?? "")) {
-      if (consume(1, false) === "\n") newlines++;
+      if (consume() === "\n") newlines++;
     }
     return newlines;
   }
@@ -75,8 +71,6 @@ export async function* readAgyNativeExport(file) {
   async function value(field) {
     await whitespace();
     const next = await peek();
-    const hashing = field === "step_update.tool_info.parameters";
-    if (hashing) parameterHash = createHash("sha256");
     let result;
     if (next === '"') result = await string(field !== null, field === "result.response");
     else if (next === "{" || next === "[") {
@@ -115,10 +109,6 @@ export async function* readAgyNativeExport(file) {
       }
       if (!["zero", "integer", "fraction", "exponentDigits"].includes(state)) invalid();
       result = Number(number);
-    }
-    if (hashing) {
-      const digest = parameterHash.digest("hex"); parameterHash = null;
-      result = { ...result, native_parameters_digest: digest };
     }
     return result;
   }

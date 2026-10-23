@@ -80,6 +80,20 @@ for (const [label, facts, expected] of cases) test(label, () => {
   assert.notEqual(frame.body.next_action.action, "emit_diagnostic_evidence_then_terminate");
 });
 
+test("recorded completion recovery distinguishes refused publication from an unknown candidate object", () => {
+  const outcome = settled({ committed: false, commit_object: "unknown", delivery_ref: "unchanged", submitted_for_review: false,
+    stage: "materialization", completion_recovery: { available: true },
+    transaction: { ref, canonical_review: { state: "not_attempted" }, delivery_commit: null } });
+  const recorded = prepareDeliverWorkResponse({ workspace: { repo: "fixture/repo" }, outcome,
+    observation: observe(outcome), historicalObservation: true });
+  assert.equal(recorded.body.outcome, "refused");
+  assert.equal(recorded.body.effects.commit_object, "unknown");
+  assert.equal(recorded.body.next_action.action, "inspect_failed_delivery");
+  assert.match(recorded.body.next_action.instruction, /historical result read performs no correction/u);
+  const unestablished = prepare({ ...outcome, completion_recovery: { available: false } });
+  assert.equal(unestablished.body.outcome, "uncertain");
+});
+
 for (const success of [true, false]) test(`failed output preserves ${success ? "delivered" : "refused"} settlement`, () => {
   const owner = settled(success ? {} : { delivery_ref: "unchanged", submitted_for_review: false,
     transaction: { ref, base_sha: base, candidate_commit: candidate } });

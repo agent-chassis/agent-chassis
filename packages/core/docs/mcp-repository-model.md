@@ -115,6 +115,34 @@ Ask the question directly:
 - `status:true` alone asks availability and material coverage/currentness limits.
   Status is not a prerequisite for code questions.
 
+Question selectors belong at the request root. There is no general text search,
+`operation`/`query` interface or batch-question envelope. Search prose cannot be
+substituted for an index-issued raw SCIP symbol. Malformed-request refusals focus
+on the supplied operation and reported fields. Existing question choices and
+coordinates are explained only when a question still needs selecting; an
+already-supplied subject is preserved. Retained-read errors identify the affected
+read fields and their declared constraints, including accepted nested members
+(`accepted_members`, with shared constraint definitions when referenced). Missing required inputs are
+named at their supplied paths. A detail-field mistake never restarts first-question
+discovery or changes the original source, collection or valid selectors.
+
+When a rejected envelope contains exactly one complete current request and no
+other constraints, the refusal offers its unchanged root request as an explicit
+corrective call. The server validates that call against this registration and
+the existing question or retained-selection owner, including source binding.
+The envelope remains refused; it is not an accepted alias. No question executes,
+detail is served or index is refreshed while preparing correction guidance.
+Unknown fields alongside valid selectors, multiple questions, conflicting
+selectors and unavailable bindings require caller choices. A valid subset cannot
+justify dropping other work or constraints. All requested questions remain
+unexecuted; status never substitutes for a code question. An explicit corrected
+call may answer the task immediately without another inspection step.
+When a complete question has a malformed field, correct that field using the
+held request and reported rule; do not reauthor its subject. Unsupported fields
+require explicit resolution, rather than a call that silently omits them.
+Correcting a field does not establish source availability or authenticate a
+changed binding; those remain enforced by the receiving read.
+
 Empty `paths`, patch text or diff records explicitly select no changes. Missing
 selectors and `liveGit:false` alone require a caller choice. No-change,
 no-match, unresolved or ambiguous target, partial evidence, invalid/unsupported
@@ -144,9 +172,35 @@ file is offered when no narrower native extent exists and that file is available
 There are no cursors, ordinals, byte ranges, decoding or agent integrity checks.
 If the answer is sufficient, continue the caller task without rereading.
 
+Source-region navigation is one optional `read_source_regions` call. Its
+`arguments.detail` shares `source:{ref_id}` and `collection:"context_regions"`;
+`regions` contains the meaningful exact choices:
+`{path,start_line,end_line,relationship?}`. Bounds are absolute, one-based and
+inclusive; two null bounds identify an empty file. `relationship`, when present,
+selects the native navigation part, not a code relation inferred from source.
+Keep any nonempty subset of the returned `regions` array to read those extents
+together, including a single chosen extent. The unchanged call reads precisely
+the displayed set. It never substitutes all retained context. This navigation
+does not reduce an explicitly requested affected-file or relationship population.
+
+A combined read returns the matching complete `context_regions` rows in original
+order, each original row once. Equal selectors do not duplicate coverage; distinct
+overlapping extents and native relationship rows remain distinct when requested.
+Automatic excerpts and further source navigation omit an extent only when exact
+text already delivered from that source covers it. They do not change locations
+or relationship associations. Missing source evidence remains a per-file limit
+beside independently usable choices. A bad chosen extent names the missing
+selection and requires choosing from the issued choices; it does not widen the
+read or guess replacement coordinates.
+
 `detail` carries the issued `source:{ref_id}` and collection. Semantic filters
 (`selector.id`, `path`, `symbol`, `relationship`, `input_path`) select from the
 same original and remain conjunctive. `input_path` qualifies one affected file.
+`regions` applies only to `context_regions` and cannot accompany those row
+filters. Its entries match exact stored path/bounds and, if supplied, relationship;
+they are not arbitrary source slices. One bound source is required for the whole
+set. Indexed selections remain supplemental when the review-source notice says
+so; region coordinates cannot select content from another reviewed version.
 `lines:{start_line,end_line}` selects absolute, one-based inclusive source lines
 inside the context `source` member, one region selected by ID, or one complete
 indexed/reviewed file selected by path. Invalid selections return an exact inspection call when
@@ -155,6 +209,9 @@ does not claim to answer the rejected selection. Provider/graph snapshots,
 patch echoes, raw diagnostics and provenance are not public detail collections.
 Successful detail reads keep the issued source handle and requested meaning;
 they do not echo selection arguments or repeat the delivered population counts.
+`lines` may also narrow a single row selected by `regions`; it cannot slice a
+multi-region result. Explicit whole-collection and individual `selector.id`
+reads retain their respective meanings.
 
 Selected source bytes are checked against the index's file descriptor before
 retention. Changed, absent, corpus-excluded, nonregular or undecodable content
@@ -272,6 +329,51 @@ descriptors; only affected extraction units and changed provider projects run.
 Explicit rebuild requests reset the derived schema in the canonical database. The extraction basis is
 `working_checkout.v6`; incompatible publications are rebuilt through the same
 owner, without an old-contract read path.
+
+CLI build/rebuild, MCP build/rebuild and automatic refresh run preparation in
+one Node child per fresh job. The committed root `agent-launch.toml` controls
+that child's old-space ceiling:
+
+```toml
+[code_index]
+build_heap_mib = 8192
+```
+
+The default is 8192 MiB only when the committed file, table or key is absent.
+An explicit value must be a positive TOML integer, at most 17592186044415 MiB
+on 64-bit Node or 4095 MiB on 32-bit Node, and safely representable in JavaScript.
+The fixed default is checked too: on 32-bit Node, commit an explicit value no
+greater than 4095 before preparing. These are native byte-conversion bounds,
+not a host-RAM policy. MiB limits V8 old space; it does not reserve RAM or cap
+total RSS.
+
+Each actual fresh launch captures the bound repository's HEAD and reads only
+that commit's regular root file. Working-tree and staged edits have no effect.
+Newly committed settings apply to the next fresh job in an already running MCP
+host. Running and joined jobs retain their captured setting; queued refreshes
+read when starting. Heap selection adds no new index or cache identity input. The existing source
+collector may include this file; dirty edits can still trigger its ordinary
+incremental updates.
+Equivalent explicit requests share a child; waiter cancellation detaches only
+that waiter, and cancellation of all waiters stops their work. Configuration
+reads are asynchronous; closing during a read prevents a late child launch.
+
+Malformed TOML, invalid types (including integral floats), fractions, nonpositive
+or out-of-range values, unreadable Git objects and nonregular committed paths
+fail before preparation spawns. Diagnostics identify `agent-launch.toml`,
+`code_index.build_heap_mib`, the specific cause and the corrective action;
+syntax errors include line and column without source excerpts. Correct the
+reported file/value or Git-object failure, commit the correction and retry the
+requesting operation. Background failures use the existing refresh failed state
+and backoff; queries keep reading usable publications. Status and detail remain
+passive. Rebuild retains its existing reset and failure publication outcomes,
+including an unpublished result after a failed reset build.
+
+The ceiling is passed as explicit `--max-old-space-size` argv, overriding an
+inherited `NODE_OPTIONS` heap for this child without changing the parent
+environment. TypeScript's separate provider ceiling remains 8192 MiB. External
+benchmark wrappers and their descendant-provider `NODE_OPTIONS` policy remain
+independent; this setting governs the preparation child only.
 
 One repository-wide `withSidecarUpdaterLock` owns indexing across processes and
 cache destinations. Its SQLite EXCLUSIVE transaction is the atomic admission
@@ -616,3 +718,7 @@ environment variable, caller-supplied root, ancestor-package search, hoisting
 assumption, or repository fallback that can produce one. A standalone
 `@agent-chassis/wiki-mcp` launch therefore carries no documentation bundle, and
 its reader refuses a package reference with the carrier-unavailable code.
+
+Implementation-owner paths above identify the actual private harness integration.
+They are source ownership references, not consuming-project examples or public
+installation prerequisites.

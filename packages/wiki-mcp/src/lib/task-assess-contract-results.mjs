@@ -13,7 +13,7 @@ import { narrowCapturedDiagnosis } from
 import { parseProofSourceUnitAddress } from
   "@agent-chassis/wiki-core/src/operations/controlled-contract/saved-proof-source.mjs";
 
-import { describeRetainedObservation } from "./code-index-query-response.mjs";
+import { describeRetainedObservation } from "./selected-response-observation.mjs";
 import { CONTRACT_ASSESSMENT_ROUTE, contractAssessmentAuthorityIdentity, parseQueryObservationIdentity,
   queryObservationIdentity } from "./controlled-contract-query-context.mjs";
 import { describeRetentionFailure, jsonContent, measureMcpInlineResultBytes } from "./mcp-response.mjs";
@@ -33,7 +33,7 @@ const refuse = (code, message, details) => {
 };
 
 function parseOriginalRequest(request) {
-  assertControlledContractOperationInput(request, ["unit", "source", "diagnosis_id", "obligation_id", "view"]);
+  assertControlledContractOperationInput(request, ["unit", "source", "diagnoses", "view"]);
   const { unit, source } = request;
   const keys = source !== null && typeof source === "object" ? Object.keys(source).sort() : [];
   if (keys.length !== 1 || keys[0] !== "ref_id") {
@@ -41,30 +41,22 @@ function parseOriginalRequest(request) {
       "source names one retained original by exactly its ref_id",
       { phase: "request", rejected_arguments: ["source"] });
   }
-
-  const selectors = {};
-  if (Object.hasOwn(request, "view") && (request.view !== "diagnoses" ||
-      request.diagnosis_id !== undefined || request.obligation_id !== undefined)) {
-    refuse("obligation_coverage_request_invalid", "view selects diagnoses exclusively of diagnosis_id and obligation_id",
+  if (request.view !== undefined && (request.view !== "diagnoses" || request.diagnoses !== undefined)) {
+    refuse("obligation_coverage_request_invalid", "view selects diagnoses exclusively of the diagnoses selection array",
       { phase: "request", failed_condition: "diagnoses_view_selection_invalid", rejected_arguments: ["view"] });
   }
-  for (const [key, name] of [["diagnosis_id", "diagnosisId"], ["obligation_id", "obligationId"]]) {
-    if (!Object.hasOwn(request, key)) continue;
-    if (typeof request[key] !== "string" || request[key].length === 0) {
-      refuse("obligation_coverage_request_invalid", `${key}, when supplied, is a nonempty string`,
-        { phase: "request", failed_condition: "selector_not_a_nonempty_string", rejected_arguments: [key] });
-    }
-    selectors[name] = request[key];
-  }
-  if (selectors.obligationId !== undefined && selectors.diagnosisId === undefined) {
-    refuse("obligation_coverage_request_invalid",
-      "obligation_id restricts a selected diagnosis and requires diagnosis_id",
-      { phase: "request", failed_condition: "obligation_without_diagnosis", rejected_arguments: ["obligation_id"] });
+  if (request.diagnoses !== undefined && (!Array.isArray(request.diagnoses) || request.diagnoses.length === 0 ||
+      request.diagnoses.some(item => item === null || typeof item !== "object" || Array.isArray(item) ||
+        Object.keys(item).some(key => !["diagnosis_id", "obligation_id"].includes(key)) ||
+        typeof item.diagnosis_id !== "string" || item.diagnosis_id.length === 0 ||
+        (Object.hasOwn(item, "obligation_id") && (typeof item.obligation_id !== "string" || item.obligation_id.length === 0))))) {
+    refuse("obligation_coverage_request_invalid", "diagnoses is a nonempty ordered array of {diagnosis_id, obligation_id?} selections",
+      { phase: "request", failed_condition: "diagnoses_selection_invalid", rejected_arguments: ["diagnoses"] });
   }
 
   if (unit !== undefined) parseProofSourceUnitAddress(unit);
   return { ...(unit === undefined ? {} : { unit }), source: { ref_id: source.ref_id },
-    ...selectors };
+    ...(request.diagnoses === undefined ? {} : { diagnoses: request.diagnoses }) };
 }
 
 function selectRetainedDiagnosis(carrier, { unit, source, diagnosisId, obligationId }) {
@@ -124,7 +116,8 @@ function selectRetainedDiagnosis(carrier, { unit, source, diagnosisId, obligatio
       `The retained original lacks the correction definitions its diagnosis references: ${missing.join(", ")}`);
   }
 
-  return { diagnosis_id: diagnosisId, ...(obligationId === undefined
+  return { diagnosis_id: diagnosisId, ...(obligationId === undefined ? {} : { obligation_id: obligationId }),
+    ...(obligationId === undefined
     ? { diagnosis, corrections: usedCorrectionDefinitions(subjects, inventory.corrections) }
     : narrowCapturedDiagnosis(inventory, diagnosis, subjects)) };
 }
@@ -180,8 +173,20 @@ export function createContractAssessmentResults({ workspace, sessionEnv = proces
         repoRoot: context.sourceRoot, wkId: address.wkId, selectedUnit: address.selectedUnit, focus }));
     });
 
-    const selected = parsed.diagnosisId === undefined ? {}
-      : { selected_diagnosis: selectRetainedDiagnosis(carrier, { ...parsed, unit }) };
+    const selected = parsed.diagnoses === undefined ? {} : {
+      selected_diagnoses: parsed.diagnoses.map(({ diagnosis_id: diagnosisId, obligation_id: obligationId }) => {
+        try {
+          return selectRetainedDiagnosis(carrier, { unit, source: parsed.source, diagnosisId, obligationId });
+        } catch (error) {
+
+          if (!(error instanceof ControlledContractToolError) || ![
+            'obligation_coverage_diagnostic_group_not_found', 'obligation_coverage_obligation_not_found'
+          ].includes(error.code)) throw error;
+          return { diagnosis_id: diagnosisId, ...(obligationId === undefined ? {} : { obligation_id: obligationId }),
+            failure: { code: error.code, cause: error.message, ...error.details } };
+        }
+      })
+    };
     return { binding, read: { carrier, ...selected,
       original: { available: true, locator: parsed.source, revision: carrier.assessment.content_digest ?? null,
         selection: binding.query_identity },

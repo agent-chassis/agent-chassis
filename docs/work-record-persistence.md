@@ -18,11 +18,58 @@ The publisher retains locks, effects, settlement and exact rollback. Contract-on
 authoring uses the narrow shared contract and evaluation-input schema owners;
 only a supplied proof-plan request loads the memoized narrow proof-plan compiler.
 
+Concurrent-save behavior is described in [Concurrency and component
+responsibilities](#concurrency-and-component-responsibilities): the lock
+serializes writers, while the publication guard rejects a write based on an
+outdated record.
+
+## Concurrency and component responsibilities
+
+Preventing overlapping writes and preventing stale overwrites are separate
+responsibilities. Acquiring the lock does not establish that the caller's
+proposed record is still based on the current saved record.
+
+- `packages/wiki-core/src/operations/work-records-store-io.mjs`
+  composes validation and publication under the writer lock.
+  `packages/wiki-core/src/operations/work-record-publication.mjs`
+  reloads the saved record and compares its source digest with the expected
+  base before replacing canonical bytes. A stale base stops publication.
+- `packages/wiki-core/src/operations/work-record-write-lock.mjs`
+  serializes participating writers across the repository, invokes the supplied
+  operation after acquisition, and releases only the lock belonging to its
+  exact owner token. It does not validate record content or decide whether a
+  proposed edit is current.
+- `packages/wiki-core/src/lib/process-identity.mjs`
+  supplies live, dead or indeterminate verdicts for a recorded process identity.
+  It does not remove locks. The write-lock owner uses that verdict when deciding
+  whether to attempt abandoned-holder recovery.
+- `packages/wiki-core/src/lib/crash-durable-state.mjs`
+  plans and executes filesystem transitions for acquisition, retirement and
+  release. The calling owner supplies identity and liveness facts; the substrate
+  does not discover process liveness or interpret work-record content.
+
+When another writer holds the lock, acquisition makes bounded attempts.
+A live holder, indeterminate liveness or malformed ownership is not permission
+to reclaim it. Proven-dead holder recovery checks the observed ownership before
+freeing the canonical lock name. If acquisition remains unavailable, the
+supplied operation does not run. After acquisition, the publication guard still
+checks the saved base: a writer that waited must not overwrite another writer's
+completed change using its older proposal.
+
+Acquisition, the supplied operation and release have distinct outcomes.
+A release failure does not establish that publication failed or undo a
+confirmed write; see [Failure identity](#failure-identity) and
+[Publication outcome](#publication-outcome).
+
 ## Public authoring boundary
 
 The production surface creates with `workspace_create_record` and updates with
 `save_record({unit,revision,changes})`. The revision is the current combined
-source-bound authoring revision returned by `workspace_read_wiki` context.
+source-bound authoring revision from an explicit write context, for example
+`workspace_read_wiki({reads:[{subject:unit,for_changes:["obligations"]}]})`
+returns it at `contexts[unit].revision`. A successful mutation's returned
+revision can also serve a dependent save. Plain reads supply no write revision;
+frozen and historical material cannot provide a current write context.
 A deliberate proof, grammar or whole-unit controlled-acceptance exception is the
 separate request `save_record({unit,revision,exception})`; no member of
 `changes` or of a creation's `initial` records one. See
@@ -46,6 +93,80 @@ enforces and publishes four closed `changes` branches: root work item, slice
 work item, initiative and decision. `refresh_proofs` appears only on the
 root work-item branch; each slice contract member is marked slice-unit only
 on the slice branch. The unit address decides applicability at the server.
+Static admission and SDK conversion reuse the owning schema validator for
+compound rules and declared path formats. Conditional and untyped object
+constraints retain their declared applicability, and `oneOf` requires exactly
+one matching alternative. Unsupported declarations fail registration rather
+than becoming permissive inputs. Unicode string limits count code
+points, while UTF-8 byte limits remain separate constraints. A structural
+refusal identifies the submitted field and its violated rule, retaining all
+independent rejected members. Errors in retained saved meaning identify that
+subject rather than assigning its stored position to a submitted row. No
+correction invents a value, revision or caller intent; success needs no grammar
+or assessment reread.
+
+The selected `obligations` grammar constrains each provider-qualified case
+target by its installed candidate-provider identity and version. Selector
+members, title populations, printable Unicode bounds, positional title rules
+and source-path forms come from that provider family's grammar owner. Supplying
+another family's selector member is invalid even when the intended member is
+also present. The partial unqualified node:test target remains a supported
+draft; a supplied native target is complete. Agreement between a literal test
+identity and its separately supplied path, and the combined source/title
+selection bound, remain enforced by the provider owner before publication.
+Saving a planned test target does not check its existence or execute it.
+Refusals identify the exact submitted obligation/case field. Removing an
+incompatible member preserves an already-valid supplied selector; a missing or
+invalid selector remains an explicit caller choice. No replacement test or
+source is guessed.
+
+Structural refusals retain every affected field and distinct cause. Repeated
+identical constraints appear once under `constraint_definitions`; a field's
+`constraint: {ref: name}` resolves within that same response. Unique constraints
+remain inline. A field path is stated once rather than repeated in its message,
+and unsupported names appear once in `keys`, with their count. Missing unit,
+revision and changes retain their separate required-input diagnoses. Sharing
+changes presentation only, with no truncation, continuation loop or inferred
+correction.
+
+Registered validation projectors receive the complete enforced `inputSchema`
+alongside `args` and `validationError`. The shared
+`projectToolInputValidationFailure` accepts those facts plus optional
+`ownerDiagnostics`, `ownerGuidance` and `notEvaluated`. It preserves every
+supplied issue; owners must establish independent faults before supplying them.
+An invalid pattern retains its declared constraint. Unknown keys retain accepted
+members and any accepted locations for those names in the same schema, as facts
+rather than instructions to move values. Union alternatives remain distinguishable
+without selecting caller intent. Only an accepted subject field can label the
+refusal. `not_evaluated` names content an unresolved owner choice prevented from
+being evaluated. Tool-specific corrections and role-exclusion facts remain with
+their authority owners; the shared projector infers neither.
+
+A supplied string or array in `changes` is refused with the object-shape rule,
+without parsing it or restarting member discovery. Missing/empty edit choices
+remain caller choices. Grammar acquisition covers only members whose faults
+are not adequately explained inline; valid and already-explained siblings stay
+in the intended complete save. An unresolved row identity does not hide common
+static violations or names rejected by every row variant. Creation-only rules
+await the caller's identity choice. Alternate accepted JSON forms remain
+visible: review validation may use its notes array without inventing executable
+tests. `controlled_acceptance.disposition:"required"` plus an unsupported
+`rationale` is an ordinary field error, not an exception request.
+
+When competing cases in one request explicitly select the same verification,
+the refusal identifies their submitted fields, labels and verification binding.
+It distinguishes them from a saved case owner and confirms no publication or
+execution. The caller decides whether the tests are distinct or their evidence
+is shared. New case labels are not saved case identities, and repeating the
+same formal predicates to add a verification is not a valid batch. If the
+caller deliberately chooses staging, it saves one chosen case/use first, then
+uses the supplied conditional read to obtain saved semantic selections and
+current context for the remaining work. Shared evidence uses the issued case
+identity; distinct evidence needs its complete additional verification and
+second-request bindings. If the conflicting population must be amended
+atomically, there is no supported correction: nothing is published. No
+temporary clearing, case reassignment or guessed mapping is performed.
+
 `workspace_create_record` advertises and enforces the birth declaration. It
 publishes a work item's `initial.requirements` by name with its declaration
 deferred: the complete requirement batch declaration is the
@@ -120,11 +241,17 @@ refused as malformed and nothing is derived from it. An empty `depends_on` is
 valid. An update reports the members it empties together and gains no creation
 requirement, and an ordinary `slices` row may stay an incomplete draft.
 
-A criterion is readable text where it is authored and an identity where it is
-referenced. `changes.criteria[].text` is a criterion of the selected unit, and
-its `key` is the only criterion label. `changes.obligations[].criteria` takes
-criterion identities or those same-request labels as `$<key>`, and a label
-resolves to the identity the owner issues, never to the row's text.
+A criterion is authored as readable text and selected through authored meaning.
+`changes.criteria[].text` is a criterion of the selected unit; a new row may
+declare a request-local `key`. `changes.obligations[].criteria` takes semantic
+selectors such as `{kind:"criterion",match:{text:"The component exists."}}`,
+or `$<key>` for a criterion created in that same request. A selector requires
+at least one of `text` or an actually authored `typed_identity`, and must match
+exactly one saved criterion. Generated identities and positions are not public
+selectors. Existing criterion edits use `changes.criteria[].target`; removals
+use `changes.remove.criteria`, both with the same semantic selector grammar.
+The save owner resolves selectors against the captured saved source and local
+labels against the new rows; a `$key` is not a persistent criterion address.
 `slices[].acceptance.criteria` and `ready_slices[].acceptance.criteria` are the
 slice's own readable outcomes: a string there is saved as literal text, and an
 object states `text` beside `verification_method`, `evidence_target` or
@@ -182,16 +309,19 @@ with the accepted values in the message and in `constraint.allowedValues`. An
 accepted value that contradicts the shaping mode keeps its own shaping or
 purpose refusal.
 
-An obligation that names a criterion identity the selected unit does not
-currently have is refused as `obligation_coverage_acceptance_criterion_unknown`
-with the unknown identities and no effect. Its correction is the unit read,
-`workspace_read_wiki({subject: unit})` with the slice suffix intact, followed by
-that reference with `select: {contract: "criteria"}` for the unit's current
-identities. A `slices` row that supplies `sections.tasks` for an existing slice
+An obligation's criterion selector that matches no saved criterion or several
+criteria refuses as `selection_not_found` or `selection_ambiguous` before
+publication. When criterion meaning is missing, read it directly with
+`workspace_read_wiki({reads:[{subject:unit,select:{contract:"criteria"},for_changes:["obligations"]}]})`,
+with the slice suffix intact. Use the returned `members[].selector` and
+`contexts[unit].revision`; held unambiguous selectors need no discovery read.
+The internal association owner separately refuses an unknown resolved identity
+as `obligation_coverage_acceptance_criterion_unknown` and returns that same bulk
+criteria read for correction. A `slices` row that supplies `sections.tasks` for an existing slice
 is refused as `field_owner_mismatch`: the refusal names the slice unit, its
 read, and `save_record` on that unit with `changes.tasks`, and states that the
 task action and its value or selector are the author's. Neither refusal
-supplies a revision, task or identity on the author's behalf.
+chooses a task or criterion on the author's behalf.
 
 ## Failure identity
 
@@ -406,7 +536,7 @@ Core and ordinary MCP write responses preserve every producer diagnostic and
 report the exact `diagnostic_count`; persistence fields and nullable `written`
 values cross the response boundary unchanged. If the complete response exceeds
 the inline MCP limit, the existing response owner retains the original and
-returns a semantic `workspace_read_wiki({reference})` selection. The authenticated
+returns a semantic `workspace_read_wiki({reads:[{reference}]})` selection. The authenticated
 read delivers permitted meaning through the complete selected-response class.
 Retrieval is read-only and never reruns the mutation.
 
@@ -622,7 +752,76 @@ one batch (`entities`, `requirements`, `collections`, `unresolved`) that the
 batch owner prepares against the stored contract and the prospective record,
 under the host's captured paid tier only; a change that carries no requirement
 member is saved at any tier. Its authored rows are stored beside the claims
-they emit and settle with them as one contract participant. Request-local
+they emit. Ordinary unresolved residue uses
+`requirements.unresolved: [string | {text, reason, candidate_concept?, source_passages?}]`;
+the object retains required nonblank text and a controlled reason. Optional
+`source_passages` reuses the exact-passage declaration used by deliberate
+exceptions: a nonempty array of at most 64 closed
+`{user_requirement, user_requirement_occurrence?}` selections. The passage is
+nonempty; an occurrence is a positive integer, required when the passage repeats.
+The source-link owner resolves these selections against the prospective parent
+`sections.user_requirements`, including a source edit in the same save, before
+publication. Wrong quotations and ambiguous or out-of-range occurrences refuse
+the atomic save; no source, occurrence or binding is inferred. Ordinary residue
+keeps its text, reason and vocabulary suggestion and remains incomplete; a source
+binding creates no grammar exception, formal meaning or proof credit.
+Supplying `unresolved` replaces its list; omitting it preserves saved bindings.
+Public requirement readback preserves each residue's authored fields and returns
+its `source_passages` with exact passage/occurrence, parent source, location and
+`state: "current" | "stale"`. Source digests remain internal. Source movement
+leaves stored bindings unchanged; stale readback gives the applicable restatement
+rule. Bound reads preserve their source selection and refuse source movement;
+they perform no writes or rebinding. Rebinding is an explicit residue restatement
+under the current revision. The shared request declaration is
+`REQUIREMENT_SOURCE_PASSAGES_SCHEMA`; persisted links use
+`authored_source_passages` over `authored_requirement_source`.
+
+Requirement-binding refusals retain each established unused declaration with its
+supplied value and each unresolved reference with its exact supplied spelling,
+submitted use and batch-level declaration location. They do not infer a match
+between declarations and references. The author chooses whether to correct a
+reference, correct or supply a declaration, or remove genuinely unused material;
+removal alone does not resolve an independently unfinished reference. Ordinary
+incomplete drafts retain their existing admission rules. Contextual classification
+still requires a complete definition. Its incomplete-input diagnosis addresses
+the actual submitted uses and missing behavior, with accepted declaration/value
+information; entity declarations belong to the batch, never inside a requirement
+row. Binding-dependent normalization remains unavailable until its inputs exist.
+
+Structural save refusals select recovery grammar from diagnosed change members,
+with the schema owner's necessary local definitions. Valid sibling edits remain
+in the intended save without contributing unrelated grammar. Several affected
+members share one combined acquisition. Unknown members retain explicit caller
+choices and supported-member discovery; missing revisions acquire same-unit
+current write context without inventing a revision or rereading valid grammar.
+All offered calls must satisfy the serving reader's contract and grants. A denied
+read remains an explicit recovery limit. Neither guidance nor acquiring it edits
+or repairs the original request; after explicit correction, save the complete
+intended change under current context. Success requires no reread.
+
+A complete definition row may explicitly classify its exact quoted source as
+context using `source_role:"context"`, `definition:true` and an explicitly supplied
+`user_requirement` plus the existing occurrence choice where needed. This uses
+the same prospective-source resolution and atomic contract participant as other
+row bindings, including a same-save parent source edit. The role is stored beside
+`input` and `source`, never in native declaration meaning. Ordinary provenance
+or `definition:true` alone does not classify context. Reads preserve the exact
+definition and source and expose the role beside them, outside the semantic
+selector. They perform no reclassification, writes or proof checks.
+
+Targeted complete restatements preserve an omitted role only for the unchanged
+binding. An omitted row keeps its saved role and binding, which becomes stale on
+source movement. Explicit rebinding cannot inherit classification from a different
+source: the author must choose `source_role:"context"` or `source_role:null`.
+Clearing requires a saved whole-declaration target and removes only the role.
+Changing a classified definition to normative meaning requires that explicit
+clearing in the same atomic save. Incomplete definitions, missing or ambiguous
+source choices, stale revisions and conflicting retained roles refuse without
+publication. Diagnostics identify the authored field and necessary caller choice;
+no source, classification or replacement meaning is invented. Successful save
+remains compact and requires no readback or assessment.
+
+Authored rows and their claims settle as one contract participant. Request-local
 labels resolve only to the identities those owners issue; a requirement label
 resolves to its saved row and every claim that row emits. A malformed or stale
 batch publishes nothing; a structurally valid incomplete draft is saved, including
@@ -671,7 +870,12 @@ binding before interpreting the original and runs the existing durable attempt
 engine. The closed retry branch admits an authenticated SRC identity or area
 slug; the editing branches remain WK, IN and DEC only. An established outcome
 without readable creation facts retains unavailable-original and not-run
-maintenance facts. Refused or unknown publication runs no checks.
+maintenance facts. Refused or unknown publication runs no checks. When creation
+published canonical data but reports a persistence failure, the response keeps
+the original cause and participant effects, including uncertainty, and returns
+`creation_persistence_incomplete`. It offers no creation or maintenance retry:
+checks cannot reconcile a publication failure. Preserve the reported facts for
+the persistence owner to repair before continuing.
 
 For source, area, initiative and decision, the current check owner supplies no
 per-page checked identity. The attempt preserves the exact original creation
@@ -791,18 +995,15 @@ semantics are unchanged.
 An ordinary result that fits is delivered complete and recommends no read of
 its own retained copy: the `observation` locator keeps that copy readable as
 history. A save that published a change moved its unit, so a record reference
-issued before it now refuses with `source_moved`. Such a save offers
-`workspace_read_wiki({subject: unit})` for the saved unit, slice suffix
-included, on its complete and bounded forms alike. That call reads the current
-record and returns its fresh reference and revision; it is not a read of the
-saved receipt and not maintenance recovery. It is the recommended call when
-the save names no other, and follows a required omitted-detail retrieval or
-maintenance retry unrecommended. The save does not run the read or issue a
-reference itself, the call is offered only when the registered reader accepts
-it. An ordinary no-op and a maintenance retry offer no current-unit read. An
-explicit refresh no-op offers the current root read; a settlement failure with
-established or indeterminate publication offers that read beside its retained
-failure, without replay. A refusal whose owner supplies the exact unit read as its correction
+issued before it now refuses with `source_moved`. A successful save's returned
+revision can serve a dependent save without rereading; a sufficient save or
+no-op may finish. When current meaning is needed, use
+`workspace_read_wiki({reads:[{subject:unit}]})` with the slice suffix intact.
+That reads the current record, not the saved receipt or maintenance recovery;
+plain reading supplies no current write revision. A settlement failure with
+established or indeterminate publication can offer a current-unit read with
+`for_changes` for the requested members, beside its retained failure, without
+replay. A refusal whose owner supplies the exact unit read as its correction
 recommends that read when the registered reader accepts it; an owner call that
 still needs authored members is never completed into a call. A settlement
 failure has no receipt, so its retained failure observation stays recommended;
@@ -814,8 +1015,10 @@ read uses that owner's complete delivery class rather than the inline admission
 class. Failed or not-run maintenance emits an executable retry against the
 immutable save receipt. A `save_record_revision_stale` refusal, identified by
 its typed diagnostic, recommends exactly one call:
-`workspace_read_wiki({subject: unit})` for the refused unit, slice suffix
-included, which returns that unit's current context and revision. Its retained
+`workspace_read_wiki({reads:[{subject:unit,for_changes:members}]})` for the refused
+unit, slice suffix included, where `members` names the attempted change members
+(or `requirements` for a grammar exception). It returns the current write
+revision in `contexts[unit].revision`. Its retained
 refusal stays readable through the `observation` locator and is not
 recommended, because it is historical evidence rather than current context. The
 unit read is offered only when the registered reader accepts it, and no

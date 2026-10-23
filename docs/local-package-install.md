@@ -42,14 +42,29 @@ from the default registry. The older "local `file:` checkout" model is retired.
 
 ## Registry And Auth Setup
 
-None. Because the packages are public on the default npm registry, a consuming
-repo needs no `@agent-chassis` scope mapping, no committed or user `.npmrc`, and
-no auth token to install them. Run the install commands below directly.
+Public packages install from the default npm registry without scope mapping,
+private credentials or a CCE SDK. The free installation includes neither the
+private provider nor its SDK. Shared compilation, ordinary authoring, readback,
+assessment and mechanical tooling remain available without them.
 
-Publishing (maintainers only) uses standard public-npm auth — `npm login`, or a
-`registry.npmjs.org` automation token in the operator's user npm config — and
-publishes each scoped package with `npm publish --access public`. No private
-registry mapping or token is involved.
+Publishing (maintainers only) uses standard public-npm authentication and the
+existing verified-archive release route.
+
+### Private CCE installation
+
+Install `@agent-chassis/cce` explicitly in the same serving installation to
+supply paid capabilities. Its runtime SDK dependency belongs exclusively to
+that private package. Obtain private installation inputs from their owner;
+public package installation never fetches them. Installing those bytes grants
+no CCE entitlement. See [paid capability recovery](paid-library-composition.md)
+for missing-provider and dependency diagnostics and required restart.
+
+Maintainer paid witnesses may use an explicitly supplied SDK tarball. The local
+installation helper validates its real identity, exact version and bytes, then
+stages it outside the public snapshot and installs it only with selected private
+fixtures. Public snapshots and archives contain no private SDK input. This local
+route establishes neither private registry availability nor redistribution
+permission.
 
 ## Install Forms
 
@@ -332,3 +347,30 @@ This refresh uses the existing workspace installation and does not restore the
 removed internal wrapper. A fresh consumer installation or `npm ci` creates the
 core-owned link directly. Keep using `npx agent-launch` for operator commands;
 the repository's `npm run agent-launch` script also enters the same core wrapper.
+
+## Public artifact verification
+
+The public snapshot and archive preparation inspect every emitted file, package
+manifest and supported source map before use. Private source and documents are
+checked even under renamed paths, in concatenated output, in generated copies,
+and in inline or indexed source maps. Ordinary public availability and recovery
+references remain usable. Malformed maps, escaping links, unreadable inputs and
+unsupported source-bearing encodings cannot establish a verified artifact.
+
+Content checks cover raw and scrub-normalized modules, complete documents and
+substantive document passages. They do not establish detection of arbitrary
+semantic rewriting or obfuscation. Installed checks must also inspect the actual
+transitive package tree and execute the free consumer. Private local SDK composition provides paid-only evidence; it is never a free installation prerequisite.
+
+Release preparation and local snapshot packing share one actual-archive verifier.
+`--prepare` writes the snapshot, archives and report without publishing. Archive
+destinations must be empty; existing contents are preserved and refused. For
+`make pack-local-snapshot` or `make install-local-consumer`, set
+`TARBALL_DIR=<new empty directory>`. For `tools/agent-chassis-release.mjs`, pass
+`--tarball-dir=<new empty directory>`. To rerun the full `make release-preflight`,
+select a fresh `SNAPSHOT_DIR`; its archive destination is derived from that path.
+All seven archives must verify before publication begins; publication uses those
+archive paths with lifecycle scripts disabled and rechecks each archive's digest
+immediately before use. Changed or missing bytes stop the affected publication.
+A later failure reports attempted and successful publications and unknown
+registry effects; there is no automatic rollback or retry.

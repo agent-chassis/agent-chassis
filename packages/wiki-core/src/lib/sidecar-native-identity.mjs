@@ -1,10 +1,8 @@
 import { parseScipSymbol } from "./sidecar-scip-normalize.mjs";
 
-const POSITION_UNRESOLVED = "symbol_not_resolved_at_position";
-const POSITION_AMBIGUOUS = "ambiguous_symbol_at_position";
 const EXPLICIT_UNRESOLVED = "symbol_not_resolved";
 const EXPLICIT_AMBIGUOUS = "ambiguous_symbol";
-export const NATIVE_IDENTITY_UNAVAILABLE = "native_identity_unavailable";
+const NATIVE_IDENTITY_UNAVAILABLE = "native_identity_unavailable";
 
 function compareText(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -20,7 +18,7 @@ export function isNativeDefinition(row) {
   return Number.isSafeInteger(roles) && (roles & 1) === 1;
 }
 
-function validRange(range) {
+export function validNativeRange(range) {
   return Number.isSafeInteger(range?.start_line) && Number.isSafeInteger(range?.end_line) &&
     range.start_line > 0 && range.start_line <= range.end_line;
 }
@@ -28,7 +26,7 @@ function validRange(range) {
 export function compareNativeRows(left, right) {
   const [leftRange, rightRange] = [left.payload.range, right.payload.range];
   return compareText(left.document_path, right.document_path) ||
-    Number(validRange(rightRange)) - Number(validRange(leftRange)) ||
+    Number(validNativeRange(rightRange)) - Number(validNativeRange(leftRange)) ||
     (leftRange?.start_line ?? 0) - (rightRange?.start_line ?? 0) ||
     (leftRange?.start_character ?? 0) - (rightRange?.start_character ?? 0) ||
     (leftRange?.end_line ?? 0) - (rightRange?.end_line ?? 0) ||
@@ -44,21 +42,6 @@ function selectedNativeRows(selection) {
     if (!rows.has(id)) rows.set(id, structuredClone(row));
   }
   return [...rows.values()].sort(compareNativeRows);
-}
-
-function positionAnchors(rows, input) {
-  return rows.filter((row) => typeof row.payload?.symbol_key === "string" &&
-    row.document_path === input.path && validRange(row.payload.range) &&
-    row.payload.range.start_line <= input.line && input.line <= row.payload.range.end_line);
-}
-
-export function nativePositionSymbols(rows, input) {
-  const named = new Map();
-  for (const row of positionAnchors(rows, input)) {
-    named.set(`${row.provider_id}\0${row.symbol_id}`, { provider_id: row.provider_id,
-      symbol_id: row.symbol_id, document_local: parseScipSymbol(row.payload.symbol).local });
-  }
-  return [...named.values()];
 }
 
 function symbolFacts(selection, rows) {
@@ -113,53 +96,6 @@ function candidateFor(key, { rows, facts, anchors }) {
   };
 }
 
-export function resolveNativeNavigation({ input, selection }) {
-  const rows = selectedNativeRows(selection);
-  const facts = symbolFacts(selection, rows);
-  const position = !Object.hasOwn(input, "symbol");
-  const anchors = position ? positionAnchors(rows, input) : [];
-  const keys = new Set(anchors.map((row) => row.payload.symbol_key));
-  if (!position) {
-    for (const row of rows) {
-      if (row.payload.symbol === input.symbol &&
-          (!Object.hasOwn(input, "path") || row.payload.path === input.path)) {
-        keys.add(row.payload.symbol_key);
-      }
-    }
-    for (const fact of facts) {
-      if (fact.raw_symbol === input.symbol && fact.symbol_key !== null &&
-          !parseScipSymbol(fact.raw_symbol).local) keys.add(fact.symbol_key);
-    }
-  }
-  const candidates = [...keys].sort(compareText)
-    .map((key) => candidateFor(key, { rows, facts, anchors }));
-  const [only] = candidates;
-  let state = "unresolved";
-  let reason = position ? POSITION_UNRESOLVED : EXPLICIT_UNRESOLVED;
-  if (candidates.length > 1) {
-    [state, reason] = ["ambiguous", position ? POSITION_AMBIGUOUS : EXPLICIT_AMBIGUOUS];
-  } else if (only && (only.rows.some(isNativeDefinition) ||
-      only.resolution_facts.some((fact) => fact.state === "resolved"))) {
-    [state, reason] = ["resolved", "symbol_resolved"];
-  } else if (only) {
-    reason = "symbol_resolution_unresolved";
-  }
-  return {
-    symbol: candidates.length === 1 ? only.symbol : candidates.length === 0 && !position
-      ? input.symbol : null,
-    resolution: {
-      kind: position ? "path_position" : "explicit_symbol",
-      state,
-      status_reason: reason,
-      ...(Object.hasOwn(input, "path") ? { path: input.path } : {}),
-      ...(position ? { line: input.line, character: input.character ?? null,
-        position_granularity: "line" } : {})
-    },
-    candidates,
-    symbol_facts: facts
-  };
-}
-
 export function nativeMultiplicityRows(rows) {
   const signature = (row) => JSON.stringify([row.payload.symbol_key, row.document_path, row.payload.range,
     row.payload.symbol_roles, row.payload.enclosing_range]);
@@ -183,13 +119,39 @@ export function nativeMultiplicityRows(rows) {
   return rows.filter(admit);
 }
 
-export function nativeSelectionCandidates(selection) {
+export function nativeSelectionCandidates(selection, { select = null } = {}) {
   const rows = selectedNativeRows(selection);
   const facts = symbolFacts(selection, rows);
-  const keys = new Set([...rows.map(row => row.payload.symbol_key),
-    ...facts.map(fact => fact.symbol_key).filter(key => key !== null)]);
-  return { candidates: [...keys].sort(compareText).map(key => candidateFor(key,
-    { rows, facts, anchors: [] })), symbol_facts: facts };
+  const selected = select === null ? null : select(rows, facts);
+  const keys = selected === null ? new Set([...rows.map(row => row.payload.symbol_key),
+    ...facts.map(fact => fact.symbol_key).filter(key => key !== null)]) : selected.keys;
+  const candidates = [...keys].sort(compareText).map(key => candidateFor(key,
+    { rows, facts, anchors: selected?.anchors ?? [] }));
+  const [only] = candidates;
+  return { candidates, symbol_facts: facts, ...(selected === null ? {} : {
+    state: candidates.length > 1 ? "ambiguous" : only && (only.rows.some(isNativeDefinition) ||
+      only.resolution_facts.some(fact => fact.state === "resolved")) ? "resolved" : "unresolved"
+  }) };
+}
+
+export function resolveExplicitNativeIdentity({ input, selection }) {
+  const { candidates, symbol_facts, state } = nativeSelectionCandidates(selection, { select: (rows, facts) => {
+    const keys = new Set();
+    for (const row of rows) {
+      if (row.payload.symbol === input.symbol &&
+          (!Object.hasOwn(input, "path") || row.payload.path === input.path)) keys.add(row.payload.symbol_key);
+    }
+    for (const fact of facts) {
+      if (fact.raw_symbol === input.symbol && fact.symbol_key !== null &&
+          !parseScipSymbol(fact.raw_symbol).local) keys.add(fact.symbol_key);
+    }
+    return { keys };
+  } });
+  return { symbol: candidates.length === 1 ? candidates[0].symbol : candidates.length === 0 ? input.symbol : null,
+    resolution: { kind: "explicit_symbol", state,
+      status_reason: state === "ambiguous" ? EXPLICIT_AMBIGUOUS : state === "resolved" ? "symbol_resolved"
+        : candidates.length ? "symbol_resolution_unresolved" : EXPLICIT_UNRESOLVED,
+      ...(Object.hasOwn(input, "path") ? { path: input.path } : {}) }, candidates, symbol_facts };
 }
 
 export function nativeDefinitionSymbols(rows) {

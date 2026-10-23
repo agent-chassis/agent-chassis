@@ -20,6 +20,7 @@ const unitAddress = ({ wkId, selectedUnit }) =>
 export function acceptanceCriterionInventory(pkg, unit) {
   return pkg.deriveCriterionIdentities(criterionIdentityInputs(unit?.acceptance?.criteria ?? []))
     .map(entry => Object.freeze({ identity: entry.identity, position: entry.position,
+      ...(entry.source === 'typed' ? { typed_identity: entry.identity } : {}),
       text: entry.text, text_sha256: controlledContractContentDigest(entry.text) }));
 }
 
@@ -48,13 +49,17 @@ function association(inventory, entry) {
 }
 
 export function assessAcceptanceCriterionCoverage({ inventory, obligations,
-  validObligationIds, wkId, selectedUnit = null, focus = null }) {
+  validObligationIds, obligationStatuses = [], wkId, selectedUnit = null, focus = null }) {
   const valid = new Set(validObligationIds);
+  const statuses = new Map(obligationStatuses.map(row => [row.obligation_id, row.status]));
   const coveredBy = new Map(inventory.map(entry => [entry.identity, []]));
+  const associatedBy = new Map(inventory.map(entry => [entry.identity, []]));
   const stale = [];
   for (const row of obligations) {
     for (const entry of row.acceptance_criteria ?? []) {
       const state = association(inventory, entry);
+      associatedBy.get(entry.identity)?.push({ obligation_id: row.obligation_id, association: state,
+        validity: valid.has(row.obligation_id) ? 'valid' : statuses.get(row.obligation_id) ?? 'unavailable' });
       if (state !== 'current') {
         stale.push({ obligation_id: row.obligation_id, identity: entry.identity, reason: state });
       } else if (valid.has(row.obligation_id)) {
@@ -80,6 +85,12 @@ export function assessAcceptanceCriterionCoverage({ inventory, obligations,
     stale_association_count: stale.length,
     stale_associations: Object.freeze(stale.slice(0, LISTED_LIMIT).map(Object.freeze)),
     stale_associations_omitted: Math.max(0, stale.length - LISTED_LIMIT),
+
+    criterion_gaps: Object.freeze(uncovered.map(entry => Object.freeze({
+      criterion: { text: entry.text, ...(entry.typed_identity === undefined ? {} : { typed_identity: entry.typed_identity }) },
+      associations: associatedBy.get(entry.identity) }))),
+    removed_criterion_associations: Object.freeze(stale.filter(entry => entry.reason === 'criterion_absent')
+      .map(entry => Object.freeze({ obligation_id: entry.obligation_id, reason: entry.reason }))),
 
     verification_credit: 0,
     correction: status !== 'incomplete' ? null : Object.freeze({

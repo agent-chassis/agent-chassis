@@ -113,7 +113,8 @@ export function createGetRunResultObservation({ workspace, sessionEnv,
         ...(original.worker_task === undefined ? {} : { worker_task: original.worker_task }) };
     };
     if (live?.accepted !== true) {
-      if (live?.refusal?.reason === "attempt_selection_ambiguous" && Array.isArray(live.refusal.detail?.attempts)) {
+      if (["attempt_selection_ambiguous", "attempt_selector_mismatch"].includes(live?.refusal?.reason) &&
+          Array.isArray(live.refusal.detail?.attempts)) {
         const attempts = [];
         for (const candidate of live.refusal.detail.attempts) {
           if (!["worker", "reviewer", "redteam"].includes(candidate.role)) { attempts.push(candidate); continue; }
@@ -128,7 +129,7 @@ export function createGetRunResultObservation({ workspace, sessionEnv,
       }
       if (!["attempt_observation_unavailable", "unknown_run_or_handle"].includes(live?.refusal?.reason)) return live;
       const cold = await durable(parsed.attempt_id ?? null);
-      if (!cold.ok && cold.code === "attempt_selection_ambiguous" &&
+      if (!cold.ok && ["attempt_selection_ambiguous", "attempt_selector_mismatch"].includes(cold.code) &&
           (Array.isArray(cold.candidates) || Array.isArray(cold.attempts))) {
         const originals = createObservationOriginals({ workspace, sessionEnv, responseEnv });
         const candidates = [];
@@ -137,7 +138,14 @@ export function createGetRunResultObservation({ workspace, sessionEnv,
           const candidate = retainedCandidate.dispatch_tuple == null ? retainedCandidate : {
             attempt_id: retainedCandidate.dispatch_tuple.run_id, role: 'worker',
             original_result: retainedCandidate.original_result };
-          if (candidate.original_result == null) { candidates.push(candidate); continue; }
+          if (candidate.original_result == null) {
+
+            if (candidate.status === undefined) { candidates.push(candidate); continue; }
+            const exact = await backend.getRunStatus({ ...input, run_id: candidate.attempt_id });
+            if (exact.accepted === true) { candidates.push(taskCandidate(candidate, exact)); readable += 1; }
+            else candidates.push({ ...candidate, result_unavailable: projectRunObservationFailure(exact) });
+            continue;
+          }
           try {
             candidates.push(taskCandidate(candidate, originals.read(candidate.original_result, parsed.subject).carrier));
             readable += 1;

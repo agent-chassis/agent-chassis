@@ -512,8 +512,55 @@
         },
         "source": {
           "$ref": "#/$defs/authored_requirement_source"
+        },
+        "source_role": {
+          "description": "Caller-classified contextual role of this exact bound source passage; independent of definition meaning and semantic identity.",
+          "const": "context"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "source_role"
+            ],
+            "properties": {
+              "source_role": {
+                "const": "context"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "source"
+            ],
+            "properties": {
+              "input": {
+                "required": [
+                  "definition"
+                ],
+                "properties": {
+                  "definition": {
+                    "const": true
+                  }
+                },
+                "type": "object"
+              },
+              "pending": {
+                "maxItems": 0,
+                "type": "array"
+              },
+              "constraint_ids": {
+                "minItems": 1,
+                "type": "array"
+              },
+              "source": {
+                "$ref": "#/$defs/authored_requirement_source"
+              }
+            }
+          }
+        }
+      ]
     },
     "authored_requirement_collection": {
       "description": "A group of authored rows. A closed set has no order; an ordered sequence keeps the order given. It is kept as structure and is never a predicate.",
@@ -580,6 +627,9 @@
             },
             "grammar_exception": {
               "$ref": "#/$defs/authored_grammar_exception"
+            },
+            "source_passages": {
+              "$ref": "#/$defs/authored_source_passages"
             }
           }
         },
@@ -603,6 +653,14 @@
         }
       ]
     },
+    "authored_source_passages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/authored_requirement_source"
+      }
+    },
     "authored_grammar_exception": {
       "description": "The author's deliberate choice to leave one unresolved meaning unencoded because the supported grammar cannot faithfully state it, with the author's own reason. The meaning stays unresolved and is NOT ENFORCED: it is never compiled, never given an expression and never makes the specification complete. The reason is recorded as written and never assessed.",
       "type": "object",
@@ -618,12 +676,7 @@
           "pattern": "^\\S(?:[\\s\\S]*\\S)?$"
         },
         "source_passages": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 64,
-          "items": {
-            "$ref": "#/$defs/authored_requirement_source"
-          }
+          "$ref": "#/$defs/authored_source_passages"
         }
       }
     }

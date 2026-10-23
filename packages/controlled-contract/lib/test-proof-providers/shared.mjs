@@ -37,12 +37,18 @@ function isNormalizedSourcePath(value, suffixes) {
 }
 
 function sourceQualifiedGrammar({ sourceSuffixes, restStatement, parseRest,
-  excludedSuffixes = [], authored = null }) {
+  excludedSuffixes = [], authored = null, restPattern = '[\\s\\S]+' }) {
   const pathStatement = `normalized repository-relative ${sourceSuffixes.map((suffix) =>
     `*${suffix}`).join("|")} path`;
   const statement = `<${pathStatement}>::${restStatement}`;
   const identityStatement = `nonempty literal node identity of at most ${
     NATIVE_NODE_ID_MAX_SCALARS} Unicode scalars`;
+  const segment = `(?!\\.{1,2}(?:/|$))${NATIVE_PATH_SEGMENT_RE.source.slice(1, -1)}`;
+  const suffixPattern = sourceSuffixes.map(suffix => suffix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
+  const pathSchema = { type: 'string', maxLength: NATIVE_NODE_ID_MAX_SCALARS,
+    pattern: `^(?=[\\s\\S]*(?:${suffixPattern})$)(?:${segment}/)*${segment}$`, description: pathStatement };
+  if (excludedSuffixes.length) pathSchema.not = { anyOf: excludedSuffixes.map(suffix =>
+    ({ pattern: `${suffix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}$` })) };
   const acceptsSource = (sourcePath) => isNormalizedSourcePath(sourcePath, sourceSuffixes) &&
     !excludedSuffixes.some((suffix) => sourcePath.endsWith(suffix));
 
@@ -61,6 +67,12 @@ function sourceQualifiedGrammar({ sourceSuffixes, restStatement, parseRest,
   return deepFreeze({
     source_suffixes: [...sourceSuffixes],
     statement,
+    path_schema: pathSchema,
+    literal_schema: { type: 'string', minLength: 1, maxLength: NATIVE_NODE_ID_MAX_SCALARS,
+      pattern: '^[^\\u0000-\\u001f\\u007f\\ud800-\\udfff]+$',
+      allOf: [{ pattern: `^(?=[^:]*?(?:${suffixPattern})::)(?:${segment}/)*${segment}::${restPattern}$` },
+        ...excludedSuffixes.map(suffix => ({ not: { pattern: `${suffix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}::` } }))],
+      description: `${identityStatement}; ${statement}. The source path in this identity must equal target.path.` },
     ...(authored === null ? {} : { authored: {
       member: authored.member,
       form: authored.form,
@@ -91,7 +103,7 @@ function literalRestGrammar(sourceSuffixes) {
 }
 
 function titlePathGrammar(sourceSuffixes, { minLength = 1,
-  maxLength = TITLE_PATH_MAX_ELEMENTS, element = null, statement = null } = {}) {
+  maxLength = TITLE_PATH_MAX_ELEMENTS, elementPatterns = [], statement = null } = {}) {
   const restStatement = statement ??
     `<canonical JSON array of ${minLength}..${maxLength} literal titles>`;
   return sourceQualifiedGrammar({
@@ -103,7 +115,12 @@ function titlePathGrammar(sourceSuffixes, { minLength = 1,
       form: `${restStatement.replace(/^<canonical JSON /u, "").replace(/>$/u, "")}; each title is ` +
         `nonempty printable text of at most ${TITLE_MAX_SCALARS} Unicode scalars, outermost first`,
       limit: "a quotation mark or backslash in a title counts twice",
-      schema: { type: "array", items: { type: "string" } },
+      schema: { type: "array", minItems: minLength, maxItems: maxLength,
+        items: { type: "string", minLength: 1, maxLength: TITLE_MAX_SCALARS,
+          pattern: '^[^\\u0000-\\u001f\\u007f\\ud800-\\udfff]+$' },
+        ...(elementPatterns.length ? { allOf: [{ items: elementPatterns.map(pattern =>
+          pattern === null ? {} : { pattern: pattern.source }) }] } : {}),
+        description: `Outermost first, supplied verbatim. The provider also checks a combined source-and-title selection limit of ${NATIVE_NODE_ID_MAX_SCALARS} Unicode scalars.` },
       write: (titles) => JSON.stringify(titles),
       read: (selection) => [...selection.title_path]
     },
@@ -113,7 +130,7 @@ function titlePathGrammar(sourceSuffixes, { minLength = 1,
       if (!Array.isArray(titles) || JSON.stringify(titles) !== rest ||
           titles.length < minLength || titles.length > maxLength ||
           titles.some((title) => !isLiteralText(title, TITLE_MAX_SCALARS)) ||
-          (element !== null && !titles.every((title, index) => element(title, index)))) {
+          !titles.every((title, index) => elementPatterns[index] == null || elementPatterns[index].test(title))) {
         return null;
       }
       return deepFreeze({ title_path: titles });
@@ -127,6 +144,7 @@ function identifierPathGrammar(sourceSuffixes, { separator, minLength = 1,
     sourceSuffixes,
     excludedSuffixes,
     restStatement: statement,
+    restPattern: `(?:${IDENTIFIER_RE.source.slice(1, -1)}${separator.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}){${minLength - 1},${TITLE_PATH_MAX_ELEMENTS - 1}}${last.source.slice(1, -1)}`,
     parseRest(rest) {
       const parts = rest.split(separator);
       if (parts.length < minLength || parts.length > TITLE_PATH_MAX_ELEMENTS ||

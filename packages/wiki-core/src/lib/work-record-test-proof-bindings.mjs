@@ -14,29 +14,66 @@ const NOTE_VALIDATION_FIELDS = Object.freeze(["note", "verification_ids"]);
 
 const COMMAND_ID = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/u;
 const COMMIT_ID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
-const textSchema = { type: "string", minLength: 1 };
+const nonblankSchema = { type: "string", pattern: "\\S", description: "Supply a nonblank string." };
+const identitySchema = { type: "string", pattern: COMMAND_ID.source,
+  description: "Use 1–128 ASCII letters, digits, underscore, dot or hyphen; start with a letter or digit." };
 const closedSchema = (properties, required) => ({ type: "object", additionalProperties: false, properties, required });
+const cwdRule = "Use . for the repository root or a canonical repository-relative POSIX directory without a trailing /. " +
+  "No absolute, drive-prefixed, tilde-prefixed or dash-prefixed paths, backslashes, control characters, " +
+  "surrounding whitespace, empty components, . components or .. components. This declares syntax, not directory existence.";
+const fileRule = "Supply unique canonical repository-relative POSIX file selectors: no absolute, drive-prefixed, " +
+  "tilde-prefixed or dash-prefixed paths, backslashes, control characters, surrounding whitespace, glob characters, " +
+  "empty, . or .. components, or trailing /. File existence is checked by the source/execution owner.";
+export const VALIDATION_NOTE_SCHEMA = deepFreeze({ anyOf: [nonblankSchema,
+  { ...closedSchema({ note: nonblankSchema, verification_ids: { type: "array", uniqueItems: true,
+    items: nonblankSchema } }, ["note", "verification_ids"]),
+    description: "Supply exactly note (a nonblank string) and verification_ids (a unique array of nonblank strings, possibly empty). This is a note, not executable proof." }] });
 
 export const REPOSITORY_TEST_DECLARATION_SCHEMA = deepFreeze(closedSchema({
-  operation: { type: "string", const: "repository_test" }, id: textSchema, purpose: textSchema,
-  default_selection: textSchema,
-  selections: { type: "array", minItems: 1, items: closedSchema({
-    id: textSchema,
-    harness: closedSchema({ cwd: textSchema, argv: { type: "array", minItems: 1,
-      items: { type: "string" } } }, ["cwd", "argv"]),
-    definition_paths: { type: "array", minItems: 1, items: textSchema },
-    environment: textSchema,
-    additional_baseline_commits: { type: "array", items: textSchema }
-  }, ["id", "harness", "definition_paths"]) }
+  operation: { type: "string", const: "repository_test" }, id: identitySchema, purpose: nonblankSchema,
+  default_selection: { ...identitySchema, description: "Name one of this command's submitted selections by its exact id." },
+  selections: { type: "array", minItems: 1,
+    description: "Supply at least one selection, with a distinct id for every selection in this command.",
+    items: closedSchema({
+      id: identitySchema,
+      harness: closedSchema({ cwd: { type: "string", minLength: 1, description: cwdRule },
+        argv: { type: "array", minItems: 1,
+          items: { type: "string", pattern: "^[^\\u0000]*$", description: "Each argument must be a string without NUL." },
+          description: "Supply a nonempty argument array. The first string must be nonempty; no argument may contain NUL. Arguments are preserved exactly." }
+      }, ["cwd", "argv"]),
+      definition_paths: { type: "array", minItems: 1, uniqueItems: true,
+        description: fileRule, items: { type: "string", minLength: 1, description: fileRule } },
+      environment: { type: "string", pattern: TEST_RUNTIME_ENVIRONMENT_ID_RE.source,
+        description: `Use a runtime environment identity matching ${TEST_RUNTIME_ENVIRONMENT_ID_RE.source}; availability is checked separately.` },
+      additional_baseline_commits: { type: "array", uniqueItems: true,
+        description: "Supply unique full lowercase 40- or 64-hex commit identities; availability is checked separately.",
+        items: { type: "string", pattern: COMMIT_ID.source,
+          description: "Supply a full lowercase 40- or 64-hex commit identity." } }
+    }, ["id", "harness", "definition_paths"]) }
 }, ["operation", "id", "purpose", "selections"]));
+const repositoryTestRules = {
+  fields_invalid: "Supply exactly operation, id, purpose and selections, with optional default_selection.",
+  id_invalid: identitySchema.description, purpose_invalid: nonblankSchema.description,
+  selections_invalid: "Supply a nonempty selections array.",
+  selection_fields_invalid: "Supply exactly id, harness and definition_paths, with optional environment and additional_baseline_commits.",
+  selection_id_invalid: identitySchema.description, selection_id_duplicate: "Give each selection in this command a distinct id.",
+  harness_fields_invalid: "Supply exactly cwd and argv in harness.", cwd_invalid: cwdRule,
+  argv_invalid: REPOSITORY_TEST_DECLARATION_SCHEMA.properties.selections.items.properties.harness.properties.argv.description,
+  definition_paths_invalid: fileRule,
+  environment_invalid: REPOSITORY_TEST_DECLARATION_SCHEMA.properties.selections.items.properties.environment.description,
+  baseline_commits_invalid: REPOSITORY_TEST_DECLARATION_SCHEMA.properties.selections.items.properties.additional_baseline_commits.description,
+  default_selection_invalid: "Choose the exact id of one of this command's submitted selections."
+};
 const repositoryDirectory = value => value === "." ||
   (parseRepositoryScopePath(value).ok && !value.endsWith("/"));
 
 function validateRepositoryTest(entry, entryPath, issues) {
   const start = issues.length;
+  const seen = new Set();
   const check = (ok, suffix, cause) => {
     if (!ok) issues.push(validationIssue(`repository_test_${cause}`, `${entryPath}${suffix}`,
-      `${entryPath}${suffix}: ${cause.replaceAll("_", " ")}`));
+      `${entryPath}${suffix}: ${cause.replaceAll("_", " ")}`, { constraint: { rule: repositoryTestRules[cause] },
+        ...(cause === "default_selection_invalid" ? { choices: [...seen] } : {}) }));
   };
   const fields = (value, required, optional = []) => value !== null && typeof value === "object" &&
     !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype &&
@@ -46,7 +83,6 @@ function validateRepositoryTest(entry, entryPath, issues) {
   check(typeof entry.id === "string" && COMMAND_ID.test(entry.id), ".id", "id_invalid");
   check(typeof entry.purpose === "string" && entry.purpose.trim().length > 0, ".purpose", "purpose_invalid");
   check(Array.isArray(entry.selections) && entry.selections.length > 0, ".selections", "selections_invalid");
-  const seen = new Set();
   for (const [index, selection] of (Array.isArray(entry.selections) ? entry.selections : []).entries()) {
     const at = `.selections[${index}]`;
     if (!fields(selection, ["id", "harness", "definition_paths"], ["environment", "additional_baseline_commits"])) {
@@ -57,8 +93,9 @@ function validateRepositoryTest(entry, entryPath, issues) {
     check(fields(selection.harness, ["cwd", "argv"]), `${at}.harness`, "harness_fields_invalid");
     check(repositoryDirectory(selection.harness?.cwd), `${at}.harness.cwd`, "cwd_invalid");
     const argv = selection.harness?.argv;
-    check(Array.isArray(argv) && argv.length > 0 && typeof argv[0] === "string" && argv[0].length > 0 &&
-      argv.every(value => typeof value === "string" && !value.includes("\0")), `${at}.harness.argv`, "argv_invalid");
+    if (!Array.isArray(argv) || argv.length === 0) check(false, `${at}.harness.argv`, "argv_invalid");
+    else argv.forEach((value, argumentIndex) => check(typeof value === "string" && !value.includes("\0") &&
+      (argumentIndex !== 0 || value.length > 0), `${at}.harness.argv[${argumentIndex}]`, "argv_invalid"));
     const paths = selection.definition_paths;
     check(Array.isArray(paths) && paths.length > 0 && paths.every(value => parseRepositoryScopeFileSelector(value).ok) &&
       new Set(paths).size === paths.length, `${at}.definition_paths`, "definition_paths_invalid");

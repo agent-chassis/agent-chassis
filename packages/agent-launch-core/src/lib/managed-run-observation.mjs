@@ -423,14 +423,15 @@ export function admitReviewOriginalBinding({ repository, subject, events, bindin
 export function selectReviewOriginalBinding({ repository, subject, events, attemptId = null }) {
   const validated = validateReviewOriginalBindings({ repository, subject, events });
   if (!validated.ok) return validated;
+
+  const candidates = validated.bindings.map(({ run_id, role, original_result }) =>
+    ({ attempt_id: run_id, role, original_result }));
   if (attemptId !== null) {
     const review = validated.bindings.find((binding) => binding.run_id === attemptId) ?? null;
-    return review === null ? { ok: false, code: "attempt_selector_mismatch" } : { ok: true, review };
+    return review === null ? { ok: false, code: "attempt_selector_mismatch", candidates } : { ok: true, review };
   }
   if (validated.bindings.length === 1) return { ok: true, review: validated.bindings[0] };
   return { ok: false, code: validated.bindings.length > 1 ? "attempt_selection_ambiguous"
     : "attempt_observation_unavailable",
-
-    ...(validated.bindings.length > 1 ? { candidates: validated.bindings.map(({ run_id, role, original_result }) =>
-      ({ attempt_id: run_id, role, original_result })) } : {}) };
+    ...(validated.bindings.length > 1 ? { candidates } : {}) };
 }

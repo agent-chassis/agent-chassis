@@ -110,6 +110,7 @@ export async function executeAdvisoryReviewDispatch({
     app: dispatchApp,
     model: dispatchModel,
     formal_result_contract: formalResultContract,
+    ...(args.material === undefined ? {} : { material: args.material }),
     ...(Object.prototype.hasOwnProperty.call(args, "reviewed_sha")
       ? { reviewed_sha: args.reviewed_sha }
       : {}),

@@ -183,10 +183,15 @@ export function renderFamilyNeutralAdvisoryReviewInput(input) {
     throw new TypeError("advisory review input is not launcher-owned");
   }
   const [unitCall, parentCall = null] = advisoryReviewFirstReadCalls(input.subject);
+  const design = resolveAdvisoryReviewMaterialKind(input) === 'canonical_design';
   return [
     renderAgentRoleGuideReadReference("reviewer"),
     `Canonical role: ${input.role}`,
     `Canonical subject: ${input.subject}`,
+    ...(design ? [
+      'Review target: the saved canonical design and selected findings material captured for this assignment. ' +
+        'The supporting checkout is source context, not an implementation range. Follow the saved assignment for the exact predecessor findings and challenge scope; do not substitute a HEAD diff.'
+    ] : []),
     ...(input.role === "redteam" ? [
       "Challenge the proposed design before implementation. " +
         "Examine the user requirements, proposed assignments, obligations, assumptions, interactions and planned checks. " +
@@ -203,6 +208,9 @@ export function renderFamilyNeutralAdvisoryReviewInput(input) {
         "An explicitly supplied SHA can select supporting checkout context; it never changes redteam into an implementation review.",
       `Supporting source context checkout: ${input.reviewed_sha}`,
       `Supporting source context tree: ${input.reviewed_tree_sha}`
+    ] : design ? [
+      `Supporting source context checkout: ${input.reviewed_sha}`,
+      `Supporting source context tree: ${input.reviewed_tree_sha}`
     ] : [
       `Reviewed range: ${input.base_sha}..${input.reviewed_sha}`,
       `Reviewed tree: ${input.reviewed_tree_sha}`
@@ -215,8 +223,8 @@ export function renderFamilyNeutralAdvisoryReviewInput(input) {
           ? ""
           : ` and then, because a slice root does not carry its parent contract, ${parentCall}`) +
         ".",
-      "Follow the operative fields, every returned next_call and next_calls continuation, and the selected " +
-        "material references until the assignment is complete. If a read is refused, report the refusal as " +
+      "Read the operative assignment and selected material needed for this review. Returned choices are optional; " +
+        "follow continuations when needed to complete those reads. If a read is refused, report the refusal as " +
         "a blocker instead of substituting another source."
     ].join(" "),
     "Return advisory text. Structured formatting is optional unless the launcher-selected formal result contract requests it."

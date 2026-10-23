@@ -37,9 +37,11 @@ test("check_landing rejects malformed or unauthorized input before observation",
   const git = { ...local, destination: { transport: "git", remote: "delivery" } };
   const hosted = { ...local, head: "b".repeat(64),
     destination: { transport: "hosted", remote: "origin" }, proposal: 42 };
-  assert.deepEqual(Object.keys(CHECK_LANDING_INPUT_SCHEMA.shape), ["subject", "selection"]);
+  assert.deepEqual(Object.keys(CHECK_LANDING_INPUT_SCHEMA.shape), ["subject", "selection", "detail"]);
   const advertised = selectedResponseRequestSchema(CHECK_LANDING_INPUT_SCHEMA);
-  for (const request of [{ subject }, ...[local, git, hosted].map((selection) => ({ subject, selection }))]) {
+  for (const request of [{ subject }, { subject, detail: { member: "landing_action" } },
+    ...[local, git, hosted].flatMap((selection) => [{ subject, selection },
+      { subject, selection, detail: { member: "landing_action" } }])]) {
     assert.equal(CHECK_LANDING_INPUT_SCHEMA.safeParse(request).success, true);
     assert.deepEqual(requestContractErrors("workspace_check_landing", request, advertised), []);
     assert.deepEqual(buildCheckLandingRequest(request), { kind: "intended_tool_request",
@@ -50,6 +52,8 @@ test("check_landing rejects malformed or unauthorized input before observation",
   const task = createCheckLandingTask({ env: { WIKI_MCP_TOOL_PROFILE: "orchestrator" },
     wkLandingStatusAdapter: adapter });
   const harmful = [null, {}, { subject: "WK-1" }, { subject: 2739 },
+    { subject, detail: true }, { subject, detail: { member: "all" } },
+    { subject, detail: { member: "landing_action", merge: true } },
     ...["repo", "alias", "path", "branch", "base", "authority", "credentials", "assigned_unit", "unit",
       "candidate", "merge", "publish", "integrate", "tool", "args"].map((field) => ({ subject, [field]: "x" })),
     ...[null, { ...local, kind: "candidate" }, { ...local, version: "a" },
@@ -93,6 +97,9 @@ test("check_landing rejects malformed or unauthorized input before observation",
     { tool: "workspace_check_landing", arguments: { subject } });
   assert.match(guided.current_observation_alternative.label, /^OPTIONAL ALTERNATIVE: observe CURRENT/u);
   assert.match(guided.current_observation_alternative.not_a_correction, /not the requested pinned read and repairs no failed publication/u);
+  const actionAlternative = await project({ ...pinned, detail: { member: "landing_action" } });
+  assert.deepEqual(actionAlternative.current_observation_alternative.call.arguments,
+    { subject, detail: { member: "landing_action" } }, "an explicit change to current keeps requested response meaning");
   for (const unusable of [await project({ selection: pinned.selection }),
     await project({ subject: "WK-1", selection: pinned.selection }), await project(pinned, new Set())]) {
     assert.match(unusable.correction, /COMPLETE selection/u);
@@ -158,7 +165,7 @@ test("check_landing projects task causes and authenticates retained originals wi
   assert.equal(delivered.source, null);
   assert.equal(delivered.originalRequest, null);
   assert.deepEqual(readdirSync(stateDir), [], "a complete unavailable answer needs no retained server carrier");
-  const pending = await createCheckLandingTask({ workspace, env,
+  const pendingTask = createCheckLandingTask({ workspace, env,
     ownerCall: source => ({ tool: "workspace_read_wiki", arguments: { reference: source } }),
     ownerRequestSchema: selectedResponseRequestSchema(z.object({ reference: z.object({ ref_id: z.string() }).strict() }).strict()),
     wkLandingStatusAdapter: async () => { calls++; return { accepted: true, landing: {
@@ -166,11 +173,17 @@ test("check_landing projects task causes and authenticates retained originals wi
       transport: "local", landing_authority: "human_git_actor",
       handoff: { commit: selection.head, base_branch: "main", handoff_ref: "refs/fixture/handoff" }
     } }; }
-  }).respond({ subject, selection });
+  });
+  const pending = await pendingTask.respond({ subject, selection });
   const bytes = () => Object.fromEntries(readdirSync(stateDir, { recursive: true }).map(String)
     .filter((name) => statSync(path.join(stateDir, name)).isFile())
     .map((name) => [name, readFileSync(path.join(stateDir, name))]));
   const retained = bytes();
+  const actionable = await pendingTask.respond({ subject, selection, detail: { member: "landing_action" } });
+  assert.equal(actionable.result.structuredContent.landing_action.head, selection.head);
+  assert.equal(actionable.result.structuredContent.next_calls, undefined);
+  assert.equal(actionable.source, null, "fitting requested instructions need no new retained source");
+  assert.deepEqual(bytes(), retained);
   const cold = createCheckLandingTask({ workspace, env,
     wkLandingStatusAdapter: () => assert.fail("original read observed the live publication") });
   const original = await cold.readOriginal(pending.originalRequest);
@@ -203,11 +216,11 @@ test("check_landing projects task causes and authenticates retained originals wi
       assert.equal(refused.structuredContent.subject.unit, subject);
       assert.equal(JSON.stringify(refused).includes(selection.head), false);
       assert.deepEqual(bytes(), retained);
-      assert.equal(calls, 2);
+      assert.equal(calls, 3);
     });
   }
   assert.deepEqual(bytes(), retained);
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
 });
 
 function harness(adapter, responseEnv = undefined) {
@@ -254,7 +267,7 @@ test("complete answers need no storage recovery and preserve native observation 
   }
 });
 
-test("failed optional action navigation delivers the complete inline action without repeating observation", async t => {
+test("failed optional action navigation preserves a status-only request without repeating observation", async t => {
   const scope = createTestResourceScope();
   t.after(() => scope.dispose());
   const root = mkdtempSync(path.join(os.tmpdir(), "landing-reader-failure-"));
@@ -271,8 +284,8 @@ test("failed optional action navigation delivers the complete inline action with
   const result = await task.call({ subject: "WK-2739" });
   assert.notEqual(result.isError, true);
   assert.equal(result.structuredContent.state, "awaiting_human_landing");
-  assert.deepEqual(result.structuredContent.landing_action, { actor: "human_git_actor", action: "land_exact_handoff_head",
-    head: "b".repeat(40), base_branch: "main", ref: "refs/fixture/handoff" });
+  assert.equal(result.structuredContent.landing_action, undefined);
+  assert.equal(result.structuredContent.landing_authority, "human_git_actor");
   assert.equal(result.structuredContent.next_calls, undefined);
   assert.equal(result.structuredContent.saved_observation_unavailable, undefined);
   assert.equal(observations, 1);

@@ -21,6 +21,10 @@ export function createStartAgentInputContract(z) {
     role: z.enum(["worker", "reviewer", "redteam"]).optional(),
     diff_base_sha: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u).optional(),
     reviewed_sha: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u).optional(),
+    material: z.object({
+      kind: z.literal('canonical_design'),
+      supporting_sha: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u).optional()
+    }).strict().optional(),
     preview: z.boolean().optional()
   }).strict();
   const inputSchema = shape.superRefine((value, context) => {
@@ -36,6 +40,12 @@ export function createStartAgentInputContract(z) {
     if (value.diff_base_sha !== undefined && (value.subject === undefined || value.role === "worker")) {
       issue("diff_base_sha", "The pair selects review material for a subject-bearing findings role");
     }
+    if (value.material !== undefined) {
+      if (value.subject === undefined || value.role === 'worker') issue('material',
+        'Saved-design material requires a subject-bearing reviewer or redteam assignment');
+      if (value.diff_base_sha !== undefined || value.reviewed_sha !== undefined) issue('material',
+        'Choose saved-design material with optional supporting_sha, or an explicit code range; do not combine them');
+    }
   });
   const inputValidationError = (request, validationError) => {
     const suppliedModelSelection = ["app", "model"].some(field => Object.hasOwn(request ?? {}, field));
@@ -48,6 +58,8 @@ export function createStartAgentInputContract(z) {
     return createToolInputValidationError({ tool: START_AGENT_TOOL_NAME, validationError,
       details: { correction: suppliedModelSelection
         ? "Omit app and model; the operator configures the role model in agent-launch.toml."
+        : request?.material !== undefined
+        ? 'Preserve the intended target: use material.kind:"canonical_design" with an optional supporting_sha, or the complete code-range pair. Saved-design selection is findings-only; correct the reported material constraint without inventing a target.'
         : request?.preview === true && request?.subject === undefined
         ? "Choose a role for capability preview; subject is not required."
         : "Supply subject for normal start/action preview, or choose a role for subject-free capability preview.",
@@ -60,7 +72,8 @@ export function createStartAgentInputContract(z) {
     "requires an exact slice, for example WK-0001#SLICE-001. Parent targets remain role-dependent. " +
     "preview:true selects action preview, " +
     "or subject-free capabilities with required role: {\"preview\":true,\"role\":\"worker\"} or " +
-    "{\"preview\":true,\"role\":\"reviewer\"}. SHA pairs are complete and findings-only.") });
+    "{\"preview\":true,\"role\":\"reviewer\"}. SHA pairs select a nonempty code range. " +
+    "material:{kind:canonical_design,supporting_sha?:<commit>} selects the saved design, with an optional exact supporting checkout; it cannot be combined with range pins.") });
 }
 
 export function registerStartAgentTool({ registerTool, z, ...configuration }) {

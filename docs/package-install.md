@@ -112,3 +112,16 @@ the binaries through npm:
 - [docs/local-package-install.md](local-package-install.md) — registry setup,
   install forms, and CI usage.
 - [docs/mcp-integration.md](mcp-integration.md) — MCP client configuration.
+
+Paid host compositions and operator code-query commands require an explicitly
+installed compatible `@agent-chassis/cce` in the same serving installation.
+Public packages do not fetch it automatically. Standard hoisted and nested
+consumers are supported; compatible wiki-core and controlled-contract packages
+must be installed alongside the provider. Installing a provider into the
+current working directory does not repair a different serving installation.
+
+Missing or incompatible providers refuse paid startup before readiness. Correct
+the named package, interface or member failure in that installation and restart.
+Provider presence grants no CCE access. Free serving and index
+build/status/rebuild need no provider. See
+[paid capability composition](paid-library-composition.md).

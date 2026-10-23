@@ -83,9 +83,11 @@ export function planAcceptanceNarrativeValidation({
       selectedUnit: { acceptance: { validation: requested.repository_tests } }, path: `${path}.repository_tests`
     });
     if (projected.status !== "valid" || projected.entry_kinds.some(kind => kind !== "repository_test")) {
-      const issue = projected.diagnostics[0];
-      return { ok: false, diagnostic: mechanicalDiagnostic(issue?.code ?? "repository_test_operation_invalid",
-        issue?.message ?? `${path}.repository_tests accepts only repository_test declarations`, issue?.path ?? path) };
+      const diagnostics = projected.diagnostics.length > 0
+        ? projected.diagnostics.map(issue => ({ ...issue, ...mechanicalDiagnostic(issue.code, issue.message, issue.path) }))
+        : [mechanicalDiagnostic("repository_test_operation_invalid",
+          `${path}.repository_tests accepts only repository_test declarations`, `${path}.repository_tests`)];
+      return { ok: false, diagnostic: diagnostics[0], diagnostics };
     }
     const stored = projectWorkRecordTestProofValidation({ selectedUnit: { acceptance: { validation: current } },
       path: storedPath });

@@ -1,9 +1,9 @@
+import { resolveCommittedSourceSymbol } from '../../lib/sidecar-committed-declaration.mjs';
 
-
-import { prepareCommittedQuery, runSnapshotQuery } from '../../lib/sidecar-query-selection.mjs';
+import { prepareCommittedQuery, runSnapshotQuery } from '../../lib/sidecar-snapshot-query.mjs';
 import { captureCommittedSourceContext, readCommittedSourceDescriptors, unavailableCommittedSnapshot } from '../../lib/sidecar-committed-preparation.mjs';
-import { resolvePublishedSidecarSnapshot, pinnedQueryContext } from '../../lib/sidecar-published-preparation.mjs';
-import { getSidecarSymbolDefinition, projectSidecarSymbolQueryForMcp, resolveCommittedSourceSymbol } from '../../lib/sidecar-symbol-query.mjs';
+import { resolvePublishedSidecarSnapshot } from '../../lib/sidecar-published-preparation.mjs';
+import { readNativeDefinitionEvidence } from '../../lib/sidecar-definition-evidence.mjs';
 import { readCompleteFiles } from '../../lib/sidecar-occurrence-source.mjs';
 import { parseScipSymbol } from '../../lib/sidecar-scip-normalize.mjs';
 import { descriptionKey } from './contract-requirement-descriptions.mjs';
@@ -20,10 +20,10 @@ export function projectRequirementDescriptionSource(source) {
   const pick = (value, fields) => Object.fromEntries(fields.filter(key => value?.[key] !== undefined)
     .map(key => [key, structuredClone(value[key])]));
   const definition = value => pick(value, ['path', 'symbol', 'declaration_kind',
-    'start_line', 'end_line', 'source_text', 'defined_meanings']);
+    'start_line', 'end_line', 'defined_meanings']);
   return { ...pick(source, ['state', 'code', 'identity', 'resolution', 'defined_meanings',
     'path', 'repository', 'bound_repository', 'cause', 'source_basis', 'source_limitation']),
-    ...(source.source_generation?.committed_source == null ? {} : { source_basis: 'committed_source' }),
+    ...(source.source_generation?.committed_source == null ? {} : { source_basis: 'captured_checkout' }),
     ...(source.definitions === undefined ? {} : { definitions: source.definitions.map(definition) }),
     ...(source.candidates === undefined ? {} : { candidates: source.candidates.map(definition) }),
     ...(typeof source.recovery === 'string' ? { recovery: source.recovery } : {}),
@@ -137,9 +137,9 @@ async function prepareDescriptionSources({ repoRoot, repository, owner, entities
     if (identity.scip_symbol !== undefined && prepared?.status.scip_state?.scip_available === true &&
       prepared.status.scip_state.graph_available === true) {
 
-      const result = await getSidecarSymbolDefinition({ dir: captured.repoRoot, symbol: identity.scip_symbol,
-        ...(parseScipSymbol(identity.scip_symbol).local ? { path: identity.path } : {}) }, pinnedQueryContext(prepared));
-      const recovery = projectSidecarSymbolQueryForMcp(result).next_action;
+      const result = await readNativeDefinitionEvidence({ prepared, symbol: identity.scip_symbol,
+        ...(parseScipSymbol(identity.scip_symbol).local ? { path: identity.path } : {}) });
+      const recovery = result.recovery;
       if (result.symbol_resolution.state !== 'resolved') {
         descriptions.set(key, failure(result.symbol_resolution.status_reason, { source_generation: generation,
           resolution: result.symbol_resolution.state, recovery }));

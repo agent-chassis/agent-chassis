@@ -101,6 +101,37 @@ test("partial, compensated and uncertain publication keep independent actual eff
   }
 });
 
+test("only established completion recovery offers correction; failed release keeps both causes", () => {
+  const source = frame({ outcome: "uncertain", stage: "materialization",
+    effects: { commit_object: "unknown", delivery_ref: "unchanged", submitted_for_review: false, checkout: "not_attempted" },
+    diagnostics: [{ stage: "materialization", code: "MATERIALIZE_FAILED", message: "the exact materialization cause" }] });
+  const released = prepareWorkerDeliveryAnswer(source, { completionRecovery: { available: true } });
+  assert.equal(released.outcome, "refused");
+  assert.equal(released.effects.commit_object, "unknown", "unknown candidate object is not erased");
+  assert.equal(released.next_action.action, "correct_delivery");
+  assert.deepEqual(released.next_calls[0].arguments, {});
+  assert.doesNotMatch(JSON.stringify(released), /completion_recovery|intent_id|released_zero_effects/u);
+  const unavailable = prepareWorkerDeliveryAnswer(source, { completionRecovery: {
+    available: false, code: "attempt_partition_contended", message: "the exact partition lock cause" } });
+  assert.equal(unavailable.outcome, "uncertain");
+  assert.deepEqual(unavailable.diagnostics.map(row => row.code), ["MATERIALIZE_FAILED", "attempt_partition_contended"]);
+  assert.deepEqual(unavailable.next_calls, []);
+  assert.match(unavailable.next_action.instruction, /Do not retry delivery or request assignment change/u);
+  const unestablished = prepareWorkerDeliveryAnswer(source);
+  assert.deepEqual(unestablished.next_calls, []);
+  const retained = { ...source, body: { ...source.body, original: { locator: { ref_id: "abcdefgh" } } } };
+  const recovery = population => prepareWorkerDeliveryAnswer(retained, { completionRecovery: {
+    available: false, code: "attempt_partition_contended", message: "the exact partition lock cause",
+    cause: { code: "attempt_partition_contended", completion: { intent_id: "private-intent", history: population } }
+  } });
+  const selected = recovery([]);
+  assert.equal(selected.next_action.action, "reconcile_completion");
+  assert.deepEqual(selected.next_calls[0].arguments, { reconcile: { ref_id: "abcdefgh" } });
+  assert.deepEqual(recovery(Array.from({ length: 1000 }, (_, i) => ({ private: i }))), selected,
+    "irrelevant retained release bookkeeping never inflates the response");
+  assert.doesNotMatch(JSON.stringify(selected), /intent_id|private-intent|history|completion_recovery/u);
+});
+
 test("receipt and checkout residue cannot masquerade as completion or erase the delivery", () => {
   const selected_delivery = { commit: "a".repeat(40), base: "b".repeat(40) };
   const source = frame({ outcome: "partial", selected_delivery, stage: "checkout",

@@ -7,6 +7,8 @@ import { prepareProofAuthoringDescriptionRead, projectProofAuthoringContractInpu
 import { unresolvedSpecificationMeanings } from './authoring-exception-assessment.mjs';
 import { createPublicSelectionSource, resolvePublicSelections, projectPublicSelection } from './public-selection.mjs';
 import { projectRequirementDefinitionMeaning } from './contract-requirement-description-sources.mjs';
+import { accountParentRequirementSource, describeParentRequirementSourceLink, projectRequirementSourceLink } from './contract-requirement-source-links.mjs';
+import { ControlledContractToolError } from '../../lib/controlled-contract-tools.mjs';
 
 const json = value => JSON.stringify(value);
 const unique = values => [...new Set(values)].sort();
@@ -24,9 +26,64 @@ const authoredIdentity = finding => finding.source !== undefined &&
 const nodeIds = (resolved, pkg, row) => [...(row.controlled_contract_node_ids ?? []),
   ...resolved.cases.filter(definition => definition.case_id === row.case_id).map(pkg.authoredCaseVerificationId)];
 
-async function authoredTargets(resolved) {
+async function parentRequirementAccounting(resolved) {
+  const text = resolved.record?.sections?.user_requirements;
+  if (typeof text !== 'string' || text.length === 0) return {
+    facts: accountParentRequirementSource(resolved.contract?.content ?? null, resolved.record, { obligationClaimIds: new Set() }),
+    declarations: [], claimIds: new Set() };
   const source = await createPublicSelectionSource({ captured: resolved, population: 'all' });
-  const population = (await resolvePublicSelections({ source, population: 'requirements', intent: 'read' })).results[0];
+  const declarations = (await resolvePublicSelections({ source, population: 'requirements', intent: 'read' })).results[0];
+  const claimIds = new Set();
+  const unavailable = [];
+  if (!Array.isArray(resolved.sources)) throw new ControlledContractToolError('requirement_accounting_source_unavailable',
+    'The captured assessment source has no complete parent/slice obligation population.', {
+      changed: false, subject: { unit: resolved.wkId },
+      stop: 'No complete requirement-accounting conclusion or authored correction is established from this source.', next_calls: [] });
+  for (const entry of resolved.sources) {
+    const selectedSource = entry.selectedUnit === resolved.selectedUnit ? resolved.source : entry.source;
+    if (selectedSource === null) continue;
+    const unit = entry.selectedUnit === null ? resolved.record : resolved.record.slices.find(row => row.id === entry.selectedUnit);
+    const captured = entry.selectedUnit === resolved.selectedUnit ? resolved : { ...resolved,
+      selectedUnit: entry.selectedUnit, unit, source: selectedSource, rows: selectedSource.content.obligations };
+    const selected = captured === resolved ? source : await createPublicSelectionSource({ captured, population: 'all' });
+    const obligations = (await resolvePublicSelections({ source: selected, population: 'obligations', intent: 'read' })).results[0];
+    if (obligations.status !== 'resolved') {
+      unavailable.push({ unit: selected.coverage.unit, ...projectPublicSelection(obligations).issue });
+      continue;
+    }
+    for (const match of obligations.matches) {
+      if (match.issues?.length) unavailable.push(...match.issues.map(issue => ({ unit: selected.coverage.unit, ...issue })));
+      else for (const id of match.internal.claim_ids) claimIds.add(id);
+    }
+  }
+  const facts = accountParentRequirementSource(resolved.contract?.content ?? null, resolved.record, { obligationClaimIds: claimIds });
+
+  const normativeGaps = declarations.status !== 'resolved' ? [] : declarations.matches.filter(match => {
+    if (match.kind !== 'requirement') return false;
+    const row = resolved.contract.content.authored_requirements.rows.find(row => row.row_id === match.internal.row_id);
+    return row.source !== undefined && row.input.definition !== true &&
+      (!match.internal.claim_ids.length || !match.internal.claim_ids.every(id => claimIds.has(id)));
+  });
+  return { facts: { ...facts,
+    ...(facts.accounting_status === 'incomplete' && unavailable.length ? { accounting_status: 'unavailable' } : {}),
+    ...(unavailable.length && !['full', 'unknown'].includes(facts.obligation_coverage) ? { obligation_coverage: 'unavailable' } : {}),
+    ...(unavailable.length ? { unavailable_associations: unavailable } : {}) },
+    declarations: declarations.status === 'resolved' ? declarations.matches.filter(match => match.kind === 'requirement') : [],
+    targets: await authoredTargets(resolved, source, declarations),
+    association_status: normativeGaps.length ? unavailable.length ? 'unavailable' : 'incomplete' : 'complete',
+    claimIds };
+}
+
+const publicUnfinishedMeaning = (meaning, record) => {
+  const passages = links => links.map(link => projectRequirementSourceLink(describeParentRequirementSourceLink(link, record)));
+  return { ...meaning, ...(meaning.source_passages === undefined ? {} : { source_passages: passages(meaning.source_passages) }),
+    ...(meaning.grammar_exception === undefined ? {} : { grammar_exception: { ...meaning.grammar_exception,
+      ...(meaning.grammar_exception.source_passages === undefined ? {} : { source_passages: passages(meaning.grammar_exception.source_passages) }) } }) };
+};
+
+async function authoredTargets(resolved, capturedSource = null, capturedPopulation = null) {
+  const source = capturedSource ?? await createPublicSelectionSource({ captured: resolved, population: 'all' });
+  const population = capturedPopulation ?? (await resolvePublicSelections({ source, population: 'requirements', intent: 'read' })).results[0];
   if (population.status !== 'resolved') return { rows: new Map(), issue: projectPublicSelection(population).issue };
   const rows = population.matches.filter(match => match.kind === 'requirement');
   if (!rows.length) return { rows: new Map() };
@@ -74,15 +131,30 @@ export async function assessProofAuthoringSpecification(resolved, pkg, obligatio
 
 export async function assessProofAuthoringDefinitions(resolved, pkg, obligationId, preparation = null) {
   const assessed = await assessProofAuthoringSpecification(resolved, pkg, obligationId, preparation);
-  if (assessed.specification.status === 'not_assessed') return { specification: assessed.specification, entries: [] };
-  const { rows, requirements, specification } = assessed;
+  const parentAccounting = await parentRequirementAccounting(resolved);
+  const accounting = parentAccounting.facts;
+  const requirementAccounting = { scope: accounting.scope, unit: accounting.parent_unit, status: accounting.accounting_status,
+    obligation_coverage: accounting.obligation_coverage, unmet_residue: accounting.unmet_residue,
+    ...(accounting.context?.length > 0 ? { context_accounted: true } : {}),
+    ...(accounting.unavailable_associations === undefined ? {} : { unavailable_associations: accounting.unavailable_associations }) };
+  if (assessed.specification.status === 'not_assessed') return { specification: { ...assessed.specification,
+    requirement_accounting: requirementAccounting }, entries: [] };
+  const { rows, requirements } = assessed;
+
+  const accountingStates = [accounting.accounting_status, parentAccounting.association_status];
+  const specification = { ...assessed.specification,
+    requirement_accounting: requirementAccounting,
+    status: assessed.specification.status === 'complete'
+      ? accountingStates.includes('unavailable') ? 'unavailable' : accountingStates.includes('incomplete') ? 'incomplete' : 'complete'
+      : assessed.specification.status };
   const descriptions = requirements.descriptions;
 
   const links = new Map(rows.map(row => [row.obligation_id, new Set(projectControlledContractRequirements(
     resolved.contract?.content ?? null, { controlledContractNodeIds: nodeIds(resolved, pkg, row) })
     .requirements.map(requirement => requirement.claim_id))]));
   const nodes = new Map(descriptions.nodes.map(node => [node.key, node]));
-  const publicRequirements = assessed.findings.length === 0 ? { rows: new Map() } : await authoredTargets(resolved);
+  const publicRequirements = assessed.findings.length === 0 ? { rows: new Map() }
+    : parentAccounting.targets ?? await authoredTargets(resolved);
   const targeting = id => publicRequirements.rows.get(id) ?? { targeting: { status: 'unavailable',
     ...(publicRequirements.issue === undefined ? { cause: 'No public authored declaration target is established for this requirement.' }
       : { issue: publicRequirements.issue }) } };
@@ -140,7 +212,8 @@ export async function assessProofAuthoringDefinitions(resolved, pkg, obligationI
         diagnostic_group_id: diagnosticGroupId } } } };
   });
 
-  for (const meaning of assessed.unfinished) {
+  for (const saved of assessed.unfinished) {
+    const meaning = publicUnfinishedMeaning(saved, resolved.record);
     const code = 'specification_meaning_unresolved';
     const diagnosticGroupId = proofAuthoringDiagnosticGroupId(resolved.revision, 'specification-meaning.v1', meaning);
     const subjects = [{ ...meaning, scope: 'whole_unit', unit: resolved.wkId }];
@@ -157,6 +230,44 @@ export async function assessProofAuthoringDefinitions(resolved, pkg, obligationI
       call: { tool: 'workspace_validate_proof', arguments: { unit: resolved.selectedUnit === null ? resolved.wkId
         : `${resolved.wkId}#${resolved.selectedUnit}`, ...(resolved.focus === null ? {} : { focus: resolved.focus }),
       diagnostic_group_id: diagnosticGroupId } } } });
+  }
+  for (const match of parentAccounting.declarations) {
+    if (match.internal.claim_ids.length && match.internal.claim_ids.every(id => parentAccounting.claimIds.has(id))) continue;
+    const row = resolved.contract.content.authored_requirements.rows.find(row => row.row_id === match.internal.row_id);
+    const link = describeParentRequirementSourceLink(row.source, resolved.record);
+    const definition = row.input.definition === true;
+    if (!definition && (row.source === undefined || match.internal.claim_ids.length > 0 && accounting.unavailable_associations?.length)) continue;
+    const staleContext = definition && row.source_role === 'context' && link.state === 'stale';
+    if (definition && (accounting.accounting_status !== 'incomplete' || !staleContext && (link.state !== 'current' || !accounting.unmapped.segments.some(segment => {
+      const start = Math.max(segment.start, link.location.start), end = Math.min(segment.end, link.location.end);
+      return end > start && resolved.record.sections.user_requirements.slice(start, end).trim().length > 0;
+    })))) continue;
+    const code = definition ? staleContext ? 'definition_context_source_stale' : 'definition_source_classification_missing'
+      : 'requirement_obligation_association_missing';
+    const unavailable = !definition && match.internal.claim_ids.length === 0 && match.internal.state === 'complete';
+    const meaning = definition
+      ? staleContext ? 'The explicitly contextual source binding is stale and contributes no current accounting. Preserve the definition and choose any current passage binding explicitly.'
+        : 'This non-normative definition has no explicit source classification. Provenance alone does not account for contextual source. Choose whether the affected passage is context or requested behavior; no behavioral obligation is required for the definition.'
+      : match.internal.claim_ids.length
+      ? 'Not all assertions of this source-linked requirement have explicit obligation associations. A source link alone does not account for the user requirement.'
+      : unavailable ? 'This complete source-linked declaration has no supported obligation-association selection. Its source requirement remains unaccounted; no missing authored meaning is established.'
+      : 'This source-linked requirement has no complete assertions to associate with an obligation. Complete its authored meaning before linking it.';
+    const diagnosticGroupId = proofAuthoringDiagnosticGroupId(resolved.revision, code, match.internal.row_id);
+    const target = parentAccounting.targets.rows.get(match.internal.row_id);
+    const subjects = [{ ...target, declaration: match.meaning.declaration,
+      ...(definition ? { declaration_role: 'definition' } : {}),
+      ...(row.source_role === undefined ? {} : { source_role: row.source_role }),
+      ...(staleContext ? { source: projectRequirementSourceLink(link) } : {}),
+      assertions_available: match.internal.claim_ids.length > 0, authored_state: match.internal.state }];
+    entries.push({ family: 'specification_meaning', subjects,
+      diagnosis: { selected: { diagnostic_group_id: diagnosticGroupId, family: 'specification_meaning', code,
+        category: unavailable ? 'system_capability' : 'author_input', meaning,
+        correction_units: [resolved.record, ...resolved.record.slices].map(unit => ({
+          unit: unit === resolved.record ? resolved.wkId : `${resolved.wkId}#${unit.id}`, title: unit.title })) },
+      subjects, recovery: { actor_recovery: unavailable ? 'none' : 'agent', explanation: meaning }, correction_route: null },
+      issue: { meaning: { owner: definition ? 'authored_requirement_source_accounting' : 'authored_requirement_obligation_associations', code, category: unavailable ? 'system_capability' : 'author_input',
+        effect: 'incomplete', stage: 'specification', route: 'not_assessed', reason: meaning },
+      scope: 'whole_unit', unit: resolved.wkId, subjects: 1, occurrences: 1, obligation_ids: [], obligations_omitted: 0 } });
   }
   return { specification, entries };
 }

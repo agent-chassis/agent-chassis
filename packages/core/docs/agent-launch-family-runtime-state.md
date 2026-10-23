@@ -294,30 +294,26 @@ Headless Agy retains stdout in a private, invocation-owned `agy-native-*.jsonl`
 file under the session runtime directory (`native_export_path` in `session.json`).
 It opts out of the shared supervisor's 1 MiB stdout buffer. Capture writes chunks
 without a growing memory buffer; the Agy-only reader consumes JSON tokens in
-64 KiB windows, skips unused payloads, and keeps bounded completion fields. Tool
-error recovery checks re-read later observations instead of accumulating session
-history in memory. Headless start and exact-ID resume join that same recovery
-interpretation to the private SQLite trajectory. A historical error is accepted
-only for a matching conversation and native step index: SQLite GENERIC/ERROR
-(`132`/`7`) with error bytes, corroborated by a stream `tool` in `ERROR` with a
-matching tool name and `TOOL_ERROR`. A later clean `DONE` observation of the same
-operation must precede the clean terminal response and match a clean SQLite tool
-row. Operation matching retains the native contract: MCP calls compare server
-and tool identity, while other tools compare native parameters. An unrelated
-success or an earlier success cannot recover a failure.
+64 KiB windows, skips unused payloads, and keeps bounded completion fields.
 
-Both sides exclude indices at or below the resumed invocation's
-`afterStepIndex`; prior history or a prior export cannot forgive a current error.
-The idle summary, workspace/conversation identity, clean final SQLite response
-and matching indexed stream response remain required. Unclassified, missing,
-conflicting or unresolved error evidence refuses, as do provider errors,
-permission denials and malformed terminal records. Native `SUCCESS` alone grants
-no completion or benchmark-score credit. At most 2048 small SQLite rows are
-retained for the join; the export is never loaded whole. Session diagnostics
-record recovery/unresolved counts and at most 16 step facts per category, without
-tool output or error messages. Historical errors remain in the original export
-and databases. Shared supervision, authority, settlement and result normalization
-keep their existing owners.
+Individual tool outcomes do not determine native invocation completion. A failed
+file read, invalid argument or unsuccessful command can be followed by a clean
+native completion without any retry or matching operation. Managed decoding,
+headless start, exact-ID resume and interactive SQLite completion apply this
+same rule. Original tool errors remain in the retained export and databases;
+completion creates no delivery, schema-validation or verifier-score credit.
+
+Headless completion still requires one well-formed terminal `SUCCESS` result,
+a nonempty response, consistent conversation identity, and no explicit terminal
+error or permission denial. The private SQLite summary must be idle, workspace
+and trajectory identity must match, and the latest step must be a clean completed
+final response. Headless output must contain that same indexed completed response.
+Only terminal facts are joined; tool parameters and historical operation outcomes
+are not retained for completion checks. SQLite reads at most two latest rows to
+validate terminal identity, without an all-history row limit or cleanliness gate.
+Resume excludes indices at or below the previous invocation's `afterStepIndex`,
+so an old final response cannot satisfy a new run. Shared supervision, authority,
+settlement and result normalization keep their existing owners.
 
 The native export ceiling is 1 GiB (1,073,741,824 bytes), inclusive. Exceeding it
 fails with `agy_native_export_size_limit_exceeded`, retaining the permitted prefix.
@@ -343,10 +339,6 @@ There is no latest/global conversation lookup.
 
 Current limits:
 
-- Interactive launches have no headless export to corroborate indexed tool
-  recovery. They retain the strict all-clean SQLite completion predicate; a
-  recovered historical tool error can therefore still prevent interactive
-  completion. Headless exact-ID continuation evaluates only its own new steps.
 - Agy 1.4.0 can construct its first interactive prompt before MCP discovery has
   populated its conversation. The demonstrated wiki read uses an operator turn
   after discovery; automatic first-prompt MCP availability is unqualified.
@@ -409,6 +401,100 @@ continues to point to the operator's existing private service-account leaf.
 Current configuration and Flash defaults are unchanged. Catalog and model-free
 fixtures establish registration and translation only: Argon native inference,
 schema behavior and session qualification have not been demonstrated.
+
+Native configuration can also be declared under `[opencode]` in the same
+`agent-launch.toml` snapshot that selects role models. A provider explicitly
+present under `opencode.provider` routes its `provider/model` selectors to
+OpenCode without source registration, for role defaults and explicit model
+overrides. OpenCode owns validation of providers, endpoints, model names,
+authentication and native options. The launcher parses TOML and transports the
+native subtree; it performs no discovery, endpoint preflight or model fallback.
+
+For example, a complete local configuration for the four launcher roles is:
+
+```toml
+[roles.orchestrator]
+model = "local/example-model"
+high_priority_role_guide = true
+
+[roles.worker]
+model = "local/example-model"
+high_priority_role_guide = true
+
+[roles.reviewer]
+model = "local/example-model"
+high_priority_role_guide = true
+
+[roles.redteam]
+model = "local/example-model"
+high_priority_role_guide = true
+
+[opencode.provider.local]
+npm = "@ai-sdk/openai-compatible"
+
+[opencode.provider.local.options]
+baseURL = "http://127.0.0.1:8000/v1"
+
+[opencode.provider.local.models.example-model]
+name = "Example local model"
+```
+
+`example-model` is illustrative: use the model ID served by the endpoint.
+OpenCode launches share the parent's network namespace. `localhost` and
+`127.0.0.1` refer to the launch environment, including any outer container;
+they do not necessarily refer to the operator's physical host.
+
+For a remote endpoint with native authentication, add a provider such as:
+
+```toml
+[opencode.provider.remote]
+npm = "@ai-sdk/openai-compatible"
+
+[opencode.provider.remote.options]
+baseURL = "https://endpoint.example/v1"
+apiKey = "replace-with-provider-key"
+
+[opencode.provider.remote.options.headers]
+X-Endpoint-Tenant = "example-tenant"
+
+[opencode.provider.remote.models.remote-model]
+name = "Example remote model"
+```
+
+Select `remote/remote-model` in the desired role tables, or use an explicit
+orchestrator override. Authentication is optional when the endpoint permits it;
+use native options appropriate to the endpoint. Additional nested provider,
+model and option values retain their native names. For either example:
+
+```sh
+agent-launch orchestrator initiative
+agent-launch orchestrator initiative --headless "finite task"
+agent-launch orchestrator initiative --model remote/remote-model --effort high --headless "finite task"
+agent-launch resume initiative --headless "finite continuation"
+```
+
+For explicitly configured providers, absent role/CLI effort leaves the native
+variant unset. Requested neutral effort is passed as the native variant without
+a model-support check; OpenCode rejects unsupported variants. The static Vertex
+path keeps its registered default efforts, variant checks and exact credential
+leaf binding. A configured custom provider neither reads nor binds an unrelated
+`GOOGLE_APPLICATION_CREDENTIALS` file.
+
+Interactive/headless start, exact-ID resume and managed roles carry the frozen
+native subtree through the existing selection. Disposable checkouts need no
+operator configuration. Both native `run` and `serve`/schema-session execution
+use the existing private `OPENCODE_CONFIG`; authentication values are excluded
+from public plan/session/debug JSON. The selected role model pins main and
+auxiliary requests. Launcher-owned MCP registration, primary-agent instructions,
+permissions, plugin disablement and isolation controls override competing native
+settings. Ambient project/user/system configuration remains isolated. Native
+configuration and provider failures use existing native error handling.
+
+Deterministic forwarding and fixture-owned HTTP checks establish configuration
+transport and schema request selection, including unregistered providers. They
+do not qualify a live local or remote model, provider authentication or that
+model's native tool/schema capabilities. No endpoint or model was supplied for
+live qualification.
 
 The operator launches an orchestrator; other
 roles belong to MCP-managed dispatch, rather than public worker/review commands.

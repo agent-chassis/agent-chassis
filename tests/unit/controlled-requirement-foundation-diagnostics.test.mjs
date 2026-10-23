@@ -205,3 +205,29 @@ test('a typed ordering operand reports its reference field without an invented v
   assert.deepEqual(diagnostic.use_path, ['operands', 0, 'reference']);
   assert.equal(partial.cel.conformity, null);
 });
+
+
+test('unused declarations and unresolved authored references retain independent facts without inferred correspondence', () => {
+  const declared = { name: 'cc:state', other: { type_term: 'cc:state', identity: { kind: 'durable_id', domain: 'states', value: 'second' } } };
+  const uses = [{ id: '"name"', path: ['requirements', 0, 'subject'], types: null, role: 'definition subject' },
+    { id: 'absent', path: ['requirements', 1, 'behavior', 'objects', 0, 'referent'], types: null, role: 'referenced value' }];
+  const before = structuredClone({ declared, uses });
+  const result = bindEntities({ known: new Map(), declared, uses });
+  assert.deepEqual(result.refusals.map(row => [row.path, row.id, row.submitted]), [
+    [['entities', 'name'], 'name', declared.name], [['entities', 'other'], 'other', declared.other] ]);
+  assert.deepEqual(result.holes.map(row => [row.id, row.path, row.uses]), [
+    ['"name"', ['entities', '"name"'], [uses[0]]], ['absent', ['entities', 'absent'], [uses[1]]] ]);
+  assert.ok(result.holes.every(row => row.accepts && row.question));
+  assert.equal(result.bindings.size, 0); assert.deepEqual(result.inferred, {});
+  assert.deepEqual({ declared, uses }, before);
+  assert.ok(result.refusals.every(row => row.recovery.correct === 'resolve_declarations_and_references'));
+  assert.equal(result.refusals[1].recovery.correction, undefined, 'the shared choice is not repeated');
+});
+
+test('unfinished typed binding still reveals independently missing authored behavior without manufacturing meaning', () => {
+  const normalizer = createRequirementNormalizer({ schema: workItemRequirementBatchSchema(), unit: 'diagnostics' });
+  const [prepared] = normalizer.prepareRows([{ subject: 'unknown', definition: true, behavior: { relation: 'value:equals' } }], new Map());
+  assert.equal(prepared.inputs, null); assert.equal(prepared.written, null);
+  assert.deepEqual(prepared.holes.map(row => row.path), [['requirements', 0, 'behavior', 'objects']]);
+  assert.ok(prepared.holes[0].accepts); assert.deepEqual(prepared.refusals, []);
+});

@@ -14,6 +14,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { readStdioMcpConduitTerminalFailure } from "./stdio-mcp-conduit-contract.mjs";
 import { normalizeStatus } from "./workspace-agent-dispatch-refusal.mjs";
 import { WORKSPACE_AGENT_SELECTED_RESULT_CONTRACTS } from "./workspace-agent-dispatch-result-mode.mjs";
+import { subscribeSupervisorRunning } from './workspace-agent-dispatch-run-lifecycle-settlement.mjs';
 
 function boundedSchemaObservation(text, record) {
   if (typeof text !== "string" || text.length === 0) {
@@ -261,6 +262,7 @@ export async function finalizeAdvisoryProcessLaunch({
   workspace_alias,
   caller_session_id,
   startedAt,
+  clock = Date.now,
   advisoryReviewInput,
   sessionContract = null,
   cleanup = null
@@ -344,6 +346,7 @@ export async function finalizeAdvisoryProcessLaunch({
   if (!record.terminal && onLaunchCompletion !== null) {
     onLaunchCompletion(record, executorResult.completion);
   }
+  subscribeSupervisorRunning(record, executorResult, { clock });
   return envelope;
 }
 

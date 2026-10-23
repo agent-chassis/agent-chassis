@@ -1371,6 +1371,22 @@ preserve their specific cause, subject, effects and uncertainty. Canonical recor
 absence, unreadability, malformed JSON and identity disagreement remain distinct,
 with the original filesystem or parse cause preserved before generation checks.
 
+When the persistence owner establishes
+`isControlledContractGenerationNotPersisted` for a current inspection's original
+failure, inspection preserves that cause and offers the publication owner's
+validated `workspace_publish_work({subject})` call if it is available. This is an
+explicit choice to synchronize current canonical changes into the WK branch,
+potentially replace the selected candidate, and publish to the configured
+handoff destination. Publication rechecks its prerequisites and may refuse;
+offering it neither grants permission nor promises success. The applicable
+lifecycle still governs publication, including its exclusion from direct-to-main
+work. Inspection remains read-only. Without a callable publication route, the
+answer states that synchronization cannot continue through this session. No
+error-string or authentication-code match establishes this recovery: corruption,
+identity failures and moved inputs keep their own conditions. Historical
+inspection never substitutes subject-only current publication for the requested
+version. Healthy and absent inspections still finish without publication advice.
+
 The response publishes no successful-check inventories, derivation carriers or
 automatic historical reread. Additional permitted diagnosis is available through
 the returned authenticated `workspace_read_wiki({reference})` selection. The
@@ -1409,8 +1425,19 @@ repeated. The body's inline size is measured against the delivery bound and
 reported beside it; a body over the bound is reported as needing complete
 transport and is not shortened. A slice subject is rejected by the schema before
 the handler runs; the correction names its parent WK, and the parent call is
-published only once the inspection tool is a canonical route with a registered
-request contract.
+published only when the serving registrar admits that read with its request
+contract. The correction retains any selected immutable version; it does not
+silently ask about the current candidate.
+
+Parent-address reads and conditional reinspection after candidate or compared
+authored-input movement use the existing informational `kind: "guidance"`
+contract. Each states the question it answers in `information`, with exact
+arguments and no success predicate. Inspection can answer healthy, stale,
+absent, invalid or unavailable; reading does not repair material, establish
+publication readiness or guarantee that the reported blocker has cleared.
+Movement guidance is conditional on the selected inputs being available, valid
+and no longer moving. It never restores refs, substitutes another historical
+version or repeats a mutation. No public success-check bookkeeping is added.
 
 `workspace_inspect_candidate` is registered by `registerCandidateInspectionTool`
 through the production task composer. Its closed schema and guarded owner perform
@@ -2193,7 +2220,12 @@ host registrar. The production server, descriptors and orchestrator/operator gra
 `workspace_publish_work` through this composition.
 
 The mutation request is exactly `{subject: "WK-####"}`. Unknown properties and
-slice subjects refuse before publication. The session profile's central grant
+slice subjects refuse before publication. An explicit `version` is unsupported;
+its rejection states that publication was not attempted and offers no equivalent
+correction. Omitting that selection asks to publish current canonical work and
+is a different request. Other input failures retain the authoritative constraints
+and identify missing caller choices without supplying them.
+The session profile's central grant
 for `workspace_publish_work` controls entitlement during preparation. The incumbent repository resolver is
 called without a caller alias. The trusted host must supply the runtime's
 `wkForgeHandoffAdapter` bound to that same session repository. One valid entitled
@@ -2247,10 +2279,14 @@ blocker identity/category and the existing mechanical recovery contract. Known
 preparation changes, partial effects and uncertain operations survive. An adapter
 throw states that publication effects were not observed; it is not proof of no
 effect. A producer that supplies no effects account is also marked unobserved.
+Explicit uncertainty uses the existing indeterminate publication outcome identity,
+separately from its unchanged native cause identity, and sets
+`observed_facts["publication.confirmed"]` to null. It does not become a validation
+refusal, assert an identical future failure or offer a corrective mutation.
 Large diagnosis collections are requested detail even when spare inline
 capacity remains. The ceiling is not a target. The task retains the complete
 semantic diagnosis through the existing selected-response owner and offers the
-bound `workspace_read_wiki({reference})` call only when details were omitted.
+bound `workspace_read_wiki({reads:[{reference}]})` call only when details were omitted.
 That read authenticates role/repository/route/subject and replays no publisher,
 candidate resolution or landing observation. Operator-only capture bookkeeping,
 including failed raw-capture storage that leaves the semantic diagnosis complete,
@@ -2265,6 +2301,15 @@ names the retention cause or unavailable reader and omitted diagnosis. It does
 not replay, claim rollback or advertise a nonexistent reader. A failure building
 the diagnosis call after retention likewise preserves the publication outcome
 and identifies that navigation failure, separately from adapter or storage failure.
+
+When the runtime identifies authenticated unfinished integration preparation,
+the response preserves that owner's delivery selection and candidate version in
+the returned `integrate_work` call. Its predicate is
+`integration.preparation_complete`: the receiver reports true for established
+complete preparation of that exact selection, false for established incomplete
+preparation, and no fact when unknown. Integrated work or historical completion
+alone cannot satisfy it. Finishing preparation repeats no integrated delivery;
+any subsequent publication still requires the caller's existing intent and authority.
 
 `buildPublishWorkRequest(subject, {requestSchemaAuthority?})` remains subject-only.
 It requires canonical membership and a matching serving registration/schema
@@ -2293,3 +2338,10 @@ movement never retargets an exact request: that request authenticates its origin
 version/head/destination/proposal or refuses with the actual selected-publication
 cause. Pending landing offers useful human action and optional later observation;
 landed observation can finish. Saved observations remain historical evidence.
+
+An uncertain publication with no issued selection may offer that subject-only
+observation only when its serving registration and request contract admit it.
+This optional read has no corrective success predicate: it cannot identify the
+failed attempt or establish that attempt had no effects. An unavailable or invalid
+observation continuation leaves the publication outcome uncertain and states the
+specific observation limitation; publication is not repeated for acknowledgment.

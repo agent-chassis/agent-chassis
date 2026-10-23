@@ -294,30 +294,26 @@ Headless Agy retains stdout in a private, invocation-owned `agy-native-*.jsonl`
 file under the session runtime directory (`native_export_path` in `session.json`).
 It opts out of the shared supervisor's 1 MiB stdout buffer. Capture writes chunks
 without a growing memory buffer; the Agy-only reader consumes JSON tokens in
-64 KiB windows, skips unused payloads, and keeps bounded completion fields. Tool
-error recovery checks re-read later observations instead of accumulating session
-history in memory. Headless start and exact-ID resume join that same recovery
-interpretation to the private SQLite trajectory. A historical error is accepted
-only for a matching conversation and native step index: SQLite GENERIC/ERROR
-(`132`/`7`) with error bytes, corroborated by a stream `tool` in `ERROR` with a
-matching tool name and `TOOL_ERROR`. A later clean `DONE` observation of the same
-operation must precede the clean terminal response and match a clean SQLite tool
-row. Operation matching retains the native contract: MCP calls compare server
-and tool identity, while other tools compare native parameters. An unrelated
-success or an earlier success cannot recover a failure.
+64 KiB windows, skips unused payloads, and keeps bounded completion fields.
 
-Both sides exclude indices at or below the resumed invocation's
-`afterStepIndex`; prior history or a prior export cannot forgive a current error.
-The idle summary, workspace/conversation identity, clean final SQLite response
-and matching indexed stream response remain required. Unclassified, missing,
-conflicting or unresolved error evidence refuses, as do provider errors,
-permission denials and malformed terminal records. Native `SUCCESS` alone grants
-no completion or benchmark-score credit. At most 2048 small SQLite rows are
-retained for the join; the export is never loaded whole. Session diagnostics
-record recovery/unresolved counts and at most 16 step facts per category, without
-tool output or error messages. Historical errors remain in the original export
-and databases. Shared supervision, authority, settlement and result normalization
-keep their existing owners.
+Individual tool outcomes do not determine native invocation completion. A failed
+file read, invalid argument or unsuccessful command can be followed by a clean
+native completion without any retry or matching operation. Managed decoding,
+headless start, exact-ID resume and interactive SQLite completion apply this
+same rule. Original tool errors remain in the retained export and databases;
+completion creates no delivery, schema-validation or verifier-score credit.
+
+Headless completion still requires one well-formed terminal `SUCCESS` result,
+a nonempty response, consistent conversation identity, and no explicit terminal
+error or permission denial. The private SQLite summary must be idle, workspace
+and trajectory identity must match, and the latest step must be a clean completed
+final response. Headless output must contain that same indexed completed response.
+Only terminal facts are joined; tool parameters and historical operation outcomes
+are not retained for completion checks. SQLite reads at most two latest rows to
+validate terminal identity, without an all-history row limit or cleanliness gate.
+Resume excludes indices at or below the previous invocation's `afterStepIndex`,
+so an old final response cannot satisfy a new run. Shared supervision, authority,
+settlement and result normalization keep their existing owners.
 
 The native export ceiling is 1 GiB (1,073,741,824 bytes), inclusive. Exceeding it
 fails with `agy_native_export_size_limit_exceeded`, retaining the permitted prefix.
@@ -343,10 +339,6 @@ There is no latest/global conversation lookup.
 
 Current limits:
 
-- Interactive launches have no headless export to corroborate indexed tool
-  recovery. They retain the strict all-clean SQLite completion predicate; a
-  recovered historical tool error can therefore still prevent interactive
-  completion. Headless exact-ID continuation evaluates only its own new steps.
 - Agy 1.4.0 can construct its first interactive prompt before MCP discovery has
   populated its conversation. The demonstrated wiki read uses an operator turn
   after discovery; automatic first-prompt MCP availability is unqualified.

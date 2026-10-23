@@ -10,7 +10,8 @@ import { obligationCoverageResolutionInput } from './proof-authoring-persistence
 import { projectProofAuthoringCase } from './proof-authoring-case.mjs';
 import { projectProofAuthoringContractInputs, prepareProofAuthoringDescriptionRead } from './proof-authoring-contract-inputs.mjs';
 import { projectAuthoredRequirements } from './contract-requirement-projection.mjs';
-import { projectControlledContractReferenceClosure, controlledContractIdentityScope } from './contract-requirement-authoring.mjs';
+import { projectControlledContractReferenceClosure } from './contract-requirement-authoring.mjs';
+import { controlledContractIdentityScope } from './contract-requirement-identity.mjs';
 import { coverageUnitArguments } from './coverage-recovery-guidance.mjs';
 import { proofAuthoringOperation } from './refusal.mjs';
 import { CONTROLLED_ACCEPTANCE_OPT_OUT_PROVENANCE } from '../../lib/work-record-proof-posture.mjs';

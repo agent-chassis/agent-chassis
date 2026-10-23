@@ -39,7 +39,8 @@ test("WK-2731: several review bindings need the exact attempt and none is guesse
     candidates: [binding("wkdb_one"), binding("wkdb_two", "b")].map(({ run_id, ...facts }) =>
       ({ attempt_id: run_id, ...facts })) });
   assert.deepEqual(select(two, "wkdb_two").review, binding("wkdb_two", "b"));
-  assert.deepEqual(select(two, "wkdb_absent"), { ok: false, code: "attempt_selector_mismatch" });
+  assert.deepEqual(select(two, "wkdb_absent"), { ok: false, code: "attempt_selector_mismatch",
+    candidates: select(two).candidates });
 });
 
 test("WK-2731: a damaged binding chain refuses with its cause and selects nothing", () => {

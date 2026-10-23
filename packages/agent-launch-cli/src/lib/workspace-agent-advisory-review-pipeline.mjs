@@ -182,13 +182,22 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
     const hasBase = diffBaseSha !== undefined;
     const hasReviewed = reviewedSha !== undefined;
     if (hasBase !== hasReviewed) fail("locator_pair_incomplete");
+    const designSelection = input.material;
+    if (designSelection !== undefined && (!plainObject(designSelection) ||
+        designSelection.kind !== 'canonical_design' ||
+        Object.keys(designSelection).some(key => !['kind', 'supporting_sha'].includes(key)))) {
+      fail('review_material_selection_invalid');
+    }
+    if (designSelection !== undefined && hasBase) fail('review_material_selection_contradictory');
 
     let selector = "canonical_design";
     let selectedBase = diffBaseSha;
     let selectedReviewed = reviewedSha;
     let reviewUnit = Object.freeze({ subject });
 
-    if (hasBase) {
+    if (designSelection !== undefined) {
+      selector = 'canonical_design';
+    } else if (hasBase) {
       selector = "explicit_sha_range";
     } else if (context.slice_id !== null &&
         context.selected.review_purpose === "terminal_whole_wk") {
@@ -226,7 +235,9 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
       repository: materialRepository()
     });
     if (selector === "canonical_design") {
-      const current = currentCommitRange(runGit, mainRepo);
+      const current = designSelection?.supporting_sha === undefined
+        ? currentCommitRange(runGit, mainRepo)
+        : { diff_base_sha: designSelection.supporting_sha, reviewed_sha: designSelection.supporting_sha };
       selectedBase = current.diff_base_sha;
       selectedReviewed = current.reviewed_sha;
     }
@@ -237,7 +248,7 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
       reviewUnit,
       reviewedSha: selectedReviewed,
       diffBaseSha: selectedBase,
-      allowEmpty: !hasBase && selector === "canonical_design",
+      allowEmpty: selector === "canonical_design",
       runGit
     });
     const frozenInputPaths = designCapture.files.map(({ path: inputPath }) => inputPath);

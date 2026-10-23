@@ -1,4 +1,6 @@
-
+import { validateConduitInput } from "./stdio-mcp-conduit-input.mjs";
+import { resolveLauncherHostSessionProfile, assertLauncherHostSessionProfile } from "./launcher-host-session-profile.mjs";
+import { paidProviderLaunchRefusal } from './orchestrator-refusal-taxonomy.mjs';
 
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -208,7 +210,7 @@ function mintAuthority(overrides = {}) {
     probeProducerGeneration:
       Object.prototype.hasOwnProperty.call(overrides, "probeProducerGeneration")
         ? overrides.probeProducerGeneration
-        : () => probeSpawnedWikiMcpProducerGeneration({ binding: producerBinding })
+        : hostSessionProfile => probeSpawnedWikiMcpProducerGeneration({ binding: producerBinding, hostSessionProfile })
   });
   AUTHENTICATED_COMPOSITIONS.add(composition);
   const backendGenerationId = mintBackendGenerationId();
@@ -236,8 +238,16 @@ function mintAuthority(overrides = {}) {
       throw new ManagedStdioMcpCompositionError("unknown");
     }
 
-    const probed = await composition.probeProducerGeneration();
+    const { role } = validateConduitInput(input);
+    const hostSessionProfile = input.hostSessionProfile === undefined
+      ? resolveLauncherHostSessionProfile({ workspaceDir: input.workspaceDir, role })
+      : assertLauncherHostSessionProfile(input.hostSessionProfile);
+    const capturedInput = { ...input, hostSessionProfile };
+    const probed = await composition.probeProducerGeneration(hostSessionProfile);
     if (probed?.ok !== true) {
+      if (probed?.paid_provider_diagnostic !== undefined) {
+        throw paidProviderLaunchRefusal(probed.paid_provider_diagnostic);
+      }
       if (probed?.package_docs_diagnostic?.code ===
           "package_docs_carrier_composition_incompatible") {
         throw new PackageDocsCarrierCompositionError(
@@ -250,7 +260,7 @@ function mintAuthority(overrides = {}) {
       throw new ManagedStdioMcpCompositionError(
         "spawned_producer_generation_mismatch", probed);
     }
-    return composition.conduitConstructor(input, probed.package_docs_generation ?? null);
+    return composition.conduitConstructor(capturedInput, probed.package_docs_generation ?? null);
   };
   authority = Object.freeze({ getFact, evaluate, createConduit });
   factRecord.authority = authority;

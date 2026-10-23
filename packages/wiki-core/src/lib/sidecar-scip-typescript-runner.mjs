@@ -40,13 +40,14 @@ export function runTypescriptProjects({ indexerPath, checkoutRoot, outputPath, c
     member.state = "empty_project";
     if (!parsed.fileNames.length) return;
     const before = documentCount;
+
     new ProjectIndexer(parsed, {
       cwd: checkoutRoot, output: outputPath,
 
       projectRoot: checkoutRoot, projectDisplayName: relative(file),
       globalCaches: true, progressBar: false, maxFileByteSizeNumber: parseHumanByteSizeIntoNumber("1mb"),
       indexedProjects: visited, writeIndex
-    }, cache).index();
+    }, { ...cache, indexedFiles: new Set() }).index();
     member.document_count = documentCount - before;
     if (member.document_count === 0) {
       if (!isEmptyTypescriptFiles(ts, parsed.fileNames)) {

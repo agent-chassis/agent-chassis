@@ -175,6 +175,14 @@ An unknown-name refusal carries the same alternatives beside the rejected name.
 An empty catalogue explicitly states that it lists no proofs. No branch invents
 a property, selects a nearby proof or recommends an exception.
 
+Malformed discovery requests identify the actual field and required shape in
+the applicable fresh or retained form. `part` requires a kind object. A supported
+standalone string such as `"authoring"` is refused with a separately validated
+correction using `{kind:"authoring"}`, preserving the proof name, family or
+retained result/selection. Missing parameter names, constraint refs, unknown
+choices and conflicting forms are not guessed or removed. Such corrections
+read only; they grant no execution authority or proof credit.
+
 A selected proof defaults to its `overview`; authoring is never added just
 because it fits the delivery limit. The overview offers its exact retained
 authoring call. Comparisons are optional through `part: {kind: "comparisons"}`
@@ -233,6 +241,12 @@ Four facts stay separate, and the response never collapses them:
   that authoring context without choosing a proof or authorizing execution.
   Explicit `target_family` wins over contradictory query wording; an observation
   explains that conflict. Routine selection-origin bookkeeping is omitted.
+  An unknown explicit family refuses with `target_family_unknown`, the rejected
+  value and meaningful supported family choices. Its non-executable recovery
+  form preserves the query or proof name, part and other arguments; only the
+  replacement `target_family` is missing caller input. Choose it explicitly.
+  Removing the family constraint is not the correction, even when query words
+  identify a valid family. No result is retained and no proof is executed or credited.
   Ambiguous/conflicting queries select no family and expose the ambiguity and
   meaningful family choices. When no family is named or explicitly selected,
   an index makes no family claim.
@@ -863,18 +877,55 @@ generations beside the derived descriptions. Unrelated commits or index
 republications do not invalidate unchanged relevant resolution and source;
 changed, deleted or newly ambiguous definitions refuse publication. Strict
 current-HEAD index operations for other consumers remain unchanged.
+Shared snapshot preparation and bounded publication retries are owned by
+`sidecar-snapshot-query.mjs`. Captured declaration parsing is owned by
+`sidecar-committed-declaration.mjs`; the compiler and query consumers import
+these helpers directly without loading query orchestration for those mechanics.
+Native identity facts and verified source attachment are shared by navigation
+and planning through `sidecar-native-identity.mjs` and `sidecar-native-source.mjs`.
+Provider metadata and diagnostic recovery are owned by `sidecar-provider-state.mjs`
+and `sidecar-native-recovery.mjs`. Position selection, call attribution, planning
+interpretation and query envelopes remain with their query owners.
+The compiler obtains optional native definitions through `sidecar-definition-evidence.mjs`
+over its already captured publication. That reader shares the same native identities,
+source assembly, provider facts and recovery text without invoking navigation queries.
+Shared validation primitives in `sidecar-native-input.mjs` preserve navigation
+and compiler evidence validation order, raw input and exact refusal details.
 Source facts are ephemeral; there is no definition store
 or caller-supplied resolved flag. Filesystem/index access remains outside the
 pure compiler. Authoring executes no target code, observations, CEL or proofs.
 
-Overall specification assessment combines definition resolution with the saved
-unfinished meaning in `authored_requirements.unresolved`. Any such meaning keeps
+Overall specification assessment combines definition resolution, parent
+user-requirement accounting and saved unfinished meaning in
+`authored_requirements.unresolved`. Every non-whitespace passage of captured
+`sections.user_requirements` needs either current source links on declarations
+whose complete assertion membership is explicitly associated with obligations,
+explicitly contextual source bindings, or source-bound residue. Context requires
+a saved `source_role:"context"` on a complete non-normative definition and a current
+valid exact passage binding. Definition meaning and provenance alone classify
+nothing. Context remains separate from obligation-backed coverage and unmet
+residue, and grants no implementation assurance or proof credit.
+Associations across the captured parent and
+its slices contribute without substituting one unit for another. A verification
+link, reference dependency or grouped subset does not silently supply the rest of
+a declaration's assertions. Literal source linkage alone is insufficient.
+Source-linked behavioral declarations require their own complete associations
+even where context, residue or a different declaration covers the same passage.
+Unknown associations remain unassessed; contextual coverage cannot turn them
+into known omissions or successful behavioral coverage.
+Unaccounted requirements prevent `specification:complete`; unavailable membership
+remains unavailable, never empty or complete. Definition and authored-meaning
+facts stay independent. This assessment qualification adds no readiness,
+execution or publication gate. Any unfinished meaning keeps
 the specification incomplete, including meaning deliberately recorded as a
 grammar exception. An exception accounts for its author's decision; it supplies
 no definition, enforcement or proof credit. `specification.definitions` retains
 the selected definition state and finding count independently of overall
 `authored_meaning`; lowering support and source availability retain their own
 states. `unfinished_meaning` counts the owning unit's unfinished entries.
+Complete accounting with residue is distinct from full obligation coverage:
+residue retains its unmet text and reason, and establishes neither satisfaction,
+faithful interpretation, implementation success nor proof credit.
 
 Definition assessment follows the selected obligation or slice dependency
 closure. Unrelated sibling definition holes do not contaminate it. Unfinished
@@ -889,7 +940,7 @@ public identity. Apply and withdraw preserve the fragment's authored meaning and
 existing authority; the exception keeps it unresolved and unenforced. Follow that diagnosis's current parent read
 and requirement-batch guidance, author the intended typed behavior with its
 source passages, and retain only the entries still unfinished in `unresolved`.
-Resolving all unfinished meaning and other specification findings makes the
+Resolving all unfinished meaning, accounting gaps and other specification findings makes the
 next assessment complete. Assessment and guidance reads author nothing;
 completeness does not certify equivalence to arbitrary prose.
 
@@ -1008,6 +1059,26 @@ and evidence mappings preserved; a mistaken identity declaration needs its
 intended identity corrected while distinct uses remain distinct. Detection never
 selects either intent, changes a saved binding or merges a source mapping.
 
+Saved declaration corrections use semantic targets. A changed assertion population
+can declare `replacement_key` and select its submitted claims explicitly; a submitted
+verification binds separately through `verification.key`. Immutable entity aliases
+cannot be rebound by changing their declarations, and these corrections do not
+authorize writes to another unit. Duplicate formal predicates identify the conflicting
+submitted fields and distinguish identical from partial overlap, without publishing
+compiler identities. The author chooses whether to consolidate repeated meaning or
+encode the intended distinct behaviors; neither source nor evidence associations
+are merged automatically.
+
+Defining rows capture reference and typed-value operands through the same relation
+operand contract as ordinary statements, without creating normative or verification
+claims. A saved structural definition does not establish typed value completeness,
+source existence, executable binding completeness or implementation proof. Missing
+meaning remains available through the applicable assessment and focused reads.
+Definition readback identifies a failing authored declaration by its semantic
+selection, including causes nested in a root diagnosis. Missing or ambiguous
+correspondence remains explicit. A defining declaration whose meaning is incomplete
+is reported incomplete even when its submitted syntax is complete.
+
 What a batch stores and what a read returns have one owner,
 `contract-requirement-projection.mjs`. Stored declarations plus additions and
 corrections minus retirements determine prospective meaning. Selection follows
@@ -1121,16 +1192,30 @@ The stored shape and projection preserve these rules:
 - Identities are minted in the unit's captured `{wk_id, focus}` scope, the
   native compiler's own.
 
-Paid completeness also requires **source accounting** over the parent work item's
+Literal **source accounting** measures the parent work item's
 current saved `sections.user_requirements` and every authored row in the shared
 contract. `parent_source_accounting` labels that parent population separately
 from a selected slice or obligation. The owner and preview report
 `measurement_performed` separately from
 `accounting_status: complete | incomplete | unknown`: every non-whitespace
-span needs a current formal source link or a deliberate source-bound exception.
+span needs a current formal source link, explicitly source-bound residue or a
+deliberate source-bound exception.
 Missing or empty source is unknown. Exact raw residual segments, including
 whitespace, retain their UTF-16 positions. Overlapping intervals count once;
 formal and excepted lengths are reported separately and may overlap.
+Ordinary residue's explicitly bound passages contribute a separate residue
+interval population; they do not become grammar exceptions or formal coverage.
+This literal measurement retains its existing population for readers and
+admission consumers. Assessment additionally restricts formal accounting to
+resolver-established obligation associations and distinguishes full, partial,
+absent and unavailable obligation coverage. Known independent associations can
+account for a passage even beside an unrelated unavailable association.
+Assessment adds a separate contextual interval population from explicitly
+classified complete definitions. It uses the same source currentness and literal
+interval owner, counts overlap once and preserves each category independently.
+Its compact public qualification exposes `context_accounted:true` only when
+current context contributes. The literal accounting population used by existing
+reader/admission consumers is unchanged.
 
 Incomplete `parent_source_accounting` in validation and assessment explains the
 missing current exact associations between original passages and caller-authored
@@ -1140,6 +1225,12 @@ guidance reads into `next_calls`. Follow returned selections for complete guidan
 then author faithful requirements or restate saved rows with the exact passages
 each represents, choosing occurrences explicitly. Preserve the original prose;
 the guidance supplies no requirement meaning or blanket passage attachment.
+For caller-chosen unmet residue, use ordinary
+`changes.requirements.unresolved:[{text,reason,source_passages:[{user_requirement,user_requirement_occurrence?}],candidate_concept?},...]`.
+The list replaces the saved unresolved list; preserve all intended other
+fragments and bindings. The current source owner checks explicit passages
+against the prospective source before publication. Omission remains unbound;
+stale bindings contribute nothing until the caller explicitly rebinds them.
 Declaring acceptance required resolves missing applicability independently and
 does not clear source accounting. Historical assessment retrieval supplies no
 repair or write revision. Source association establishes neither semantic
@@ -1168,7 +1259,9 @@ no CEL contract. The rationale remains caller-authored and unassessed.
 
 When a saved applicable exception has absent or stale passage bindings and source
 accounting remains incomplete, recovery names those binding gaps separately from
-the saved exemption. Follow its current parent context read, then select the
+the saved exemption. Public specification assessment offers this recovery for
+grammar residue; rebinding a whole-unit exemption is not offered as a correction
+for unmet requirement accounting. Follow the current parent context read, then select the
 supported exception operation through that context's reference. Use the returned
 parent revision to reapply the existing exception with caller-selected exact
 passages, preserving the saved rationale, intended scope and existing intended
@@ -1178,8 +1271,10 @@ Recovery selects no passage, supplies no rationale and does not propose expandin
 the exception across remaining text. Faithful formal authoring remains available;
 role, tier and focused-contract restrictions still apply.
 
-Opting out of controlled acceptance leaves its disposition visible and still
-requires source accounting for specification completeness. An exception covers only its
+Opting out of controlled acceptance leaves its disposition and existing authority
+unchanged. Its source passages contribute to literal exception accounting but do
+not state per-requirement unmet meaning or substitute for obligation coverage or
+source-bound residue in specification assessment. An exception covers only its
 selected current passages. Source edits leave digest-bound links stale until
 explicitly rebound. Withdrawal or retirement removes only that evidence's
 contribution; other current evidence may still cover the same text. Saved
@@ -1223,6 +1318,19 @@ are not a patch.
 
 Requirement compilation and retirement (`requirements`, `remove.requirements`,
 `remove.collections`, at save and at birth) require the serving host’s captured authoring capability. The session publishes only supported authoring syntax and guidance. Unavailable mutations refuse atomically with `record_authoring_operation_unavailable`; no request field grants a capability. Ordinary written requirements, criteria, scopes, validation and slices remain supported. Required controlled acceptance stays required and incomplete when compilation is unavailable; capability inspection chooses no exemption.
+
+Requirement editing requires an explicitly installed compatible
+`@agent-chassis/cce` provider in the serving installation. A missing authoring
+capability refuses the complete mutation before publication; installing a
+provider grants no CCE or role authority. Correct the reported installation
+condition and restart, as described in the
+[paid capability overview](paid-library-composition.md). Detailed implementation
+documentation accompanies the private package.
+
+Stored requirement reads, identity and row derivation, canonical compilation,
+normalization, assessment and proof execution remain public. Carrier and bundle
+persistence retain their shared atomic publication contract. These shared/free
+operations do not require a private provider.
 
 A requirements selection returns complete authored meaning for the selected
 population. Save acknowledges completion and the next write revision without
@@ -1789,3 +1897,6 @@ For a compact saved obligation-to-proof lookup, select
 returned proof name directly through `workspace_find_proofs`. A missing saved
 selection remains a caller choice, using the obligation's meaning for a query;
 a unique family or lexical match is not a selected proof or execution authority.
+Paid requirement editing requires the installed provider and the serving
+session's existing authority. Stored reads, assessment, proof execution and the
+canonical compiler remain public and execute without the private provider.

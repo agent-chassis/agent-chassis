@@ -86,7 +86,7 @@ export function explicitBaseMergeTreeArgs({
 }) {
   return Object.freeze([
     ...(noReplaceObjects ? ["--no-replace-objects"] : []),
-    "merge-tree", "--write-tree", "--no-messages",
+    "merge-tree", "--write-tree", "--no-messages", "--name-only", "-z",
     "--merge-base", baseSha,
     currentSha,
     incomingSha
@@ -125,7 +125,13 @@ export function classifyExplicitBaseMergeTreeResult({
   incomingSha,
   result
 }) {
-  if (result?.ok === true) return Object.freeze({ kind: "success", result });
+
+  const records = typeof result?.stdout === 'string' && result.stdout.endsWith('\0')
+    ? result.stdout.split('\0') : [];
+  const outputComplete = result?.stdout_truncated !== true && result?.overflow !== true &&
+    /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(records[0] ?? '');
+  const tree = outputComplete ? records[0] : null;
+  if (result?.ok === true) return Object.freeze({ kind: "success", result, tree });
   const unsupported = isPositiveUnsupportedResult(result);
   const conflict = !unsupported && result?.status === 1 &&
     (result?.signal === null || result?.signal === undefined) &&
@@ -137,10 +143,12 @@ export function classifyExplicitBaseMergeTreeResult({
       : "execution_failure";
   return Object.freeze({
     kind,
-    diagnostic: diagnostic({
+    diagnostic: Object.freeze({ ...diagnostic({
       operation, repo, args, baseSha, currentSha, incomingSha, result,
       capability: unsupported ? "unsupported" : "unknown"
-    })
+    }), ...(conflict ? { conflicts: outputComplete
+      ? Object.freeze({ state: 'available', paths: Object.freeze(records.slice(1, -1)) })
+      : Object.freeze({ state: 'unavailable', cause: 'merge_tree_conflict_paths_unavailable' }) } : {}) })
   });
 }
 

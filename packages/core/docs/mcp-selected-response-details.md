@@ -11,6 +11,11 @@ authenticated semantic selections. The task contracts are described in
 response retention, verified byte reader, registry and continuation owners. It
 adds no store, codec, authority identity or independent limit.
 
+`selected-response-observation.mjs` owns retained observation currentness and
+failure diagnosis for both assessment originals and code answers. The shared
+`code-index-query-contract.mjs` owns the code route identity used by retained
+impact readers. Neither shared owner loads code-query implementations.
+
 - `mcp-response.mjs` retains originals once, verifies stored bytes, measures the
   larger structured/text representation and admits complete selected responses.
 - `createTaskResultSnapshotRegistry` owns internal ordering, collections,
@@ -438,7 +443,16 @@ and `result` alone is a valid request. A `selection` sent without a `result`
 is refused for that cause and nothing is read. When the selection is otherwise
 valid and names a proof, the refusal offers one guidance call, the top-level
 `proof_name` request, labelled as a read of the current catalogue; it is not
-the retained original and is never executed or substituted for it. An optional
+the retained original and is never executed or substituted for it. A requested
+part is always an object with `kind`, not a string. Malformed fresh and retained
+requests are diagnosed against the form established by their supplied selectors;
+supported fields are not reported as unknown because another union branch rejects
+them. Part diagnostics select the supplied kind and report each deciding shape
+constraint once. A supported standalone kind string such as `"authoring"` stays
+invalid but can offer a separately validated `{kind:"authoring"}` correction,
+preserving every other argument and any retained result binding. Missing names,
+constraint refs, unknown fields and conflicting forms need explicit caller
+choices; no field or binding is silently dropped. An optional
 `query` instead returns complete lexical matches by tier, or bounded
 counts with one exact call to the complete retained index. A complete catalogue
 or index also
@@ -493,8 +507,13 @@ returns a new result. `target_family` is no selection of a retained result,
 so the earlier original is unchanged and stays without a family. No family is
 defaulted or read ahead. A query that unambiguously names a family selects it
 without choosing a proof or authorizing execution. A conflicting explicit family
-is explained; routine selection-origin bookkeeping is omitted. An ambiguous query
-offers discriminating fresh query-context choices. A family choice carries no
+is explained; routine selection-origin bookkeeping is omitted. An unknown explicit
+family refuses with `target_family_unknown`, retaining its rejected value and
+offering the supported families by runner, source suffixes and selector fields.
+The recovery form is non-executable: its known arguments preserve the query or
+proof name and part, and `target_family` remains a caller choice. It recommends
+no family-free retry; query recognition does not replace the rejected selection.
+An ambiguous query offers discriminating fresh query-context choices. A family choice carries no
 strategy tutorial or target/provider detail. Until a family is chosen, `save.awaits_family` names the case target
 and falsification fields instead of listing the family among
 `save.missing_inputs`. `next_calls.parts` offers the optional overview call and

@@ -28,8 +28,36 @@ Unknown fields and malformed values refuse. Text is preserved without redaction 
 
 ## Correct or stop
 
-A refusal names the specific problem and known effect. Schema and report mistakes use the same feedback constraints; invalid enum/type values are not echoed. Evidence mistakes identify the offending index. Session and related-feedback IDs must be strings, not arrays containing an ID. Correct only with known facts and caller choices, preserving session and relation intent. An unknown session needs a known same-repository handle or an explicit new-session choice. For an unknown related observation, supply a known valid identity; omit the relation only if you explicitly intend an independent observation. Otherwise stop reporting.
+A refusal names the specific problem and known effect. Field validation collects independently knowable faults in `invalid_fields`, each with an authored `path` and its `constraint`. Paths contain field names and array indices relative to the submission; `[]` names the submission itself. Correct the listed faults together when the facts and caller choices are known. A malformed container is identified once; its children cannot be checked until it is an object. Category-dependent requirements are checked only for the supplied category. A lone report-size failure retains its actual bytes and limit; a size fault is listed with other faults when they coexist.
+
+Schema and report mistakes use the same feedback constraints; invalid enum/type values are not echoed. Evidence mistakes identify the offending index. Session and related-feedback IDs must be strings, not arrays containing an ID. Correct only with known facts and caller choices, preserving session and relation intent. An unknown session needs a known same-repository handle or an explicit new-session choice. For an unknown related observation, supply a known valid identity; omit the relation only if you explicitly intend an independent observation. Otherwise stop reporting.
 
 Unavailable or busy feedback storage does not block unrelated work. Follow a supported correction only when useful; do not poll, automatically retry, reset storage or submit a recovery probe. A startup repository-binding failure remains unavailable in that server; no agent rebind/restart call exists.
 
 `not_committed` means no committed observation. `committed` with `saved:true` and a cleanup failure means the append stands: do not resubmit it. `possibly_committed`, or a lost acknowledgment, means persistence is uncertain. Retain available tentative IDs without treating them as proof. There is no supported lookup to resolve that uncertainty; do not resubmit the observation to check. Continue the original work.
+
+## Implementation responsibilities
+
+These bindings describe the feedback boundary. They document responsibility and
+interface intent; source/index observations establish the implementation links
+separately. They do not assign the whole enclosing code cluster to feedback.
+
+<!-- architecture:components tool=workspace_record_feedback -->
+
+| Component | Responsibility | Guidance |
+| --- | --- | --- |
+| `packages/wiki-core/src/lib/agent-feedback-schema.mjs` | Validates payload fields and session-selector syntax. Evidence references are inert strings checked for shape and size; they are never fetched or resolved. | [Report constraints](#choose-the-report) |
+| `packages/wiki-core/src/operations/agent-feedback.mjs` | Coordinates submission validation and persistence, and constructs refusal guidance requiring the caller to preserve session and relation intent. | [Correction rules](#correct-or-stop) |
+| `packages/wiki-mcp/src/lib/feedback-tools.mjs` | Exposes feedback results through MCP and offers permitted read-only guidance; it does not construct a replacement submission. | [Correction rules](#correct-or-stop) |
+| `packages/wiki-core/src/lib/agent-feedback-store.mjs` | Checks existing session and related-feedback identities against storage and appends observations. It does not resolve evidence-reference strings. | [Session selection](#submit-and-continue) |
+
+### Submission and correction handoffs
+
+<!-- architecture:handoffs tool=workspace_record_feedback -->
+
+| Consumer | Producer | Handoff | Guidance |
+| --- | --- | --- | --- |
+| `packages/wiki-mcp/src/lib/feedback-tools.mjs` | `packages/wiki-core/src/lib/agent-feedback-schema.mjs` | MCP reruns the shared submission validator to obtain every independently knowable input fault with its authored path and constraint. Invalid evidence entries identify the offending index; correction must preserve the caller's session choice. | [Correction rules](#correct-or-stop) |
+| `packages/wiki-mcp/src/lib/feedback-tools.mjs` | `packages/wiki-core/src/operations/agent-feedback.mjs` | The operation records submissions and formats feedback refusals. MCP presents those results and may add a permitted documentation read; guidance reads submit nothing. | [Correction rules](#correct-or-stop) |
+| `packages/wiki-core/src/operations/agent-feedback.mjs` | `packages/wiki-core/src/lib/agent-feedback-schema.mjs` | Submission validation returns the preserved session choice and validated report, or a feedback error. Shape-valid evidence strings are not storage identities. | [Report constraints](#choose-the-report) |
+| `packages/wiki-core/src/operations/agent-feedback.mjs` | `packages/wiki-core/src/lib/agent-feedback-store.mjs` | The store consumes the validated submission, checks existing session and related-feedback identities, and returns receipt IDs or a failure with its persistence effect. A new session requires the caller's explicit choice. | [Session selection](#submit-and-continue) |

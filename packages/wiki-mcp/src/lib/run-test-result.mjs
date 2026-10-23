@@ -27,7 +27,11 @@ const presentDiagnostic = diagnostic => diagnostic == null ? null : diagnostic.s
     ...(diagnostic.text === undefined ? {} : { text: diagnostic.text }),
     ...(diagnostic.context === undefined ? {} : { context: diagnostic.context }) };
 
-function fitMeaning(value, nextCalls = [], { isError = false, tails = false, completeCall = null } = {}) {
+function fitMeaning(value, nextCalls = [], { isError = false, tails = false, completeCall = null, overflow = null } = {}) {
+  const whole = { ...value, next_calls: nextCalls };
+  if (fitsRunTestResponse(whole, isError)) return whole;
+
+  if (overflow !== null) return overflow(completeCall);
   const texts = {};
   const project = (node, trail = '') => {
     if (typeof node === 'string' && clippable(node)) {
@@ -53,9 +57,53 @@ function fitMeaning(value, nextCalls = [], { isError = false, tails = false, com
         .filter(([, bytes]) => bytes > 0));
       return { ...build(shown), ...(Object.keys(missing).length ? { omitted_bytes: missing } : {}), next_calls: calls };
     } });
-  const bounded = fit(nextCalls);
-  return completeCall !== null && bounded.omitted_bytes !== undefined
-    ? fit([completeCall, ...nextCalls]) : bounded;
+  return fit(nextCalls);
+}
+
+function meaningDeliveryLimit(facts, completeCall, { isError = false, optionalCalls = [] } = {}) {
+  const delivery = {
+    diagnosis_delivery: completeCall === null ? 'unavailable' : 'complete_read_required',
+    ...(completeCall === null ? { stopping_condition:
+      'The complete selected meaning exceeds this response limit and no authenticated complete-diagnosis reader is available. The recorded outcome is unchanged.' } : {}) };
+  const calls = completeCall === null ? [] : [completeCall];
+  const answer = value => ({ ...value, ...delivery, next_calls: calls });
+  const withOptions = value => ({ ...answer(value), next_calls: [...calls, ...optionalCalls] });
+  if (fitsRunTestResponse(withOptions(facts), isError)) return withOptions(facts);
+  if (fitsRunTestResponse(answer(facts), isError)) return answer(facts);
+
+  const execution = value => Object.fromEntries(Object.entries(value ?? {}).filter(([key]) =>
+    ['status', 'ok', 'executed', 'exit_code', 'signal', 'timed_out', 'cancelled', 'cleanup_failed', 'output_lost'].includes(key)));
+  let minimum = facts.read === undefined ? {
+    status: facts.status, ok: facts.ok,
+    ...(facts.executed === undefined ? {} : { executed: facts.executed }),
+    ...(facts.run === undefined ? {} : { run: execution(facts.run) }),
+    ...(facts.diagnosis_state === undefined ? {} : { diagnosis_state: facts.diagnosis_state }),
+    ...(facts.source === undefined ? {} : { source: { current: facts.source.current } }),
+    ...(facts.runtime_after_run === undefined ? {} : { runtime_after_run: { status: facts.runtime_after_run.status } })
+  } : { observation: facts.observation, executed: facts.executed, read: {
+    view: facts.read.view, ...(facts.read.failure === undefined ? {} : { failure: facts.read.failure }),
+    outcome: execution(facts.read.outcome),
+    ...(facts.read.effects === undefined ? {} : { effects: facts.read.effects }),
+    ...(facts.read.diagnosis_state === undefined ? {} : { diagnosis_state: facts.read.diagnosis_state }) } };
+  const additional = facts.read === undefined ? ['code', 'source', 'runtime_after_run', 'retention']
+    : ['cause', 'diagnosis_reason', 'detail'];
+  for (const key of additional) {
+    const source = facts.read ?? facts;
+    if (source[key] === undefined) continue;
+    const candidate = facts.read === undefined ? { ...minimum, [key]: source[key] }
+      : { ...minimum, read: { ...minimum.read, [key]: source[key] } };
+    if (fitsRunTestResponse(answer(candidate), isError)) minimum = candidate;
+  }
+  return fitsRunTestResponse(withOptions(minimum), isError) ? withOptions(minimum) : answer(minimum);
+}
+
+export function presentRunTestInputFailure(diagnosis, { completeCall = null, unavailable = null } = {}) {
+  const { next_calls: calls = [], ...facts } = diagnosis;
+  return fitMeaning(facts, calls, { isError: true, completeCall,
+    overflow: call => meaningDeliveryLimit({ code: facts.code, accepted: false, executed: false,
+      stage: 'request_validation', ...(facts.required_choice === undefined ? {} : { required_choice: facts.required_choice }),
+      ...(unavailable === null ? {} : { diagnosis_unavailable: unavailable }) }, call,
+    { isError: true, optionalCalls: calls }) });
 }
 
 function sourceMeaning(source) {
@@ -96,11 +144,7 @@ function environmentMeaning({ selection, code, locator, recovery, correction, re
     read: { view: 'failure', code, ...selection } } : { status: 'refused', ok: false, code, executed: false, ...selection }) };
   const target = retained ? value.read : value;
   if (recovery !== null && recovery !== undefined) {
-    if (recovery.call === null) target.recovery = recovery.recovery;
-    else {
-      target.testimony_required = ['Confirm facts; supply completed_work and remaining_work before submission.'];
-      target.acceptance_effect = 'Ends this worker attempt; no automatic submission.';
-    }
+    target.recovery = recovery.recovery;
   }
   if (retention != null) target.retention = retention;
 
@@ -156,6 +200,7 @@ export function presentRunTestAnswer({ outcome, locator, retention = null, corre
   const calls = locator === null ? [] : diagnostic?.semantic !== undefined
     ? [...(diagnostic.failures > 1 ? [runTestReadCall(locator, 'failure', 'next_failed_result', 2)] : []), optionalRead(locator, 'outcome')]
     : [runTestReadCall(locator, 'failure'), optionalRead(locator, 'outcome')];
+  const structured = cause?.text === undefined && cause?.context === undefined;
   return { isError, payload: fitMeaning({ status: settled.status, ok: false,
     ...(carrier.outcome.shown_file == null ? {} : { shown_file: carrier.outcome.shown_file,
       file_status: result.status }),
@@ -167,7 +212,13 @@ export function presentRunTestAnswer({ outcome, locator, retention = null, corre
       automatic_rerun: recovery.automatic_rerun } }),
     ...(correction?.retry_request == null ? {} : { correction }),
     comparison: comparisonMeaning(carrier.comparison), ...material }, calls, { isError,
-      completeCall: cause?.text === undefined && cause?.context === undefined ? completeCall : null }) };
+      completeCall: structured ? completeCall : null,
+      overflow: structured ? call => meaningDeliveryLimit({ status: settled.status, ok: false,
+        ...(typeof result.code === 'string' ? { code: result.code } : {}),
+        ...(isError ? { executed: false } : {}),
+        ...(run === undefined ? {} : { run: materialRun(run) }),
+        ...(cause?.state === undefined ? {} : { diagnosis_state: cause.state }),
+        ...material }, call, { isError, optionalCalls: optionalOutcome }) : null }) };
 }
 
 function executionMeaning(execution) {
@@ -181,8 +232,16 @@ const streamCalls = (carrier, locator, side) => ['stdout', 'stderr']
   .map(view => optionalRead(locator, view));
 
 export function presentRunTestRead({ view, carrier, locator, failure = null, environmentRecovery = null,
-  completeSemantic = false, completeCall = null }) {
+  assignmentChangeRecovery = null, completeSemantic = false, completeCall = null }) {
   const base = { observation: 'retained_prior_observation', executed: false };
+  if (view === 'failure' && carrier.failure?.input_validation !== undefined) {
+    const { next_calls = [], ...input_validation } = carrier.failure.input_validation;
+    const value = { ...base, read: { view, input_validation } };
+    if (completeSemantic) return { ...value, next_calls };
+    return fitMeaning(value, next_calls, { completeCall, overflow: call => meaningDeliveryLimit({ ...base,
+      read: { view, cause: { stage: 'request_validation', code: input_validation.code } } }, call,
+    { optionalCalls: next_calls }) });
+  }
   if (view === 'failure' && carrier.failure?.environment_selection !== undefined) return environmentMeaning({
     selection: carrier.failure.environment_selection, code: carrier.failure.cause.code, locator,
     recovery: environmentRecovery, correction: carrier.failure.correction, retained: true, completeSemantic, completeCall });
@@ -227,12 +286,17 @@ export function presentRunTestRead({ view, carrier, locator, failure = null, env
       if (original.recovery !== null) {
         const recovery = JSON.parse(original.recovery);
         if (original.cause.stage === 'source_authentication' && Array.isArray(recovery.next_calls))
-          calls.push(...recovery.next_calls);
+          calls.push(...recovery.next_calls.filter(call => call.tool !== 'request_assignment_change'));
         if (recovery.action !== undefined || recovery.statement !== undefined) value.recovery = {
           action: recovery.action ?? recovery.statement,
           ...(recovery.repair_call === undefined ? {} : { repair_call: recovery.repair_call }),
           ...(recovery.automatic_rerun === undefined ? {} : { automatic_rerun: recovery.automatic_rerun }) };
+        if (recovery.missing_capability !== undefined) value.recovery = {
+          missing_capability: recovery.missing_capability,
+          ...(recovery.cause_code === undefined ? {} : { cause_code: recovery.cause_code }),
+          ...(recovery.cause === undefined ? {} : { cause: recovery.cause }) };
       }
+      if (assignmentChangeRecovery !== null) value.recovery = assignmentChangeRecovery.recovery;
       if (selected?.identified === true && (failure ?? 1) < selected.failures)
         calls.push(runTestReadCall(locator, 'failure', 'next_failed_result', (failure ?? 1) + 1));
       if (selected?.identified === false && selected.failures > 0) {
@@ -258,7 +322,19 @@ export function presentRunTestRead({ view, carrier, locator, failure = null, env
     return { ...base, read: { view, ...value },
       next_calls: calls.filter(call => !RUN_TEST_STREAM_VIEWS.includes(call.arguments?.read?.view)) };
   }
-  return fitMeaning({ ...base, read: { view, ...value } }, calls, { completeCall: structured ? completeCall : null });
+  return fitMeaning({ ...base, read: { view, ...value } }, calls, { completeCall: structured ? completeCall : null,
+    overflow: structured ? call => meaningDeliveryLimit({ ...base, read: { view,
+      ...(failure === null ? {} : { failure }),
+      outcome: executionMeaning(carrier.outcome.execution),
+      ...(view !== 'failure' ? {} : {
+        effects: value.effects,
+        ...(value.cause === undefined ? {} : { cause: value.cause }),
+        ...(value.detail === undefined ? {} : { detail: value.detail }),
+        ...(carrier.failure.semantic_diagnosis?.state === undefined ? {} : {
+          diagnosis_state: carrier.failure.semantic_diagnosis.state,
+          ...(carrier.failure.semantic_diagnosis.reason === undefined ? {} : {
+            diagnosis_reason: carrier.failure.semantic_diagnosis.reason }) }) }) } }, call,
+      { optionalCalls: calls.filter(next => next.tool !== RUN_TEST_TOOL_NAME) }) : null });
 }
 
 function scalarDetail(detail) {
@@ -293,7 +369,7 @@ export function runTestRefusalClipped(payload) {
   return payload.message_omitted_bytes > 0 || Array.isArray(payload.detail_clipped);
 }
 
-export function presentRunTestFailure(error, { code, stage, facts: added = {}, nextCalls = [] }) {
+export function presentRunTestFailure(error, { code, stage, facts: added = {}, detail: extraDetail = {}, nextCalls = [] }) {
   const envelope = error?.envelope;
   if (envelope !== null && typeof envelope === "object" && typeof envelope.code === "string") {
     const { code: declared, message, accepted: _accepted, next_calls: calls = [],
@@ -303,15 +379,17 @@ export function presentRunTestFailure(error, { code, stage, facts: added = {}, n
       : String(error?.message ?? ""), facts: { ...Object.fromEntries(Object.entries(scalars)
       .filter(([, value]) => !clippable(value))), ...(policy === undefined ? {} : { exact_returned_policy: policy }),
     ...added },
-    detail: Object.fromEntries(Object.entries(scalars).filter(([, value]) => clippable(value))),
+    detail: { ...Object.fromEntries(Object.entries(scalars).filter(([, value]) => clippable(value))), ...extraDetail },
     nextCalls: [...(Array.isArray(calls) ? calls : []), ...nextCalls] });
   }
   if (typeof error?.code === "string" && error.code.startsWith("run_test.")) {
+    const detail = stage === 'command_authorization' ? Object.fromEntries(Object.entries(error.detail ?? {})
+      .filter(([key]) => !['expected', 'observed'].includes(key))) : error.detail;
     return presentRunTestRefusal({ code: error.code, message: error.message ?? "",
-      facts: { executed: false, stage, ...added }, detail: error.detail ?? {}, nextCalls });
+      facts: { executed: false, stage, ...added }, detail: { ...detail, ...extraDetail }, nextCalls });
   }
   return presentRunTestRefusal({ code, message: String(error?.message ?? error), facts: { stage,
-    cause_code: typeof error?.code === "string" ? error.code : null, ...added }, nextCalls });
+    cause_code: typeof error?.code === "string" ? error.code : null, ...added }, detail: extraDetail, nextCalls });
 }
 
 export function presentRunTestDetailRefusal(error) {

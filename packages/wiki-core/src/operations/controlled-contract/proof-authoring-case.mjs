@@ -54,10 +54,11 @@ const saveCall = (initial, field) => ({ tool: 'save_record',
   fixed_arguments: { unit: unitArguments(initial).unit, revision: initial.authoringIdentity },
   required_authored_fields: [field] });
 
-function verificationConflictRecovery(initial, { condition, correction }, { verificationId, caseIds,
+function verificationConflictRecovery(initial, recovery, { verificationId, caseIds,
   initialVerifications, content, changes }) {
   const savedCaseIds = caseIds.filter(caseId => initialVerifications.get(caseId) === verificationId);
   const requestedCaseIds = caseIds.filter(caseId => !savedCaseIds.includes(caseId));
+  const { condition, correction } = savedCaseIds.length === 0 ? recovery.submitted : recovery;
   return { condition, field: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD,
     field_path: CASE_VERIFICATION_ASSOCIATION_AUTHORED_FIELD_PATH, saved_case_ids: savedCaseIds,
     requested_case_ids: requestedCaseIds,
@@ -340,7 +341,17 @@ function compileCases({ pkg, initial, content: authored, obligations, rebinding 
         controlled_contract_node_ids: [...(row.controlled_contract_node_ids ?? [])].sort() });
     const caseInput = structuredClone(item.case);
 
-    if (caseInput.target !== undefined) caseInput.target = pkg.storedNativeCaseTarget(caseInput.target);
+    if (caseInput.target !== undefined) {
+      try { caseInput.target = pkg.storedNativeCaseTarget(caseInput.target); }
+      catch (error) {
+        if (error?.code !== 'obligation_coverage_case_target_invalid') throw error;
+        const field = `obligations[${obligations.indexOf(item)}].case`;
+        error.details = { ...error.details, ...Object.fromEntries(['field', 'correction_field', 'preserve_field']
+          .filter(key => typeof error.details?.[key] === 'string')
+          .map(key => [key, error.details[key].replace(/^obligations\[\]\.case/u, field)])) };
+        throw error;
+      }
+    }
     if (caseInput.component?.identity) {
       const reference = (initial.contract?.content.references ?? []).find(ref =>
         ref.type_term === caseInput.component.type_term && same(ref.identity, caseInput.component.identity));
@@ -614,7 +625,7 @@ function compileCases({ pkg, initial, content: authored, obligations, rebinding 
 export async function compileProofAuthoringCases(input, captured, authoringContext = null) {
   try { return compileCases(input); }
   catch (error) {
-    if (!(error instanceof ControlledContractToolError)) throw error;
+    if (!(error instanceof ControlledContractToolError) && error?.code !== 'obligation_coverage_case_target_invalid') throw error;
     error.details = await caseAuthoringFailureMeaning(error, authoringContext?.captured ?? captured,
       { authoringContext, prospective: input.initial, rebinding: input.rebinding });
     throw error;

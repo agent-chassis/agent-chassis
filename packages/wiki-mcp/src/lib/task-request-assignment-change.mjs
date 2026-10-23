@@ -3,13 +3,11 @@ import path from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { z } from "zod";
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
-import { MANAGED_ASSIGNMENT_READ_ARTIFACT_FILENAME_PREFIX, MANAGED_ASSIGNMENT_READ_ARTIFACT_MAX_BYTES,
-  MANAGED_ASSIGNMENT_READ_ARTIFACT_PATH_ENV_VAR, readPrivateImmutableArtifact } from "../../../agent-launch-cli/src/lib/managed-assignment-read-artifact.mjs";
-import { readManagedAssignmentPresentation } from "./managed-assignment-read.mjs";
+import { captureAssignmentChangeContext } from './task-request-assignment-change-context.mjs';
 import { resolveWorktreeBinding } from "../../../agent-launch-cli/src/lib/worktree-substrate-identity.mjs";
 import { verifyExactSliceCommitBinding } from "../../../agent-launch-cli/src/lib/exact-slice-commit-binding.mjs";
 import { recordManagedCompletion, readManagedCompletion } from "../../../agent-launch-cli/src/lib/managed-run-process-identity-store.mjs";
-import { pendingDeliveryReceiptForSession } from "./task-deliver-work-result.mjs";
+import { pendingDeliveryReceiptForSession, pendingDeliveryCompletionReleaseForSession } from "./task-deliver-work-result.mjs";
 import { retainAssignmentChange } from "./task-request-assignment-change-result.mjs";
 import { assignmentChangeInputFailure, assignmentChangeCompletionRefusal, assignmentChangeOwnerFailure }
   from "./task-request-assignment-change-response.mjs";
@@ -53,15 +51,8 @@ export function createRequestAssignmentChangeSurface({ workspace, sessionEnv, re
       prior = observed.completion;
       stage = "frozen_assignment";
       const historical = observed.completion?.alternative === "assignment_change_requested";
-      const assignment = historical ? null : readManagedAssignmentPresentation({ env });
-      if (!historical && (assignment.presentation.identity.run_id !== observed.dispatch_tuple.run_id ||
-          assignment.presentation.identity.canonical_source_digest !== binding.source_digest)) {
-        throw Object.assign(new Error("frozen assignment run/source identity disagrees with the authenticated current binding"), { code: "assignment_change_frozen_assignment_mismatch" });
-      }
-      const frozen = historical ? null : readPrivateImmutableArtifact({ artifactPath: env[MANAGED_ASSIGNMENT_READ_ARTIFACT_PATH_ENV_VAR],
-        prefix: MANAGED_ASSIGNMENT_READ_ARTIFACT_FILENAME_PREFIX, maxBytes: MANAGED_ASSIGNMENT_READ_ARTIFACT_MAX_BYTES });
-      if (!historical && (frozen === null || frozen.digest !== assignment.digest)) throw Object.assign(
-        new Error("frozen assignment bytes no longer match the authenticated presentation"), { code: "assignment_change_frozen_assignment_mismatch" });
+      const context = historical ? null : captureAssignmentChangeContext({ env, session, binding,
+        dispatchTuple: observed.dispatch_tuple });
       const request = parsed.data;
       stage = "terminal_capability";
       if (assignmentChangeTermination === null) throw Object.assign(
@@ -70,11 +61,10 @@ export function createRequestAssignmentChangeSurface({ workspace, sessionEnv, re
       assignmentChangeTermination.assertAvailable();
       stage = "original_retention";
       if (!historical) retained = retainAssignmentChange({ workspace, session, binding,
-        responseEnv: responses, request, assignment: { digest: assignment.digest,
-          utf8: frozen.bytes.toString("utf8"), presentation: assignment.presentation } });
+        responseEnv: responses, request, assignment: context.assignment });
       const completion = { alternative: "assignment_change_requested", intent_id: randomUUID(),
         request_digest: createHash("sha256").update(JSON.stringify(request)).digest("hex"),
-        assignment_digest: historical ? observed.completion.assignment_digest : assignment.digest, credential,
+        assignment_digest: historical ? observed.completion.assignment_digest : context.digest, credential,
         ...(retained ?? {}) };
       stage = "journal_acceptance";
       const accepted = recordManagedCompletion({ mainRepo, subject: session.assignedUnit, sliceBinding: binding, completion });
@@ -82,7 +72,9 @@ export function createRequestAssignmentChangeSurface({ workspace, sessionEnv, re
       const selected = accepted.completion;
       if (!accepted.ok && accepted.code === "completion_delivery_intent_exists") {
         const pending = pendingDeliveryReceiptForSession({ workspace, sessionEnv: env, responseEnv: responses });
-        return assignmentChangeCompletionRefusal({ decision: accepted, subject: session.assignedUnit, retained, pending });
+        const release = pending === null ? pendingDeliveryCompletionReleaseForSession({ workspace,
+          sessionEnv: env, responseEnv: responses, intent: accepted.completion }) : null;
+        return assignmentChangeCompletionRefusal({ decision: accepted, subject: session.assignedUnit, retained, pending, release });
       }
       if (!accepted.ok) return assignmentChangeCompletionRefusal({ decision: accepted, subject: session.assignedUnit, retained });
 

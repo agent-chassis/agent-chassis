@@ -6,10 +6,11 @@ import {
   findUnsupportedRepositoryScopeSelector,
   isRepositoryRelativePath,
   normalizeRepositoryRelativePath,
-  repositoryScopeSelectorRefusalMessage
+  repositoryScopeSelectorRefusalMessage,
+  NORMALIZED_REPOSITORY_PATH_SCHEMA
 } from "./work-record-repository-path.mjs";
 import { canonicalizeWorkRecordReadScope } from "./work-record-schema.mjs";
-import { REPOSITORY_TEST_DECLARATION_SCHEMA } from "./work-record-test-proof-bindings.mjs";
+import { REPOSITORY_TEST_DECLARATION_SCHEMA, VALIDATION_NOTE_SCHEMA } from "./work-record-test-proof-bindings.mjs";
 import { findSliceRegressionTestsDefect } from "./work-record-schema-structure.mjs";
 import {
   collectControlledContractPrivateScopeIntersections
@@ -119,19 +120,70 @@ export const WORK_RECORD_READY_SLICE_ACCEPTED_VALUES = Object.freeze({
   review_purpose: Object.freeze([...WORK_RECORD_REVIEW_PURPOSE_VALUES]),
   completion_policy: Object.freeze([...WORK_RECORD_COMPLETION_POLICY_VALUES])
 });
+export const readySliceControlledValueSchema = values => ({ type: 'string',
+  pattern: `^\\s*(?:${values.join('|')})\\s*$`,
+  description: `Choose one of: ${values.join(', ')}; surrounding whitespace is ignored.` });
+
+export function workRecordReadySliceRowConstraints({ create }) {
+  const controls = values => readySliceControlledValueSchema(values);
+  const conditions = Object.entries(READY_SHAPES).map(([mode, shape]) => ({
+    if: create && mode === READY_CREATION_DEFAULT_SHAPING_MODE
+      ? { anyOf: [{ not: { required: ['shaping_mode'] } }, { required: ['shaping_mode'], properties: { shaping_mode: controls([mode]) } }] }
+      : { required: ['shaping_mode'], properties: { shaping_mode: controls([mode]) } },
+    then: { description: `${mode} shaping must preserve its derived ${shape.work_kind}/${shape.role}/slice assignment. ` +
+      (mode === 'implementation' ? 'Creation requires nonempty write_scope and expected_edit_targets; review_purpose and completion_policy do not apply.'
+        : 'write_scope must be empty and supplied targets must use inspect; review purpose and completion policy retain their declared applicability.'),
+      ...(create ? { required: [...WORK_RECORD_READY_SLICE_CREATION_REQUIREMENTS[mode]] } : {}),
+      properties: { work_kind: controls([shape.work_kind]),
+        dispatch_intent: { properties: { intended_agent_role: controls([shape.role]), target_unit: controls([READY_DISPATCH_TARGET_UNIT]) } },
+        ...(mode === 'implementation' ? { write_scope: { minItems: 1 }, expected_edit_targets: { minItems: 1 }, review_purpose: false, completion_policy: false }
+          : { write_scope: { maxItems: 0 }, expected_edit_targets: { items: { properties: { operation: controls(['inspect']) } } },
+            ...(mode === 'redteam' ? { review_purpose: controls([REDTEAM_SHAPING_REVIEW_PURPOSE]), completion_policy: false } : {}) }) } }
+  }));
+  conditions.push({ if: { required: ['completion_policy'] }, then: {
+    ...(create ? { required: ['review_purpose'] } : {}), properties: { review_purpose: controls(['terminal_whole_wk']) } } });
+  return conditions;
+}
 const READY_TARGET_PROVENANCE_FIELDS = new Set([
   "path", "name", "kind", "operation", "activity_kind", "artifact_kind", "granularity", "optional"
-]);
-const READY_ACCEPTANCE_PROVENANCE_FIELDS = new Set([
-  "text", "verification_method", "evidence_target"
 ]);
 
 export const ACCEPTANCE_CRITERION_METADATA_KEYS = Object.freeze([
   "verification_method", "evidence_target", "facet_provenance"
 ]);
-const ACCEPTANCE_CRITERION_KEYS = new Set([
-  "text", "typed_identity", ...ACCEPTANCE_CRITERION_METADATA_KEYS
-]);
+const deepFreeze = (value) => {
+  if (value !== null && typeof value === "object") Object.values(value).forEach(deepFreeze);
+  return Object.freeze(value);
+};
+
+const criterionTextSchema = { type: "string", pattern: "\\S",
+  description: "Supply nonblank criterion text; surrounding whitespace is trimmed." };
+const criterionControlledSchema = values => ({ anyOf: [{ type: "string",
+  pattern: `^\\s*(?:${values.join("|")})\\s*$`,
+  description: `Choose one of: ${values.join(", ")}; surrounding whitespace is ignored.` }, { type: "null" }] });
+export const WORK_RECORD_STRUCTURED_ACCEPTANCE_CRITERION_SCHEMA = deepFreeze({
+  type: "object", additionalProperties: false, required: ["text"],
+  description: "A slice criterion requires nonblank text. Allowed fields: text, typed_identity, verification_method, " +
+    "evidence_target, facet_provenance. key is a root changes.criteria creation label, not a slice criterion field; " +
+    "choose the intended slice text and optional metadata explicitly.",
+  properties: {
+    text: criterionTextSchema,
+    typed_identity: { type: "string", minLength: 1,
+      description: "Supply a nonempty authored identity string, preserved exactly without trimming." },
+    verification_method: criterionControlledSchema(WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES),
+    evidence_target: { anyOf: [{ type: "string" }, { type: "null" }],
+      description: "Supply an authored evidence string or null. Preserved exactly; this field does not resolve a path." },
+    facet_provenance: { type: "object", additionalProperties: false,
+      description: "Supply only text, verification_method and/or evidence_target provenance. Each value is one declared provenance value or null.",
+      properties: Object.fromEntries(["text", "verification_method", "evidence_target"].map(field =>
+        [field, criterionControlledSchema(WORK_UNIT_FACET_PROVENANCE_VALUES)])) }
+  }
+});
+export const WORK_RECORD_ACCEPTANCE_CRITERION_SCHEMA = deepFreeze({ anyOf: [criterionTextSchema,
+  WORK_RECORD_STRUCTURED_ACCEPTANCE_CRITERION_SCHEMA] });
+const ACCEPTANCE_CRITERION_KEYS = new Set(Object.keys(WORK_RECORD_STRUCTURED_ACCEPTANCE_CRITERION_SCHEMA.properties));
+const READY_ACCEPTANCE_PROVENANCE_FIELDS = new Set(Object.keys(
+  WORK_RECORD_STRUCTURED_ACCEPTANCE_CRITERION_SCHEMA.properties.facet_provenance.properties));
 
 const READY_TARGET_COARSE_ACTIVITY_KIND = "implementation";
 const READY_TARGET_COARSE_ACTIVITY_BY_OPERATION = Object.freeze({
@@ -149,21 +201,17 @@ export const READY_TARGET_COARSE_FACET_VALUES = Object.freeze({
   artifact_kind: READY_TARGET_COARSE_ARTIFACT_KIND
 });
 
-const deepFreeze = (value) => {
-  if (value !== null && typeof value === "object") Object.values(value).forEach(deepFreeze);
-  return Object.freeze(value);
-};
-const nullableEnum = (values) => ({ anyOf: [{ type: "string", enum: [...values] }, { type: "null" }] });
+const nullableEnum = (values) => ({ anyOf: [readySliceControlledValueSchema(values), { type: "null" }] });
 const READY_TARGET_REQUIRED_FIELDS = Object.freeze(["path", "name", "kind", "operation"]);
 export const WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA = deepFreeze({
   type: "object",
   additionalProperties: false,
   required: [...READY_TARGET_REQUIRED_FIELDS],
   properties: {
-    path: { type: "string", minLength: 1 },
-    name: { type: "string", minLength: 1 },
-    kind: { type: "string", enum: [...WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES] },
-    operation: { type: "string", enum: [...WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES] },
+    path: NORMALIZED_REPOSITORY_PATH_SCHEMA,
+    name: { type: "string", pattern: '\\S' },
+    kind: readySliceControlledValueSchema(WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES),
+    operation: readySliceControlledValueSchema(WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES),
     activity_kind: nullableEnum([...WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES,
       READY_TARGET_COARSE_FACET_VALUES.activity_kind]),
     artifact_kind: nullableEnum([...WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES,
@@ -180,27 +228,32 @@ export const WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA = deepFreeze({
 });
 const READY_TARGET_FIELDS = new Set(Object.keys(WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA.properties));
 
-const READY_ACCEPTANCE_ENTRIES = { type: "array", items: { anyOf: [{ type: "string" },
-  { type: "object", additionalProperties: true }] } };
 export const WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA = deepFreeze({
   type: "object",
   additionalProperties: false,
   required: ["criteria", "validation"],
   properties: {
-    criteria: { ...READY_ACCEPTANCE_ENTRIES, items: { anyOf: [{ type: "string" },
-      { type: "object", additionalProperties: true, properties: { typed_identity: { type: "string", minLength: 1 } } }] }, description: "The slice's own readable outcomes. A string is literal " +
+    criteria: { type: "array", items: WORK_RECORD_ACCEPTANCE_CRITERION_SCHEMA, description: "The slice's own readable outcomes. A string is literal " +
       "text, never a $key reference; a parent criterion label copies no text and transfers no coverage. An object " +
       "may retain an authored typed_identity exactly and " +
       `states text beside ${ACCEPTANCE_CRITERION_METADATA_KEYS.slice(0, -1).join(", ")} or ` +
       `${ACCEPTANCE_CRITERION_METADATA_KEYS.at(-1)}.` },
-    validation: { anyOf: [structuredClone(READY_ACCEPTANCE_ENTRIES), { type: "object",
+    validation: { anyOf: [{ type: "array", items: VALIDATION_NOTE_SCHEMA }, { type: "object",
       additionalProperties: false, required: ["repository_tests"], properties: {
-        repository_tests: { type: "array", items: REPOSITORY_TEST_DECLARATION_SCHEMA },
-        notes: structuredClone(READY_ACCEPTANCE_ENTRIES)
+        repository_tests: { type: "array", items: REPOSITORY_TEST_DECLARATION_SCHEMA,
+          description: "Supply repository commands with distinct command ids. Replacement changes this selected unit only; commands carry no proof credit." },
+        notes: { type: "array", items: VALIDATION_NOTE_SCHEMA }
       } }] }
   }
 });
 const READY_ACCEPTANCE_FIELDS = WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA.required;
+
+export function workRecordReadySliceAcceptanceSchema() {
+  return { ...WORK_RECORD_READY_SLICE_ACCEPTANCE_SCHEMA, allOf: [{ properties: {
+    criteria: { minItems: 1 }, validation: { anyOf: [{ type: 'array', minItems: 1 }, { type: 'object', anyOf:
+      ['notes', 'repository_tests'].map(member => ({ required: [member], properties: { [member]: { minItems: 1 } } })) }] }
+  } }] };
+}
 
 const READY_CREATION_DEFAULT_SHAPING_MODE = "implementation";
 const READY_CREATION_FIELDS = ["title", "depends_on", "read_scope", "repo_paths", "acceptance"];
@@ -362,14 +415,19 @@ function regressionTests(value) {
   }
   return [...value];
 }
-function strictProvenance(value, allowedFields, path) {
+function strictProvenance(value, allowedFields, path, declaration = null) {
+  const reject = (code, message, at, constraint) => declaration === null
+    ? readyInputError(code, message, at)
+    : readyInputError({ ...createDiagnostic(code, message, { path: at }),
+      constraint: { ...constraint, rule: declaration.description } });
   if (!isObject(value)) {
-    readyInputError("ready_slice_invalid_field", `${path} must be an object`, path);
+    reject("ready_slice_invalid_field", `${path} must be an object`, path, { keyword: "type", type: "object" });
   }
   const result = {};
   for (const key of Object.keys(value)) {
     if (!allowedFields.has(key)) {
-      readyInputError("ready_slice_unknown_field", `${path}.${key} is not allowed`, `${path}.${key}`);
+      reject("ready_slice_unknown_field", `${path}.${key} is not allowed`, `${path}.${key}`,
+        { keyword: "additionalProperties", additionalProperty: key });
     }
     result[key] = value[key] === null
       ? null
@@ -381,7 +439,11 @@ function normalizeAcceptanceCriterion(entry, path) {
   if (isString(entry)) return nonemptyString(entry, path);
   if (!isObject(entry)) readyInputError("ready_slice_invalid_acceptance", `${path} must be a string or object`, path);
   for (const key of Object.keys(entry)) {
-    if (!ACCEPTANCE_CRITERION_KEYS.has(key)) readyInputError("ready_slice_unknown_field", `${path}.${key} is not allowed`, `${path}.${key}`);
+    if (!ACCEPTANCE_CRITERION_KEYS.has(key)) readyInputError({
+      ...createDiagnostic("ready_slice_unknown_field", `${path}.${key} is not allowed`, { path: `${path}.${key}` }),
+      constraint: { keyword: "additionalProperties", additionalProperty: key,
+        rule: WORK_RECORD_STRUCTURED_ACCEPTANCE_CRITERION_SCHEMA.description }
+    });
   }
   const result = { text: nonemptyString(entry.text, `${path}.text`) };
   if (hasOwn(entry, "typed_identity")) {
@@ -408,7 +470,8 @@ function normalizeAcceptanceCriterion(entry, path) {
     result.facet_provenance = strictProvenance(
       entry.facet_provenance,
       READY_ACCEPTANCE_PROVENANCE_FIELDS,
-      `${path}.facet_provenance`
+      `${path}.facet_provenance`,
+      WORK_RECORD_STRUCTURED_ACCEPTANCE_CRITERION_SCHEMA.properties.facet_provenance
     );
   }
   return result;
@@ -437,7 +500,7 @@ function composeAcceptanceValidation(requested, current = []) {
     action: "replace",
     path: "acceptance.validation"
   });
-  if (!composed.ok) throw new ReadySliceInputError(composed.diagnostic);
+  if (!composed.ok) throw new ReadySliceInputError(composed.diagnostics ?? composed.diagnostic);
   return composed.validation;
 }
 

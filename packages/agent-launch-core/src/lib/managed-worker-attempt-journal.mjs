@@ -69,11 +69,16 @@ const INVOCATION_OBSERVATION_PAYLOADS = Object.freeze({
   })
 });
 
+export const DELIVERY_COMPLETION_RELEASE_FACTS = Object.freeze({
+  UNPUBLISHED: "delivery ref unchanged; canonical review not attempted",
+  COMPENSATED: "delivery ref restored; canonical review not written"
+});
+
 function isValidCompletionObservation(value, invocationId) {
   if (!isPlainObject(value) || value.intent_id !== invocationId) return false;
   if (value.alternative === "delivery" && value.phase === "released_zero_effects") return hasExactKeys(value, ["alternative", "intent_id", "phase", "known_effects", "released_intent_id"]) &&
     isNonEmptyString(value.released_intent_id) && value.intent_id === `release-${value.released_intent_id}` &&
-    value.known_effects === "delivery ref unchanged; canonical review not attempted";
+    Object.values(DELIVERY_COMPLETION_RELEASE_FACTS).includes(value.known_effects);
   if (value.alternative === "delivery") return hasExactKeys(value, ["alternative", "intent_id", "phase", "known_effects"]) &&
     value.phase === "before_materialization" && isNonEmptyString(value.known_effects);
   return value.alternative === "assignment_change_requested" &&

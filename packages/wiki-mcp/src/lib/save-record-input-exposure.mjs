@@ -54,11 +54,13 @@ function refuse(code, message) {
 
 function workItemGroups(name, schema, sliceUnit, registeredTier) {
   const declared = (member) => Object.hasOwn(schema.properties, member);
+  const owner = recordAuthoringChangeSchema('work_item', sliceUnit ? RECORD_AUTHORING_SLICE_CONTEXT : 'existing');
+  const recordOwner = recordAuthoringChangeSchema('work_item', 'existing');
   return SAVE_RECORD_WORK_ITEM_GROUPS.map((group) => {
     const members = group.members.filter((member) => {
       if (declared(member)) return true;
       if (member === "requirements" && !recordAuthoringAvailability(registeredTier).compile_requirements) return false;
-      if (sliceUnit && member === 'refresh_proofs') return false;
+      if (sliceUnit && Object.hasOwn(recordOwner.properties, member) && !Object.hasOwn(owner.properties, member)) return false;
       if (!sliceUnit && WORK_ITEM_SLICE_CONTRACT_MEMBERS.includes(member)) return false;
       return refuse(SAVE_RECORD_INPUT_EXPOSURE_CODES.MEMBER_NOT_IN_SOURCE,
         `${name} declares no ${member}, which the ${group.name} group names`);
@@ -89,7 +91,8 @@ export function createSaveRecordInputExposure({ changeSchemas, variants, registe
         refuse(SAVE_RECORD_INPUT_EXPOSURE_CODES.VARIANT_SOURCE_MISSING, `no source schema for the ${name} variant`);
       }
       return [name, Object.freeze(kind === "work_item"
-        ? { schema, branches: { ...(schema.properties.requirements ? { requirements: requirementSchemaBranch("existing") } : {}), ready_slices: readySliceSchemaBranch("existing") }, groups: workItemGroups(name, schema, context === RECORD_AUTHORING_SLICE_CONTEXT, registeredTier),
+        ? { schema, branches: { ...(schema.properties.requirements ? { requirements: requirementSchemaBranch("existing") } : {}),
+            ...(schema.properties.ready_slices ? { ready_slices: readySliceSchemaBranch("existing") } : {}) }, groups: workItemGroups(name, schema, context === RECORD_AUTHORING_SLICE_CONTEXT, registeredTier),
           guidance: recordAuthoringAvailability(registeredTier).compile_requirements ? SAVE_RECORD_MEMBER_GUIDANCE : {} }
         : { schema, groups: [{ name: SAVE_RECORD_WHOLE_RECORD_GROUP, members: Object.keys(schema.properties) }] })];
     }))) });

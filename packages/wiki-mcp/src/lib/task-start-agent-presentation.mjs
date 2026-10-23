@@ -42,7 +42,7 @@ function failureMeaning(value) {
       retained_work: "unchanged; no new worker authority or work transfer",
       ...(dependencies.retained_delivery === undefined ? {} : { delivery: dependencies.retained_delivery }),
       ...(dependencies.delivery_problem === undefined ? {} : { delivery_problem: dependencies.delivery_problem }) } };
-  if (reason === 'scope_existence_base_unresolved' && dependencies?.resolution_failure) {
+  if (['scope_existence_base_unresolved', 'scope_existence_base_selection_missing'].includes(reason) && dependencies?.resolution_failure) {
     const cause = dependencies.resolution_failure;
     return { reason, detail: { base_branch: dependencies.base_branch,
       cause: { code: cause.code, message: cause.message.replace(/^agent-launch worktree-substrate:\s*/u, '') } } };
@@ -127,6 +127,7 @@ async function previewMeaning(value, { request, requestContracts }) {
   if (!blocked && value.preview_kind === 'action') {
 
     const args = { subject: value.subject, role: value.role,
+      ...(request.material === undefined ? {} : { material: request.material }),
       ...(request.diff_base_sha === undefined ? {} : {
         diff_base_sha: request.diff_base_sha, reviewed_sha: request.reviewed_sha }) };
     const offered = await servedGuidanceRead({ tool: 'start_agent', arguments: args }, requestContracts);
@@ -173,10 +174,14 @@ async function refusedMeaning(value, { request, requestContracts }) {
     }
     const changesRole = call.arguments.role !== value.role;
     const changesSource = call.arguments.diff_base_sha !== request.diff_base_sha ||
-      call.arguments.reviewed_sha !== request.reviewed_sha;
+      call.arguments.reviewed_sha !== request.reviewed_sha ||
+      JSON.stringify(call.arguments.material) !== JSON.stringify(request.material);
     if (changesRole || changesSource) {
-      options.push({ action: changesRole ? 'separate_review' : 'different_source', authorization: 'required',
-        instruction: call.arguments.diff_base_sha === undefined
+      const designChoice = call.arguments.material?.kind === 'canonical_design';
+      options.push({ action: changesRole ? 'separate_review' : designChoice ? 'select_saved_design' : 'different_source', authorization: 'required',
+        instruction: designChoice
+          ? 'Choose this only if the intended review target is the saved design and its selected findings. The pinned checkout is supporting context; this does not review the rejected code range.'
+          : call.arguments.diff_base_sha === undefined
           ? 'This is a separate action using the saved subject source at start time; it does not correct the original request.'
           : problem.reason === 'saved_assignment_binding_stale'
             ? 'Review the exact retained range as a separate authorized action. This does not rebind, integrate or resume the blocked worker.'
@@ -229,6 +234,8 @@ async function refusedMeaning(value, { request, requestContracts }) {
   if (correctionReadLimitation) result.correction_limitation = correctionReadLimitation;
   if (next.length === 0) result.stopping_condition = options.length > 0
     ? 'The original start remains blocked; the separate action requires its own authorization.'
+    : result.correction !== undefined
+      ? `The start remains blocked until ${result.correction.required_choice} is saved on ${result.correction.root_unit} through ${result.correction.save_tool}.`
     : problem.detail?.delivery === 'not_recorded'
       ? 'No authenticated delivery exists for the retained tip and no supported work-transfer route is available. The commit and dirty edits are preserved; a review cannot authorize adoption.'
     : problem.detail?.delivery === 'unavailable'

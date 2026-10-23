@@ -1,4 +1,4 @@
-
+import { assertLauncherHostSessionProfile } from "./launcher-host-session-profile.mjs";
 
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -297,11 +297,13 @@ const PRODUCER_GENERATION_TOKEN_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/u;
 const PRODUCER_PROBE_MARKER = "WIKI_MCP_CAPABILITY_PROBE:";
 
 export async function probeSpawnedWikiMcpProducerGeneration({
+  hostSessionProfile,
   execPath = process.execPath,
   observerPath = resolveWikiMcpReadinessObserverPath(),
   binding = resolveWikiMcpHostServerBinding(),
   timeoutMs = WIKI_MCP_PRODUCER_GENERATION_PROBE_TIMEOUT_MS
 } = {}) {
+  const profile = assertLauncherHostSessionProfile(hostSessionProfile);
   if (typeof observerPath !== "string" || observerPath.length === 0) {
     return Object.freeze({ ok: false, generation: null, reason: "producer_module_unresolved" });
   }
@@ -337,12 +339,19 @@ export async function probeSpawnedWikiMcpProducerGeneration({
       `manifest_path:probedCarrier.manifestPath,manifest_sha256:await packageDocsHash(probedCarrier.manifestPath),` +
       `package_json_sha256:await packageDocsHash(${JSON.stringify(path.join(path.dirname(path.dirname(binding.entrypoint)), "package.json"))}),` +
       `package_name:probedCarrier.packageName,package_version:probedCarrier.packageVersion};\n`;
+
+  const paidProbeSource = `import { createRequire as createServingRequire } from "node:module";\n` +
+      `import { pathToFileURL as servingFileUrl } from "node:url";\n` +
+      `let paid_provider_diagnostic;\n` +
+      `try { const resolveServing = createServingRequire(${JSON.stringify(binding.entrypoint)});` +
+      ` const { composePaidCapabilities } = await import(servingFileUrl(resolveServing.resolve("@agent-chassis/wiki-mcp/src/lib/paid-composition.mjs")).href);` +
+      ` await composePaidCapabilities(${JSON.stringify(profile.registeredTier === "paid_cce" ? "paid" : "free")}); } catch (error) { if (error?.envelope?.provider === undefined) throw error; paid_provider_diagnostic = error.envelope; }\n`;
   const source =
     `import { LAUNCHER_READINESS_PROTOCOL_GENERATION } from ` +
     `${JSON.stringify(pathToFileURL(observerPath).href)};\n` +
-    packageDocsProbeSource +
+    packageDocsProbeSource + paidProbeSource +
     `process.stdout.write(${JSON.stringify(PRODUCER_PROBE_MARKER)} + JSON.stringify({generation: LAUNCHER_READINESS_PROTOCOL_GENERATION,` +
-    ` package_docs}));\n`;
+    ` package_docs, paid_provider_diagnostic}));\n`;
   const probed = await new Promise((resolve) => {
     execFile(execPath, ["--input-type=module", "-e", source], {
 
@@ -374,6 +383,10 @@ export async function probeSpawnedWikiMcpProducerGeneration({
   if (!samePackageDocsGeneration(payload.package_docs, currentPackageDocsGeneration)) {
     return Object.freeze({ ok: false, generation, reason: "probe_mismatch",
       package_docs_diagnostic: compositionDiagnostic("probe_mismatch") });
+  }
+  if (payload.paid_provider_diagnostic !== undefined) {
+    return Object.freeze({ ok: false, generation, reason: payload.paid_provider_diagnostic.code,
+      paid_provider_diagnostic: payload.paid_provider_diagnostic });
   }
   return Object.freeze({ ok: true, generation, reason: null,
     package_docs_generation: currentPackageDocsGeneration });

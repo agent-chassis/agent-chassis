@@ -323,6 +323,17 @@ function readObservedChildTermination(executorResult) {
   }
 }
 
+export function subscribeSupervisorRunning(record, executorResult, { clock = Date.now } = {}) {
+  if (!["worker", "reviewer", "redteam"].includes(record.role) || record.terminal ||
+      typeof executorResult.running?.then !== "function") return;
+  executorResult.running.then(() => {
+    if (record.terminal || record.status !== "launching" ||
+        readObservedChildTermination(executorResult)) return;
+    record.status = "running";
+    record.updated_at = new Date(clock()).toISOString();
+  });
+}
+
 function attachManagedIdentitySettlementFailure(
   record,
   cleanupRefusal,
@@ -581,15 +592,7 @@ export async function finalizeLaunchOutcome(params) {
   if (!record.terminal && onLaunchCompletion !== null) {
     onLaunchCompletion(record, executorResult.completion);
   }
-
-  if (role === "worker" && !record.terminal && typeof executorResult.running?.then === "function") {
-    executorResult.running.then(() => {
-      if (record.terminal || record.status !== "launching" ||
-          readObservedChildTermination(executorResult)) return;
-      record.status = "running";
-      record.updated_at = new Date(clock()).toISOString();
-    });
-  }
+  subscribeSupervisorRunning(record, executorResult, { clock });
   return params.projectRunRecord ? { ...envelope,
     producer_observation: params.projectRunRecord(record) } : envelope;
 }

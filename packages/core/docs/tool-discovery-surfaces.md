@@ -9,12 +9,15 @@ operator CLI when a session lacks a tool.
 
 ## Discovery surfaces
 
-`workspace_read_wiki` is the compact-first entry for saved records, documents,
-search, assignment and package guidance. Follow its returned reference and
-selection for complete content. Selected input contracts explain the exact
+`workspace_read_wiki` reads saved records, documents, search, assignments and
+package guidance with `{reads:[Read,...]}`. One selection is length one; combine
+mixed requested kinds in the same call. Use known subjects and public semantic
+selectors directly. Context, search and inventories discover missing information;
+they are not prerequisites for a known read. Preserve issued reference bindings
+and resolve meaningful ambiguity without guessing a member. Selected input contracts explain the exact
 create/save grammar of the record kind or saved unit, including the members the
 caller actually needs. Read an exception contract explicitly through the unit's
-reference with `select:{input_contract:{tool:"save_record",operation:"exception"}}`;
+reference inside a read with `select:{input_contract:{tool:"save_record",operation:"exception"}}`;
 ordinary drafting does not choose an exception for the author.
 
 Creation and save contracts state repeated authoring shapes once in local

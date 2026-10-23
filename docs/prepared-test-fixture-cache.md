@@ -204,8 +204,8 @@ build makes seven and a fresh preparation five.
 ## Publishing preparations
 
 `tests/helpers/prepared-publishing-fixtures.mjs` owns the published package
-population (`PUBLISHING_PACKAGES`, from `PACKAGES` in
-`tools/agent-chassis-release.mjs`), its selection
+population (`PUBLISHING_PACKAGES`, from `PUBLIC_DISTRIBUTION_PACKAGES` in
+`tools/agent-chassis-distribution-population.mjs`), its selection
 (`resolvePublishingSelection`), and two recipes. `tests/helpers/publish-smoke-fixtures.mjs`
 re-exports these four names unchanged, so existing callers reuse automatically.
 
@@ -483,3 +483,15 @@ or torn journal, and an unavailable quantity carried as zero.
   The two modes cost the same there.
 - A hit still hashes the inputs and the artifact and copies the artifact. For a
   cheap preparation that can cost more than rebuilding.
+
+Local private package fixtures use `fixturePackages: [{ directory, name }]` in
+`resolvePublishingSelection` and `packPublishingPackages`. This explicit population
+extends the test's install closure without changing the public `PUBLIC_DISTRIBUTION_PACKAGES` population.
+Duplicate names/directories are refused before packing. The existing capture,
+cache, install and cleanup owners serve both public and explicit fixture packages;
+the population is part of the preparation identity.
+
+The ordered public distribution population is owned by
+`tools/agent-chassis-distribution-population.mjs`. Release, snapshot, fixture,
+local provenance and Makefile projections derive from that data; the private
+provider is never added to the public population.

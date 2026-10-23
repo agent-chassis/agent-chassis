@@ -8,13 +8,12 @@ import { ControlledContractToolError, controlledContractContentDigest } from
   '../../lib/controlled-contract-tools.mjs';
 import { assertPackageValidContract, packageValidationDiagnostics } from './package-runtime.mjs';
 import { assessProspectiveProofUses } from './proof-authoring-source.mjs';
-import { compileProofAuthoringContractInputs } from './proof-authoring-contract-inputs.mjs';
+import { compileProofAuthoringContractInputs, requireRequirementAuthoringOperation } from './proof-authoring-contract-inputs.mjs';
 import { attributeControlledContractRequirementDiagnostics } from
   './contract-requirement-authoring.mjs';
 import { proofCatalogDiscoveryRecovery } from './coverage-recovery-guidance.mjs';
 import { acceptanceCriterionAssociationOwner, acceptanceCriterionInventory } from
   './acceptance-criterion-coverage.mjs';
-import { prepareGrammarException } from './contract-requirement-projection.mjs';
 import { RECORD_AUTHORING_EXCEPTION_CODES } from '../../lib/record-authoring-exception.mjs';
 import { prepareProofAuthoringRefresh } from './proof-authoring-refresh.mjs';
 
@@ -87,11 +86,11 @@ function assertProspectiveCaseContract(pkg, candidate) {
     });
 }
 
-function exceptionInput({ initial, exception }) {
+function exceptionInput({ initial, exception, requirementAuthoring }) {
   const sourcePassages = resolveExceptionSourcePassages({ wkId: initial.wkId,
     text: initial.record?.sections?.user_requirements, passages: exception.source_passages });
   if (exception.kind === 'grammar') {
-    const prepared = prepareGrammarException({ contract: initial.contract?.content ?? null, selected: exception.selectedUnresolved,
+    const prepared = requireRequirementAuthoringOperation(requirementAuthoring, "prepareGrammarException")({ contract: initial.contract?.content ?? null, selected: exception.selectedUnresolved,
       action: exception.action, ...(exception.action === 'apply' ? { rationale: exception.rationale, sourcePassages } : {}) });
     return { contractRequirements: prepared.answer };
   }
@@ -107,8 +106,8 @@ function exceptionInput({ initial, exception }) {
   return {};
 }
 
-export async function prepareProofAuthoringMutation({ pkg, initial, input, remove, now, authoringContext = null }) {
-  if (input.refreshProofs === true) return prepareProofAuthoringRefresh({ pkg, initial, now,
+export async function prepareProofAuthoringMutation({ pkg, initial, input, remove, now, requirementAuthoring, authoringContext = null }) {
+  if (input.refreshProofs === true) return prepareProofAuthoringRefresh({ pkg, initial, now, requirementAuthoring,
     prepare: prepareProofAuthoringMutation });
   if (remove && !['selection', 'obligation'].includes(input.removalScope)) {
     throw new ControlledContractToolError('obligation_coverage_request_invalid',
@@ -124,7 +123,7 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
     if (combined.length > 0) throw new ControlledContractToolError('obligation_coverage_request_invalid',
       'An exception is requested alone, never beside authored members', {
         changed: false, phase: 'request', path: 'exception', combined_with: combined });
-    input = exceptionInput({ initial, exception });
+    input = exceptionInput({ initial, exception, requirementAuthoring });
   } else if (!remove && Object.hasOwn(input, 'controlledAcceptance') &&
       input.controlledAcceptance?.disposition !== 'required') {
     throw new ControlledContractToolError('obligation_coverage_request_invalid',
@@ -179,7 +178,7 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
   let contractInputs;
   try {
     contractInputs = compileProofAuthoringContractInputs({
-      pkg, initial, input,
+      pkg, initial, input, requirementAuthoring,
       baseContract: initial.contract?.content ?? null,
       retainedReferenceIds: caseReferenceIds(initial.cases, obligations),
       now: now
@@ -226,7 +225,7 @@ export async function prepareProofAuthoringMutation({ pkg, initial, input, remov
     const firstContractInputs = contractInputs;
     const exactCaseReferences = caseReferenceIds(candidate.cases);
     const recompiled = compileProofAuthoringContractInputs({
-      pkg,
+      pkg, requirementAuthoring,
       initial: { ...initial, record: firstContractInputs.record },
       input: { contractRequirements: input.contractRequirements },
       baseContract: initial.contract?.content ?? null,

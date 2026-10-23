@@ -12,7 +12,7 @@ import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/
 
 import { errorContent, jsonContent, measureMcpInlineResultBytes } from
   "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
-import { RUN_TEST_TOOL_NAME, RUN_TEST_VIEWS, runTestInputSchema, applyRunTestRetry, parseRunTestRequest, runTestRequestSeed } from
+import { RUN_TEST_TOOL_NAME, RUN_TEST_VIEWS, runTestInputSchema, applyRunTestRetry, parseRunTestRequest, runTestRequestSeed, runTestUnavailableInputs } from
   "../../packages/wiki-mcp/src/lib/run-test-input.mjs";
 import { AGENT_TOOL_LIVE_DESCRIPTION_HARD_LIMIT_CHARACTERS } from
   "../../packages/wiki-core/src/lib/tool-discovery/descriptor.mjs";
@@ -116,6 +116,14 @@ test("role-specific schemas expose only their actual execution mode", () => {
   assert.equal(reviewer.safeParse({ harness: { cwd: ".", argv: ["npm", "test"] } }).success, true);
   assert.equal(reviewer.safeParse({ harness: { cwd: ".", argv: ["npm", "test"] }, source: CURRENT_MAIN }).success, false);
   assert.equal(orchestrator.safeParse({ entrypoint: "tests" }).success, false);
+  for (const [role, schema, unavailable] of [['worker', worker, 'source'], ['reviewer', reviewer, 'selection']]) {
+    const refused = schema.safeParse({ retry: { request: { ref_id: 'abcdefgh' }, clear: [unavailable] } });
+    assert.equal(refused.success, false);
+    const guidance = runTestUnavailableInputs(refused.error, role);
+    assert.equal(guidance.role, role);
+    assert.deepEqual(guidance.unavailable_inputs[0].path, ['retry', 'clear', 0]);
+    assert.match(guidance.unavailable_inputs[0].reason, role === 'worker' ? /bound source/u : /worker inputs/u);
+  }
 });
 
 test("harness is one closed execution form and retry preserves its literal request", async (t) => {

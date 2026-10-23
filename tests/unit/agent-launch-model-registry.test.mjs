@@ -6,7 +6,8 @@ import {
   MODEL_REGISTRY,
   appDefault,
   buildModelRegistry,
-  resolveModel
+  resolveModel,
+  resolveModelRuntime
 } from "../../packages/agent-launch-cli/src/lib/agent-launch-model-registry.mjs";
 
 const VALID_CODEX_SPEC = Object.freeze({
@@ -68,6 +69,27 @@ test("resolveModel returns the model spec and derives app/backend from the regis
   assert.equal(resolveModel("haiku").default_effort, "medium");
 });
 
+test("Sol 6.1 resolves through the ordinary Codex orchestrator runtime", () => {
+  const model = "gpt-6.1-sol";
+  const spec = resolveModel(model);
+  assert.deepEqual(spec, {
+    app: "codex",
+    backend: "codex",
+    backend_profile: "orchestrator",
+    codex_profile: "orchestrator",
+    default_effort: "high",
+    vertex_model: null
+  });
+  assert.deepEqual(resolveModelRuntime(model), {
+    model,
+    app: "codex",
+    backend: "codex",
+    backend_profile: "orchestrator",
+    default_effort: "high",
+    model_spec: spec
+  });
+});
+
 test("Claude launcher-facing tokens are stable mode names, not provider API IDs", () => {
   for (const token of ["opus", "sonnet", "haiku", "fable"]) {
     assert.equal(resolveModel(token).app, "claude");
@@ -127,6 +149,7 @@ test("registry exports the array source and model-name set used by the DEC-0114 
       "gpt-6-astra",
       "gpt-6-luna",
       "gpt-6-sol",
+      "gpt-6.1-sol",
       "gpt-6-terra",
       ...addedCodexModels,
       "haiku",

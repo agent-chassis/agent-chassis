@@ -17,58 +17,110 @@ export class FeedbackError extends Error {
 export function feedbackInvalid(message) {
   return new FeedbackError('feedback_input_invalid', message);
 }
-export function closedFeedbackObject(value, fields, label) {
+const REPORT_FIELDS = ['category', 'observation', 'location', 'attempted_action', 'expected',
+  'recovery', 'related_feedback_id', 'evidence_refs', 'direction', 'reason', 'suggested_reduction', 'numeric_evidence'];
+
+function closedObject(value, fields, path, faults) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
-      ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw feedbackInvalid(`${label} must be an object`);
-  const unknown = Object.keys(value).filter(key => !fields.includes(key));
-  if (unknown.length) throw feedbackInvalid(`${label} has unknown fields: ${unknown.join(', ')}`);
+      ![Object.prototype, null].includes(Object.getPrototypeOf(value))) {
+    faults.push({ path, constraint: 'must be an object' });
+    return false;
+  }
+  for (const key of Object.keys(value)) if (!fields.includes(key)) {
+    faults.push({ path: [...path, key], constraint: 'is not a supported field; remove it' });
+  }
+  return true;
 }
-function nonblank(value, field) {
-  if (typeof value !== 'string' || !value.trim()) throw feedbackInvalid(`${field} must be nonblank text`);
+function nonblank(value, path, faults) {
+  if (typeof value !== 'string' || !value.trim()) {
+    faults.push({ path, constraint: 'must be nonblank text' });
+    return false;
+  }
+  return true;
 }
-export function validateFeedbackReport(report) {
-  closedFeedbackObject(report, ['category', 'observation', 'location', 'attempted_action', 'expected',
-    'recovery', 'related_feedback_id', 'evidence_refs', 'direction', 'reason', 'suggested_reduction', 'numeric_evidence'], 'report');
-  if (!FEEDBACK_CATEGORIES.includes(report.category)) throw feedbackInvalid('category must be confusion, limitation or token_waste');
-  for (const field of ['observation', 'location', 'attempted_action']) nonblank(report[field], field);
-  for (const field of ['expected', 'recovery', 'reason', 'suggested_reduction']) {
-    if (Object.hasOwn(report, field) && typeof report[field] !== 'string') throw feedbackInvalid(`${field} must be text`);
+function reportFaults(report, faults) {
+  const path = ['report'];
+  if (!closedObject(report, REPORT_FIELDS, path, faults)) return;
+  if (!FEEDBACK_CATEGORIES.includes(report.category)) faults.push({ path: [...path, 'category'],
+    constraint: 'must be confusion, limitation or token_waste' });
+  for (const field of ['observation', 'location', 'attempted_action']) nonblank(report[field], [...path, field], faults);
+  for (const field of ['expected', 'recovery', 'suggested_reduction']) {
+    if (Object.hasOwn(report, field) && typeof report[field] !== 'string') {
+      faults.push({ path: [...path, field], constraint: 'must be text' });
+    }
   }
   if (report.category === 'token_waste') {
-    if (!['input', 'output', 'both'].includes(report.direction)) throw feedbackInvalid('token_waste requires direction input, output or both');
-    nonblank(report.reason, 'reason');
-  } else if (Object.hasOwn(report, 'direction') && !['input', 'output', 'both'].includes(report.direction)) {
-    throw feedbackInvalid('direction must be input, output or both');
+    if (!['input', 'output', 'both'].includes(report.direction)) faults.push({ path: [...path, 'direction'],
+      constraint: 'token_waste requires direction input, output or both' });
+    nonblank(report.reason, [...path, 'reason'], faults);
+  } else {
+    if (Object.hasOwn(report, 'direction') && !['input', 'output', 'both'].includes(report.direction)) {
+      faults.push({ path: [...path, 'direction'], constraint: 'must be input, output or both' });
+    }
+    if (Object.hasOwn(report, 'reason') && typeof report.reason !== 'string') {
+      faults.push({ path: [...path, 'reason'], constraint: 'must be text' });
+    }
   }
   if (Object.hasOwn(report, 'related_feedback_id') && (typeof report.related_feedback_id !== 'string' || !FEEDBACK_ID_PATTERN.test(report.related_feedback_id))) {
-    throw feedbackInvalid('related_feedback_id must be a returned fbo_ UUID');
+    faults.push({ path: [...path, 'related_feedback_id'], constraint: 'must be a returned fbo_ UUID (version 4)' });
   }
   if (Object.hasOwn(report, 'evidence_refs')) {
-    if (!Array.isArray(report.evidence_refs) || report.evidence_refs.length > EVIDENCE_MAX_REFERENCES) throw feedbackInvalid(`evidence_refs must be an array of at most ${EVIDENCE_MAX_REFERENCES} inert references`);
-    for (const [index, ref] of report.evidence_refs.entries()) {
-      nonblank(ref, `evidence_refs[${index}]`);
-      if (Buffer.byteLength(ref, 'utf8') > EVIDENCE_REFERENCE_MAX_BYTES) throw feedbackInvalid(`evidence_refs[${index}] accepts at most ${EVIDENCE_REFERENCE_MAX_BYTES} UTF-8 bytes`);
+    if (!Array.isArray(report.evidence_refs)) {
+      faults.push({ path: [...path, 'evidence_refs'], constraint: `must be an array of at most ${EVIDENCE_MAX_REFERENCES} inert references` });
+    } else {
+      if (report.evidence_refs.length > EVIDENCE_MAX_REFERENCES) faults.push({ path: [...path, 'evidence_refs'],
+        constraint: `must contain at most ${EVIDENCE_MAX_REFERENCES} inert references` });
+      for (const [index, ref] of report.evidence_refs.entries()) {
+        const refPath = [...path, 'evidence_refs', index];
+        nonblank(ref, refPath, faults);
+        if (typeof ref === 'string' && Buffer.byteLength(ref, 'utf8') > EVIDENCE_REFERENCE_MAX_BYTES) {
+          faults.push({ path: refPath, constraint: `accepts at most ${EVIDENCE_REFERENCE_MAX_BYTES} UTF-8 bytes` });
+        }
+      }
     }
   }
   if (Object.hasOwn(report, 'numeric_evidence')) {
-    const evidence = report.numeric_evidence;
-    closedFeedbackObject(evidence, ['value', 'unit', 'source', 'scope'], 'numeric_evidence');
-    if (typeof evidence.value !== 'number' || !Number.isFinite(evidence.value) || evidence.value < 0) throw feedbackInvalid('numeric_evidence.value must be finite and nonnegative');
-    if (!['tokens', 'bytes'].includes(evidence.unit)) throw feedbackInvalid('numeric_evidence.unit must be tokens or bytes');
-    if (!['exchange', 'turn', 'session'].includes(evidence.scope)) throw feedbackInvalid('numeric_evidence.scope must be exchange, turn or session');
-    nonblank(evidence.source, 'numeric_evidence.source');
+    const evidence = report.numeric_evidence, evidencePath = [...path, 'numeric_evidence'];
+    if (closedObject(evidence, ['value', 'unit', 'source', 'scope'], evidencePath, faults)) {
+      if (typeof evidence.value !== 'number' || !Number.isFinite(evidence.value) || evidence.value < 0) faults.push({
+        path: [...evidencePath, 'value'], constraint: 'must be finite and nonnegative' });
+      if (!['tokens', 'bytes'].includes(evidence.unit)) faults.push({ path: [...evidencePath, 'unit'], constraint: 'must be tokens or bytes' });
+      if (!['exchange', 'turn', 'session'].includes(evidence.scope)) faults.push({ path: [...evidencePath, 'scope'], constraint: 'must be exchange, turn or session' });
+      nonblank(evidence.source, [...evidencePath, 'source'], faults);
+    }
   }
   const bytes = Buffer.byteLength(JSON.stringify(report), 'utf8');
-  if (bytes > FEEDBACK_REPORT_MAX_BYTES) throw new FeedbackError('feedback_report_too_large',
-    'Parsed report exceeds its UTF-8 byte limit', { bytes, maximum_bytes: FEEDBACK_REPORT_MAX_BYTES });
+  if (bytes > FEEDBACK_REPORT_MAX_BYTES) faults.push({ path,
+    constraint: `parsed report JSON accepts at most ${FEEDBACK_REPORT_MAX_BYTES} UTF-8 bytes`,
+    bytes, maximum_bytes: FEEDBACK_REPORT_MAX_BYTES });
+}
+function rejectFaults(faults) {
+  if (faults.length === 1 && faults[0].maximum_bytes !== undefined) {
+    const { bytes, maximum_bytes } = faults[0];
+    throw new FeedbackError('feedback_report_too_large', 'Parsed report exceeds its UTF-8 byte limit', { bytes, maximum_bytes });
+  }
+  if (faults.length) throw new FeedbackError('feedback_input_invalid', 'Invalid feedback input', { invalid_fields: faults });
+}
+export function validateFeedbackReport(report) {
+  const faults = [];
+  reportFaults(report, faults);
+  rejectFaults(faults);
   return JSON.parse(JSON.stringify(report));
 }
 export function validateFeedbackSubmission(input) {
-  closedFeedbackObject(input, ['report', 'new_session', 'session_id'], 'submission');
-  if (Object.hasOwn(input, 'new_session') && input.new_session !== true) throw feedbackInvalid('new_session, when present, must be true');
-  if ((input.new_session === true) === Object.hasOwn(input, 'session_id')) throw feedbackInvalid('Supply exactly one new_session=true or session_id');
-  if (Object.hasOwn(input, 'session_id') && (typeof input.session_id !== 'string' || !FEEDBACK_SESSION_PATTERN.test(input.session_id))) throw feedbackInvalid('session_id must be a returned fbs_ UUID');
-  return { ...input, report: validateFeedbackReport(input.report) };
+  const faults = [];
+  if (closedObject(input, ['report', 'new_session', 'session_id'], [], faults)) {
+    if (Object.hasOwn(input, 'new_session') && input.new_session !== true) faults.push({ path: ['new_session'],
+      constraint: 'when present, must be true' });
+    if ((input.new_session === true) === Object.hasOwn(input, 'session_id')) faults.push({ path: [],
+      constraint: 'supply exactly one new_session=true or session_id; preserve the intended session choice' });
+    if (Object.hasOwn(input, 'session_id') && (typeof input.session_id !== 'string' || !FEEDBACK_SESSION_PATTERN.test(input.session_id))) {
+      faults.push({ path: ['session_id'], constraint: 'must be a returned fbs_ UUID (version 4)' });
+    }
+    reportFaults(input.report, faults);
+  }
+  rejectFaults(faults);
+  return { ...input, report: JSON.parse(JSON.stringify(input.report)) };
 }
 
 export function feedbackSubmissionInputSchema(z) {

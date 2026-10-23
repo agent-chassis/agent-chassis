@@ -58,7 +58,7 @@ async function mutation(input, remove, options) {
       }
       const { candidate, contractInputs, editsRequirements, editsPosture, requirementRetirements,
         retirement, assertDefinitions } = await prepareProofAuthoringMutation({
-        pkg, initial, input, remove, now: options.now });
+        pkg, initial, input, remove, now: options.now, requirementAuthoring: options.requirementAuthoring });
       const assertCurrent = async () => {
         const current = await resolveRevision();
         if (current.revision !== initial.revision) throw new ControlledContractToolError(

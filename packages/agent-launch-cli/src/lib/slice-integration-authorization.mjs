@@ -548,7 +548,7 @@ export function sliceHasNoRemainingDelta({ runGit, mainRepo, baseSha, commit, wk
     throw error;
   }
   const appliedTree = assertOid(
-    String(merged.stdout ?? "").split(/\r?\n/u)[0].trim(),
+    interpreted.tree,
     "applied slice tree"
   );
   const wkCommit = yield readLiteralCommit(runGit, mainRepo, wkTip, new Map());
@@ -1525,7 +1525,7 @@ export function replayCommitRangeOnto({ runGit, mainRepo, baseSha, commit, onto 
       }
       throw error;
     }
-    const tree = assertOid(String(merge.stdout ?? "").split(/\r?\n/u)[0].trim(), "replayed tree");
+    const tree = assertOid(interpreted.tree, "replayed tree");
     const message = (yield git(
       runGit,
       mainRepo,

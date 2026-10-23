@@ -77,6 +77,8 @@ function joinedAlternative(closed, alternative) {
 export function servedAlternatives(inputContract, node) {
   const resolved = resolveServedNode(inputContract, node);
   if (resolved.allOf !== undefined) {
+
+    if (resolved.type === 'object' && resolved.properties) return [resolved];
     assert.equal(resolved.allOf.length, 2, "a served intersection joins one closed object with its alternatives");
     const [closed, choices] = resolved.allOf.map((member) => resolveServedNode(inputContract, member));
     assert.equal(closed.type, "object");
@@ -97,6 +99,11 @@ export function servedAccepts(inputContract, node, value_) {
   if (schema.allOf !== undefined &&
       !schema.allOf.every((member) => servedAccepts(inputContract, member, value_))) return false;
   if (schema.not !== undefined && servedAccepts(inputContract, schema.not, value_)) return false;
+  if (schema.if !== undefined) {
+    const condition = servedAccepts(inputContract, schema.if, value_);
+    if (condition && schema.then !== undefined && !servedAccepts(inputContract, schema.then, value_)) return false;
+    if (!condition && schema.else !== undefined && !servedAccepts(inputContract, schema.else, value_)) return false;
+  }
   if (Array.isArray(schema.type)) {
     return schema.type.some((type) => servedAccepts(inputContract, { ...schema, type }, value_));
   }
@@ -118,6 +125,7 @@ export function servedAccepts(inputContract, node, value_) {
 
       const additional = schema.additionalProperties;
       return (schema.required ?? []).every((name) => Object.hasOwn(value_, name)) &&
+        within(Object.keys(value_).length, schema.minProperties, schema.maxProperties) &&
         (schema.propertyNames === undefined ||
           Object.keys(value_).every((name) => servedAccepts(inputContract, schema.propertyNames, name))) &&
         Object.entries(value_).every(([name, member]) => Object.hasOwn(properties, name)
@@ -127,10 +135,12 @@ export function servedAccepts(inputContract, node, value_) {
     }
     case "array":
       return Array.isArray(value_) && within(value_.length, schema.minItems, schema.maxItems) &&
+        (!schema.uniqueItems || !value_.some((entry, index) => value_.slice(0, index).some(prior => isDeepStrictEqual(entry, prior)))) &&
         value_.every((item, index) => servedAccepts(inputContract, schema.prefixItems?.[index] ?? schema.items, item));
     case "string":
       return typeof value_ === "string" &&
-        within(value_.length, schema.minLength, schema.maxLength) &&
+        within(Array.from(value_).length, schema.minLength, schema.maxLength) &&
+        (schema.max_utf8_bytes === undefined || Buffer.byteLength(value_, 'utf8') <= schema.max_utf8_bytes) &&
         (schema.pattern === undefined || new RegExp(schema.pattern).test(value_));
     case "integer":
     case "number":
@@ -145,7 +155,8 @@ export function servedAccepts(inputContract, node, value_) {
 
       assert.equal(schema.type, undefined, `unsupported served type ${schema.type}`);
       return value_ === null || typeof value_ !== "object" || Array.isArray(value_) ||
-        (schema.required ?? []).every((name) => Object.hasOwn(value_, name));
+        ((schema.required ?? []).every((name) => Object.hasOwn(value_, name)) &&
+          Object.entries(schema.properties ?? {}).every(([name, declared]) => !Object.hasOwn(value_, name) || servedAccepts(inputContract, declared, value_[name])));
   }
 }
 

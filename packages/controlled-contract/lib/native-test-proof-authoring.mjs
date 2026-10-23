@@ -92,11 +92,27 @@ const leafFields = (node, prefix = '') => Object.entries(node.properties).flatMa
   child.type === 'object' && child.properties ? leafFields(child, `${prefix}${field}.`) : [`${prefix}${field}`]);
 const [nodeTargetArm, storedNativeTargetArm] = NATIVE_TEST_CASE_SCHEMA.properties.target.oneOf;
 
-const structuredSelectors = new Map(TEST_PROOF_PROVIDER_AUTHORING_FACTS
-  .filter(family => family.selector.authored !== undefined)
-  .map(family => [family.selector.authored.member, structuredClone(family.selector.authored.schema)]));
+const structuredSelectors = new Map();
+for (const family of TEST_PROOF_PROVIDER_AUTHORING_FACTS.filter(family => family.selector.authored !== undefined)) {
+  const { member, schema: declared } = family.selector.authored;
+  const alternatives = structuredSelectors.get(member) ?? [];
+  if (!alternatives.some(schema => JSON.stringify(schema) === JSON.stringify(declared))) alternatives.push(structuredClone(declared));
+  structuredSelectors.set(member, alternatives);
+}
 const authoredNativeTargetArm = { ...storedNativeTargetArm, properties: { ...storedNativeTargetArm.properties,
-  selector: closed({ ...storedNativeTargetArm.properties.selector.properties, ...Object.fromEntries(structuredSelectors) }) } };
+  selector: closed({ ...storedNativeTargetArm.properties.selector.properties,
+    ...Object.fromEntries([...structuredSelectors].map(([member, anyOf]) => [member, { anyOf }])) }),
+  provider: { ...storedNativeTargetArm.properties.provider, properties: { ...storedNativeTargetArm.properties.provider.properties,
+    provider_id: { enum: TEST_PROOF_PROVIDER_AUTHORING_FACTS.filter(family => family.selector.provider_qualified)
+      .map(family => family.candidate_execution.provider_id) } } } },
+  allOf: TEST_PROOF_PROVIDER_AUTHORING_FACTS.filter(family => family.selector.provider_qualified).map(family => {
+    const member = family.selector.authored?.member ?? 'node_id';
+    return { if: { properties: { provider: { properties: { provider_id: { const: family.candidate_execution.provider_id } }, required: ['provider_id'] } }, required: ['provider'] },
+      then: { properties: { provider: { properties: { provider_version: { const: family.candidate_execution.provider_version } } },
+        path: family.selector.path_schema,
+        selector: { ...closed({ [member]: family.selector.authored?.schema ?? family.selector.literal_schema }), required: [member],
+          description: `This provider accepts only selector.${member}. Remove incompatible selector members; preserve any supplied valid ${member} meaning.` } } } };
+  }) };
 const nodeTargetFields = leafFields(nodeTargetArm);
 
 const nativeTargetFields = member => leafFields(authoredNativeTargetArm).filter(field =>
@@ -116,13 +132,18 @@ export const CASE_VERIFICATION_OWNERSHIP_RECOVERY = Object.freeze({
   condition: 'verification_owned_by_another_case',
   choices: Object.freeze([Object.freeze({ when: 'same_test', field: 'obligations[].case.id' }),
     Object.freeze({ when: 'different_test', field: 'requirements[].verification' })]),
-  correction: 'If the obligation means the saved test, resubmit its authored key or saved id, meaning and claims ' +
-    'in changes.obligations with case:{id}, explicitly choosing an id from saved_case_ids. ' +
-    'If it means a different test, follow verification_association.additional_verification: put the unchanged ' +
-    'requirement in changes.requirements.requirements[], with its entity declarations in changes.requirements.entities, without id or row_id, ' +
-    'with distinct verification meaning and verification.key. Use the returned bindings.verification identity ' +
-    'in the different obligation claims and case.verification. ' +
-    'Resubmit the coherent changes; no case is deleted, reassigned or selected automatically.'
+  correction: 'If the obligation means the saved test, explicitly reuse its saved case with case:{id} in changes.obligations. ' +
+    'If it means a different test, preserve the complete requirement and entity declarations in changes.requirements, ' +
+    'author distinct verification meaning with verification.key, and use that request-local $key in the intended obligation claims and case.verification. ' +
+    'Use the supported semantic target when amending saved meaning. Preserve all other submitted work; no case or verification is chosen automatically.',
+  submitted: Object.freeze({ condition: 'competing_submitted_cases',
+    correction: 'These submitted cases explicitly select the same verification; none is a saved owner. ' +
+      'Decide whether these are distinct tests or genuinely shared evidence. A new case key cannot be used as case.id in the same save, and a batch cannot repeat identical formal predicates merely to add a verification. ' +
+      'If staging is acceptable, explicitly choose one complete case/use to save first, label its case.key, and retain the remaining intended uses for a subsequent save. ' +
+      'Then follow this diagnostic’s details.recovery.after_initial_save for saved semantic selections and current write context. For shared evidence, use the first receipt’s issued case identity; ' +
+      'for a distinct test, author its complete additional verification with verification.key and associate its intended requirement/check and case using this second request’s $keys. ' +
+      'Preserve every original requirement, obligation statement, source link, unrelated edit and runtime meaning. If the work must be atomic, stop without publishing: this conflicting population has no supported single-save correction. ' +
+      'No test identity, winner, staging decision or correspondence is inferred.' })
 });
 
 export const CASE_COMPONENT_FIELD = 'obligations[].case.component';
@@ -365,8 +386,10 @@ export function storedNativeCaseTarget(target) {
       : 'This provider takes another selector member; the named one is not an input of its case target', {
       pointer: resolved.pointer, field: caseTargetField(resolved.pointer), expected: resolved.expected_identity,
       actual: resolved.actual_identity,
-      ...(replacement === null ? {} : { correction_field: replacement,
-        correction: `Remove this member and author selector.${resolved.replacement_member} for this provider: ` +
+      ...(replacement === null ? {} : resolved.replacement_valid === true ? { preserve_field: replacement,
+        correction: `Remove the incompatible selector member and retain the supplied selector.${resolved.replacement_member} unchanged; it already satisfies this provider's selection rule.` }
+        : { correction_field: replacement,
+        correction: `Remove this member and ${resolved.replacement_present ? 'correct the supplied' : 'author'} selector.${resolved.replacement_member} for this provider: ` +
           `${resolved.expected_identity.slice(`selector.${resolved.replacement_member}: `.length)}. ` +
           'The provider derives the stored test identity from it; no serialized identity is authored.' }) });
   }

@@ -43,7 +43,7 @@ import { selectedResponseRequestSchema } from "./selected-response-snapshot.mjs"
 import { projectToolInputValidationFailure } from "./register-tool.mjs";
 
 export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWorkspaceRepo,
-  jsonContent, errorContent, sessionRole, sessionEnv, responseEnv, registeredTier, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION,
+  jsonContent, errorContent, sessionRole, sessionEnv, responseEnv, registeredTier, requirementAuthoring, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION,
   dispatchBackend, dispatchSessionIdentity, wkForgeHandoffAdapter, wkLandingStatusAdapter,
   launcherNoCceAuthorityCapability, registeredToolNames, packageDocsCarrier = null, docsCarrier, verifyProofDeps = {}, assignmentChangeTermination = null }) {
   const workspace = Object.freeze(resolveWorkspaceRepo(workspaceRepos));
@@ -68,7 +68,7 @@ export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWo
   const policy = JSON.parse(readFileSync(SESSION_ROLE_TOOL_ACCESS_POLICY_PATH, "utf8"));
   const assessment = granted("workspace_assess_contract") ? registerContractAssessmentTool({ registerTool, ...host, registeredTier }) : null;
 
-  const authoring = { registerTool, ...host, registeredTier, exceptionPublication, assessment, generateAndLint,
+  const authoring = { registerTool, ...host, registeredTier, requirementAuthoring, exceptionPublication, assessment, generateAndLint,
     resolveRetainedFindingsSource: dispatchBackend?.resolveRetainedFindingsSource, dispatchSessionIdentity };
   const create = granted("workspace_create_record") ? registerCreateRecordTools(authoring) : null;
 
@@ -114,6 +114,7 @@ export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWo
       GET_RUN_RESULT_LIVE_INPUT_SCHEMA, GET_RUN_RESULT_ASSIGNED_INPUT_SCHEMA,
       GET_RUN_RESULT_INVENTORY_INPUT_SCHEMA, GET_RUN_RESULT_COORDINATOR_RECORDED_INPUT_SCHEMA,
       GET_RUN_RESULT_COORDINATOR_OUTCOME_INPUT_SCHEMA];
+    const inputSchema = z.union(variants);
 
     const advertised = z.object(Object.assign({}, ...variants.map(schema => Object.fromEntries(
       Object.entries(schema.shape).map(([key, value]) => [key, value.optional()]))),
@@ -125,7 +126,7 @@ export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWo
       "Choose one published request alternative; optional fields belong only to that alternative. " +
       "Subject observation and recorded-attempt reads require an orchestrator; assigned reads require the authenticated worker. " +
       "Retained reads preserve producer role restrictions. Use returned result and invocation references unchanged. Reads launch, rerun and integrate nothing.",
-      inputSchema: z.union(variants), advertisedInputSchema: advertised,
+      inputSchema, advertisedInputSchema: advertised,
 
       publishedInputSchemaProjection: converted => ({ ...converted, not: { not: { anyOf: variants.map(schema => ({
         required: Object.entries(schema.shape).filter(([, value]) => !value.isOptional()).map(([key]) => key),
@@ -136,20 +137,31 @@ export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWo
         ])
       })) } } }),
       inputValidationErrorProjector: async ({ args, validationError }) => {
-        const schema = Object.hasOwn(args, "result") ? variants[0]
-          : Object.hasOwn(args, "recorded_invocation") ? (Object.hasOwn(args, "subject")
-            ? Object.hasOwn(args, "detail") ? variants[6] : variants[5] : variants[1])
-            : Object.hasOwn(args, "subject") && Object.hasOwn(args, "detail") ? variants[4]
-            : Object.keys(variants[2].shape).some(key => Object.hasOwn(args, key)) ? variants[2] : variants[3];
-        const parsed = schema.safeParse(args);
-        const issues = parsed.success ? validationError.issues : parsed.error.issues;
-        const mixed = issues.some(issue => issue.code === "unrecognized_keys" && issue.path.length === 0 &&
-          issue.keys.some(key => Object.hasOwn(advertised.shape, key)));
+
+        if (Object.hasOwn(args, "subject") && !Object.hasOwn(args, "result") &&
+            !Object.hasOwn(args, "recorded_invocation") && args.detail?.member === "final_result") {
+          const { detail: _detail, ...observation } = args;
+          const parsed = GET_RUN_RESULT_LIVE_INPUT_SCHEMA.safeParse(observation);
+          const detail = GET_RUN_RESULT_RETAINED_INPUT_SCHEMA.shape.detail.safeParse(args.detail);
+          const failure = await projectToolInputValidationFailure({ tool: "get_run_result", args,
+            validationError, inputSchema, ownerDiagnostics: [
+              { code: "get_run_result.final_result_source_required", path: ["detail", "member"], message:
+                "final_result requires an issued result reference. Observe the intended subject/attempt without detail to obtain its result call." },
+              ...(parsed.success ? [] : parsed.error.issues),
+              ...(detail.success ? [] : detail.error.issues.map(issue => ({ ...issue, path: ["detail", ...issue.path] })))
+            ] });
+          return { terminal_result: { ...jsonContent({ ...failure,
+            correction: "Read final_result using the issued result reference. " +
+              "First observe the same subject/attempt without detail; no other attempt is selected. " +
+              (sessionRole === "orchestrator" ? "Correct any other reported fields before following that observation." :
+                "Subject observation requires an authenticated orchestrator; this role cannot acquire that reference here."),
+            next_calls: parsed.success && detail.success && sessionRole === "orchestrator"
+              ? [buildNextCall({ tool: "get_run_result", arguments: parsed.data })] : []
+          }, { env: responseEnv }), isError: true } };
+        }
         const failure = await projectToolInputValidationFailure({ tool: "get_run_result", args,
-          validationError: parsed.success ? validationError : parsed.error });
-        return { terminal_result: { ...jsonContent(mixed ? { ...failure, next_calls: [],
-          correction: "Choose exactly one result, recorded invocation or observation selector." } : failure,
-        { env: responseEnv }), isError: true } };
+          validationError, inputSchema });
+        return { terminal_result: { ...jsonContent(failure, { env: responseEnv }), isError: true } };
       } }, guardToolHandler(async args => {
       const value = await (args.result !== undefined ? task.deliverRetained(args)
         : args.subject !== undefined && (args.detail !== undefined || args.recorded_invocation !== undefined) ? task.coordinator(args)
@@ -190,12 +202,12 @@ export function registerAgentTaskTools({ registerTool, workspaceRepos, resolveWo
   if (granted("workspace_deliver_work")) {
     const task = createDeliverWorkSurface({ ...host, publicDelivery: true });
     registerTool("workspace_deliver_work", { description: "Commit and deliver the authenticated worker's assigned uncommitted changes, fulfilling the assignment's commit requirement. " +
-      "Call before any separate Git commit. Empty request; commits only assigned paths and integrates nothing.", ...task.inputContract,
+      "Call {} before any separate Git commit; commits only assigned paths and integrates nothing. An issued reconcile selection releases only a proven failed transaction's completion claim.", ...task.inputContract,
       inputValidationErrorProjector: async ({ args, validationError }) => ({ terminal_result: {
         ...jsonContent({ ...await projectToolInputValidationFailure({ tool: 'workspace_deliver_work', args, validationError }),
           next_calls: registeredToolNames.has('workspace_read_wiki') && sessionRole === 'worker'
             ? [buildNextCall({ tool: 'workspace_read_wiki', arguments: { reads: [{ assignment: true }] } })] : [],
-          correction: "Delivery accepts an empty request for this authenticated assignment. The optional read inspects the launcher assignment when available. Explicitly resolve the rejected inputs before choosing to deliver; no corrected mutation was selected." }, { env: responseEnv }),
+          correction: "Use {} to deliver this authenticated assignment, or the issued {reconcile:{ref_id}} call to reconcile its failed completion release. The optional read inspects the launcher assignment when available. Explicitly resolve rejected inputs; no corrected mutation was selected." }, { env: responseEnv }),
         isError: true } }) },
     guardToolHandler(async args => {
       const frame = await task.prepare(args);

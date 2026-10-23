@@ -3,7 +3,7 @@
 `workspace_deliver_work({})` commits and delivers only the authenticated managed
 worker's assignment. Call it after implementing and checking the assigned
 behavior, before any separate Git commit. Its existing launcher authentication,
-strict empty input, completion arbitration, containment, publication, review
+strict request selection, completion arbitration, containment, publication, review
 transition, compensation, checkout and receipt owners enforce delivery.
 Availability grants no additional authority. Current restrictions on managed
 implementation dispatch remain in force.
@@ -35,6 +35,53 @@ contradictory assignment prerequisite instead requires an authored
 testimony or scope-widening authority is inferred from a refusal. Accepted
 assignment change immediately ends the worker with no final report or later
 call. Foreign request fields are never silently discarded to select delivery.
+
+A failed materialization, scope check or publication can permit focused
+correction when the transaction owner establishes no publication and no review
+attempt. An exact reverse CAS after a review refusal also permits correction
+only when the exact unit's status writer confirms no canonical write. The
+server releases only this invocation's completion claim through the existing
+completion owner. This is not completion, cancellation or assignment revision.
+Created or uncertain immutable object effects remain reported separately.
+
+After that release is established, the worker receives a conditional empty
+delivery request: correct the specific cause within existing authority and
+recheck affected behavior before choosing it. A genuine assignment gap can
+instead use `request_assignment_change` with caller-authored testimony; no
+handoff fields or choices are invented. Missing testimony establishes no
+acceptance. Both completion alternatives use the same authenticated binding.
+
+Unknown publication, an unconfirmed canonical write, failed compensation,
+pre-existing delivery and completed delivery keep their completion protection.
+A release failure preserves both the transaction cause and release failure.
+When the retained original binds that invocation's exact intent and establishes
+the required non-publication or compensation facts, the worker receives
+`workspace_deliver_work({reconcile: {ref_id}})` with an issued selection. After
+the reported release cause is corrected within existing authority, this call
+authenticates that exact original and reconciles through the completion owner
+under its existing partition lock. Clearing a lock alone establishes no release
+authority. The request executes no materialization, publication, review
+submission, checkout finalization or receipt publication. A failed transaction
+never becomes a successful receipt.
+
+Successful reconciliation reports `outcome: "completion_restored"`, preserving
+the historical transaction's specific cause, object identity and effects. It
+returns the conditional empty delivery request after correcting the original
+cause, or permits a genuine caller-authored assignment-change choice. It does
+not report delivered work or require a final result. Repeating that exact
+reconciliation is idempotent while no competing completion or terminal state
+has intervened. A persistent partition contention reports the current failure
+and returns only the same conditional reconciliation; neither completion
+alternative can proceed before reconciliation succeeds.
+
+An ordinary delivery retry or a refused authored assignment-change request can
+select the same authenticated failed-release original without replaying effects.
+These observations do not release the claim. Missing, ambiguous, unavailable or
+unproven transaction evidence stops recovery, as do owner/binding mismatch,
+integrity refusal, a competing completion and terminal state. Originals without
+an explicit invocation-intent binding cannot authorize release. Other journal
+failures retain their specific cause and uncertainty without a blind retry.
+An unknown candidate object alone does not imply unknown publication or review.
 
 A pending worker checkout leaves the commit and review submission intact. After
 the specific cause is corrected within the worker's authority, the returned

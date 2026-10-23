@@ -1,6 +1,6 @@
 import { DEFAULT_EXCEPTION_PUBLICATION } from "@agent-chassis/wiki-core/src/lib/controlled-acceptance-publication-config.mjs";
 import { selectedResponseCorrectableError } from "./selected-response-snapshot.mjs";
-import { inputContractChoices } from "./task-read-wiki-input-contract-choices.mjs";
+import { inputContractChoices, inputContractSelectionError } from "./task-read-wiki-input-contract-choices.mjs";
 import { sessionExceptionKinds } from "./record-authoring-session-exposure.mjs";
 import { recordAuthoringAvailability } from "@agent-chassis/wiki-core/src/lib/record-authoring-availability.mjs";
 
@@ -60,7 +60,23 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
       throw new TypeError('input_contract_choice_not_accepted: serving reader rejected a published capability choice');
     }
     return { input_contract: { tool, view: "choices", members,
-      capabilities: Object.fromEntries(Object.entries(source.branches).filter(([member]) => members.includes(member))) }, next_calls: calls };
+      capabilities: Object.fromEntries(Object.entries(source.branches).filter(([member]) => members.includes(member))
+        .map(([member, { capability_schema_digests: _digests, ...meaning }]) => [member, meaning])) }, next_calls: calls };
+  }
+
+  async function branchRefusal(error, source, selector, reference, subject) {
+    const { tool, members } = selector;
+    const next_calls = inputContractChoices({ source, tool, reference, members, readTool, branches: selector.branches });
+    for (const call of next_calls) if (await requestContracts?.contractFor(readTool)?.acceptsArguments(call.arguments) !== true) {
+      throw new TypeError('input_contract_choice_not_accepted: serving reader rejected a published capability choice');
+    }
+    const unavailable = Object.keys(selector.branches ?? {}).filter(member => !Object.hasOwn(source.branches, member));
+    return invalid(error.code, { subject, cause: error.message, requested_members: members,
+      ...(selector.branches === undefined ? {} : { requested_branches: selector.branches }),
+      choice: next_calls.length ? 'Choose a supported branch or the complete member schema; each offered call retains the other requested members and valid branches.'
+        : unavailable.length ? `This source publishes no branch selection for ${unavailable.join(', ')}. Choose the intended source and members or explicitly remove that branch constraint; no alternate source or scope is inferred.`
+          : 'Choose whether to include the branch owner in members or remove its branch constraint; neither decision was inferred.',
+      effects: { reads: [], writes: [] }, next_calls });
   }
 
   async function readCreationContract({ carrier, members, selector, reference, requireGrant, reopen }) {
@@ -73,8 +89,8 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     }
     if (carrier.source_kind !== RECORD_KIND_SOURCE) {
       throw refuse(REASONS.TOOL_SOURCE_MISMATCH, { subject, tool, source_kind: carrier.source_kind,
-        cause: `${tool}'s input contract is the initial object of a record kind; this reference names a ${carrier.source_kind}`,
-        choice: `read the kind's own context with ${readTool}({subject:{record_kind:<kind>}}) and select through the reference it returns` });
+        cause: `${tool}'s input contract is the initial object of a record kind; the selected source names a ${carrier.source_kind}`,
+        choice: 'Choose the intended record_kind; request this same input_contract selection directly with reads:[{subject:{record_kind:<chosen kind>},select:{input_contract:<same selection>}}]. No kind or creation intent is inferred.' });
     }
     requireGrant(RECORD_KIND_SOURCE, "input_contract");
     const kind = subject.record_kind;
@@ -84,10 +100,7 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
       if (selector.view === "choices") return await choicesResult(source, tool, reference, members);
       selected = source.select({ members, ...(selector.branches ? { branches: selector.branches } : {}) });
     } catch (error) {
-      if (error.code?.startsWith("requirements_capability_") || error.code === INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_INVALID) {
-        throw invalid(error.code, { subject, cause: error.message, effects: { reads: [], writes: [] },
-          next_calls: [ { tool: readTool, arguments: { reads: [{ reference, select: { input_contract: { tool, members, view: "choices" } } }] } } ] });
-      }
+      if (inputContractSelectionError(error)) throw await branchRefusal(error, source, { ...selector, members }, reference, subject);
       if (error.code !== INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_MEMBER_UNKNOWN) throw error;
       const unknown = members.filter((member) => !source.members.includes(member));
       throw refuse(REASONS.MEMBER_NOT_APPLICABLE, { subject, record_kind: kind, tool, reads: [],
@@ -148,8 +161,8 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     const subject = carrier.subject;
     if (!INPUT_CONTRACT_SOURCE_KINDS.includes(carrier.source_kind)) {
       throw refuse(REASONS.SOURCE_NOT_SAVED_UNIT, { subject, source_kind: carrier.source_kind,
-        cause: `an exception contract is read through the reference of a saved work item or slice; this reference names a ${carrier.source_kind}`,
-        choice: `read the saved unit's own context with ${readTool}({subject:<unit id>}) and select through the reference it returns` });
+        cause: `an exception contract requires a saved work item or slice; the selected source names a ${carrier.source_kind}`,
+        choice: 'Choose the intended saved-unit subject; request this same input_contract selection directly in reads. No unit is inferred and no preliminary context read is required.' });
     }
     requireGrant(carrier.source_kind, "input_contract");
     if ((requestContracts?.contractFor(tool)?.inputSchemaExposure ?? null) === null) {
@@ -244,13 +257,13 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
     if (tool === RECORD_KIND_CONTRACT_TOOL) return readCreationContract({ carrier, members, selector, reference, requireGrant, reopen });
     if (carrier.source_kind === RECORD_KIND_SOURCE) {
       throw refuse(REASONS.TOOL_SOURCE_MISMATCH, { subject, tool, source_kind: carrier.source_kind,
-        cause: `this reference names a record kind, whose input contract is ${RECORD_KIND_CONTRACT_TOOL}'s initial object; ${tool} takes the changes of a saved unit`,
-        choice: `select {input_contract:{tool:"${RECORD_KIND_CONTRACT_TOOL}",members:[...]}} through this reference, or read a saved unit's context for ${tool}` });
+        cause: `the selected source names a record kind, whose input contract is ${RECORD_KIND_CONTRACT_TOOL}'s initial object; ${tool} takes the changes of a saved unit`,
+        choice: `Choose whether to read ${RECORD_KIND_CONTRACT_TOOL}'s initial-object contract through this reference or ${tool}'s changes contract through an intended saved-unit subject. Preserve the needed members and branches in a bulk read; creation or editing intent is not inferred.` });
     }
     if (!INPUT_CONTRACT_SOURCE_KINDS.includes(carrier.source_kind)) {
       throw refuse(REASONS.SOURCE_NOT_SAVED_UNIT, { subject, source_kind: carrier.source_kind,
-        cause: `an input contract is read through the reference of a saved work item, slice, initiative or decision; this reference names a ${carrier.source_kind}`,
-        choice: `read the saved unit's own context with ${readTool}({subject:<unit id>}) and select through the reference it returns` });
+        cause: `an input contract requires a saved work item, slice, initiative or decision; the selected source names a ${carrier.source_kind}`,
+        choice: 'Choose the intended saved-unit subject; request this same input_contract selection directly in reads. No unit is inferred and no preliminary context read is required.' });
     }
     requireGrant(carrier.source_kind, "input_contract");
     const exposure = requestContracts?.contractFor(tool)?.inputSchemaExposure ?? null;
@@ -301,10 +314,7 @@ export function createReadWikiInputContractReader({ requestContracts, invalid, r
       if (selector.view === "choices") return await choicesResult(source, tool, reference, members);
       selected = source.select({ members, ...(selector.branches ? { branches: selector.branches } : {}) });
     } catch (error) {
-      if (error.code?.startsWith("requirements_capability_") || error.code === INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_INVALID) {
-        throw invalid(error.code, { subject, cause: error.message, effects: { reads: [], writes: [] },
-          next_calls: [ { tool: readTool, arguments: { reads: [{ reference, select: { input_contract: { tool, members, view: "choices" } } }] } } ] });
-      }
+      if (inputContractSelectionError(error)) throw await branchRefusal(error, source, { ...selector, members }, reference, subject);
       if (error.code !== INPUT_SCHEMA_EXPOSURE_CODES.SELECTION_MEMBER_UNKNOWN) throw error;
       const unknown = members.filter((member) => !source.members.includes(member));
       throw refuse(REASONS.MEMBER_NOT_APPLICABLE, { subject, unit, variant: variant.name, tool, reads: [carrier.source_kind],

@@ -21,12 +21,13 @@ test('incomplete compact accounting names missing associations and public guidan
   const facts = compact('Caller source prose.');
   assert.deepEqual([facts.measurement_performed, facts.accounting_status, facts.accounted_length, facts.remaining_length],
     [true, 'incomplete', 0, 'Caller source prose.'.length]);
-  assert.deepEqual(facts.correction, { tool: 'workspace_read_wiki', arguments: { subject: WK } });
+  assert.deepEqual(facts.correction, { tool: 'workspace_read_wiki', arguments: { reads: [{ subject: WK,
+    select: { field: 'sections.user_requirements' }, for_changes: ['requirements'] }] } });
   assert.match(facts.recovery.missing, /Current exact associations.*original source passages.*caller-authored requirements/u);
   assert.deepEqual(facts.recovery.guidance.map(row => row.tool), Array(3).fill('workspace_read_wiki'));
-  assert.deepEqual(facts.recovery.guidance[0].arguments.subject.topic, ['save_record_inputs', 'requirement_batch', 'source_link']);
+  assert.deepEqual(facts.recovery.guidance[0].arguments.reads[0].subject.topic, ['save_record_inputs', 'requirement_batch', 'source_link']);
   assert.match(facts.link_meaning, /criterion coverage, execution capability.*proof credit/u);
-  assert.doesNotMatch(JSON.stringify(facts.recovery), /opt.out|exception|changes|user_requirement_occurrence/u);
+  assert.doesNotMatch(JSON.stringify(facts.recovery), /opt.out|"exception"|"changes"|user_requirement_occurrence/u);
   assert.equal(compact(null).recovery, undefined);
   assert.equal(compact('  ').recovery, undefined);
 });
@@ -132,10 +133,73 @@ test("parent accounting includes only source-bound deliberate exceptions, with d
   assert.equal(accountParentRequirementSource(null, { ...record, proof_posture: { controlled_contract: { required: false } } }).excepted.length, 0);
 });
 
+test('obligation accounting requires all explicit assertions and separates unmet ordinary residue', async () => {
+  const { accountParentRequirementSource } = await import(
+    '../../packages/wiki-core/src/operations/controlled-contract/contract-requirement-source-links.mjs');
+  const formal = 'The operation returns five.', unmet = 'Preserve the intended experience.';
+  const text = `${formal}\n${unmet}`;
+  const link = passage => resolveRequirementSourceLink({ wkId: WK, text, passage, field: 'source' });
+  const record = { id: WK, sections: { user_requirements: text } };
+  const contract = { authored_requirements: { rows: [{ row_id: 'group', claim_ids: ['one', 'two'], source: link(formal) }],
+    unresolved: [{ text: unmet, reason: 'ambiguous_semantics', source_passages: [link(unmet)] }] } };
+  const assess = ids => accountParentRequirementSource(contract, record, { obligationClaimIds: new Set(ids) });
+  assert.equal(accountParentRequirementSource(contract, record).accounting_status, 'complete', 'literal source accounting retains its population');
+  for (const ids of [[], ['one'], ['two'], ['unrelated']]) {
+    const facts = assess(ids);
+    assert.deepEqual([facts.accounting_status, facts.obligation_coverage, facts.unmet_residue], ['incomplete', 'none', true]);
+    assert.equal(facts.residue.length, unmet.length);
+    assert.equal(facts.excepted.length, 0, 'ordinary residue never becomes an exception');
+  }
+  const mixed = assess(['one', 'two']);
+  assert.deepEqual([mixed.accounting_status, mixed.obligation_coverage, mixed.unmet_residue], ['complete', 'partial', true]);
+  assert.equal(mixed.formal.length, formal.length);
+  const unbound = structuredClone(contract); delete unbound.authored_requirements.unresolved[0].source_passages;
+  assert.equal(accountParentRequirementSource(unbound, record, { obligationClaimIds: new Set(['one', 'two']) }).accounting_status, 'incomplete');
+  const stale = { ...record, sections: { user_requirements: `${text}\nNew meaning.` } };
+  assert.equal(accountParentRequirementSource(contract, stale, { obligationClaimIds: new Set(['one', 'two']) }).residue.length, 0);
+  const optOut = { ...record, proof_posture: { controlled_contract: { required: false, source_passages: [link(text)] } } };
+  assert.equal(accountParentRequirementSource(null, optOut).accounting_status, 'complete');
+  assert.equal(accountParentRequirementSource(null, optOut, { obligationClaimIds: new Set() }).accounting_status, 'incomplete',
+    'a whole-unit applicability decision supplies no unmet requirement meaning');
+});
+
+test('explicit current context is distinct from obligation coverage and unmet residue', async () => {
+  const { accountParentRequirementSource } = await import(
+    '../../packages/wiki-core/src/operations/controlled-contract/contract-requirement-source-links.mjs');
+  const context = 'Earlier work was exploratory.', behavior = 'The operation returns five.', residue = 'Preserve the intended experience.';
+  const text = [context, behavior, residue].join('\n');
+  const link = passage => resolveRequirementSourceLink({ wkId: WK, text, passage, field: 'source' });
+  const definition = { row_id: 'definition', input: { definition: true }, pending: [], constraint_ids: ['defined'], claim_ids: [], source: link(context) };
+  const contract = { authored_requirements: { rows: [definition, { row_id: 'behavior', input: {}, claim_ids: ['one', 'two'], source: link(behavior) }],
+    unresolved: [{ text: residue, reason: 'ambiguous_semantics', source_passages: [link(residue)] }] } };
+  const record = { id: WK, sections: { user_requirements: text } };
+  const assess = ids => accountParentRequirementSource(contract, record, { obligationClaimIds: new Set(ids) });
+  assert.equal(assess(['one', 'two']).accounting_status, 'incomplete', 'a definition and source link alone classify nothing');
+  definition.source_role = 'context';
+  const mixed = assess(['one', 'two']);
+  assert.deepEqual([mixed.accounting_status, mixed.obligation_coverage, mixed.unmet_residue], ['complete', 'partial', true]);
+  assert.equal(mixed.context.length, context.length); assert.equal(mixed.formal.length, behavior.length);
+  assert.equal(mixed.residue.length, residue.length); assert.equal(mixed.excepted.length, 0);
+  assert.equal(assess(['one']).accounting_status, 'incomplete', 'context grants no assertion membership');
+  contract.authored_requirements.rows.push({ ...definition, row_id: 'overlap', source: link(behavior) });
+  const overlapping = assess(['one']);
+  assert.equal(overlapping.accounting_status, 'complete', 'the interval union records only passage accounting');
+  assert.equal(overlapping.obligation_coverage, 'none', 'overlapping context is not formal coverage');
+  assert.equal(overlapping.linked.length, context.length + behavior.length + residue.length);
+  definition.pending = ['behavior.objects'];
+  assert.equal(assess(['one']).accounting_status, 'incomplete', 'incomplete definitions contribute no context');
+  definition.pending = []; definition.input.definition = false;
+  assert.equal(assess(['one']).accounting_status, 'incomplete', 'a role on normative meaning contributes no context');
+  definition.input.definition = true;
+  const stale = accountParentRequirementSource(contract, { ...record, sections: { user_requirements: `${text}\n` } }, { obligationClaimIds: new Set(['one', 'two']) });
+  assert.equal(stale.context.length, 0); assert.equal(stale.context_links.stale_excluded, 2);
+  assert.equal(stale.accounting_status, 'incomplete');
+});
+
 test("exception selectors are bounded and forbidden for proof decisions and withdrawals", async () => {
   const { validateRecordAuthoringException } = await import(
     "../../packages/wiki-core/src/lib/record-authoring-exception.mjs");
-  const apply = { kind: 'grammar', action: 'apply', subject: 'u1', rationale: 'Unrepresentable.' };
+  const apply = { kind: 'grammar', action: 'apply', subject: { kind: 'unresolved', match: { text: 'Meaning.' } }, rationale: 'Unrepresentable.' };
   assert.deepEqual(validateRecordAuthoringException(apply), []);
   const passage = { user_requirement: 'Alpha', user_requirement_occurrence: 2 };
   assert.deepEqual(validateRecordAuthoringException({ ...apply, source_passages: [passage] }), []);
@@ -144,7 +208,7 @@ test("exception selectors are bounded and forbidden for proof decisions and with
     assert.ok(validateRecordAuthoringException({ ...apply, source_passages }).some(row => row.path.startsWith('exception.source_passages')));
   }
   for (const exception of [{ ...apply, kind: 'proof', subject: 'OBL-001' },
-    { kind: 'grammar', action: 'withdraw', subject: 'u1' }]) {
+    { kind: 'grammar', action: 'withdraw', subject: apply.subject }]) {
     assert.ok(validateRecordAuthoringException({ ...exception, source_passages: [passage] }).length);
   }
 });
@@ -155,7 +219,7 @@ test("quotation recovery preserves the exception-only transaction and names a sa
     assert.equal(error.details.field, 'exception.source_passages[0].user_requirement');
     assert.match(error.details.correction, /ordinary save first/u);
     assert.match(error.details.correction, /omit exception.source_passages.*accounting gap/u);
-    assert.equal(error.details.read_call.arguments.subject, WK);
+    assert.equal(error.details.read_call.arguments.reads[0].subject, WK);
     return true;
   });
 });

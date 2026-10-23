@@ -4,14 +4,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { isMap, isScalar, parseDocument, visit } from 'yaml';
-import { reportedTestFailureLocation } from '../workspace-agent-test-proof-error-diagnostic.mjs';
+import { reportedTestFailureLocation, nativeRecordFailureDiagnostic } from '../workspace-agent-test-proof-error-diagnostic.mjs';
+import { nativeTextFailureReport, nativeLoadingFailureReport, nativeCorrectionLines } from './native-text-failure-report.mjs';
 
 export function distillCorrection(text) {
   if (typeof text !== 'string') return text;
   const lines = text.split(/\r?\n/u);
   const cause = lines.find(line => stripVTControlCharacters(line).trim().length > 0);
-  const corrections = lines.filter(line => /^\s*(?:Correction|Required correction|Fix|Remedy|Action|Expected(?: string| pattern| substring)?|Actual|Received(?: string| pattern| substring)?|Caused by)[\t ]*:\s*\S/iu
-    .test(stripVTControlCharacters(line)));
+  const corrections = nativeCorrectionLines(lines);
   const startup = lines.filter(line => /Missing X server or \$DISPLAY|without (?:having )?an? XServer|Executable doesn't exist at|error while loading shared libraries|No usable sandbox/u
     .test(stripVTControlCharacters(line)))
     .map(line => line.replace(/^\s*\[pid=\d+\]\[(?:err|out)\]\s*/u, ''));
@@ -65,6 +65,7 @@ function operand(node) {
   if (node.type === 'PLAIN' && /^-?\d+n$/u.test(node.source)) return { type: 'bigint', value: node.source.slice(0, -1) };
   if (typeof node.value === 'number' && !Number.isFinite(node.value)) return {
     type: 'nonfinite_number', value: String(node.value) };
+  if (Object.is(node.value, -0)) return { type: 'negative_zero' };
   if (typeof node.value === 'number' && Number.isInteger(node.value) && !Number.isSafeInteger(node.value)) {
     return { format: 'native_yaml', display: node.source };
   }
@@ -85,8 +86,8 @@ function failureMeaning(document, name, root) {
   const throwLocation = typeof stack !== 'string' ? undefined : reportedTestFailureLocation(undefined,
     stack.split('\n').map(line => `    at ${line.trim().replace(/^at /u, '')}`), root);
   const error = { message };
-  for (const [source, target] of [['errorType', 'name'], ['code', 'code'], ['operator', 'operator']]) {
-    if (typeof field(source) === 'string') error[target] = field(source);
+  for (const key of ['name', 'code', 'operator']) {
+    if (typeof field(key) === 'string') error[key] = field(key);
   }
   if (throwLocation !== undefined) error.location = throwLocation;
   for (const key of ['expected', 'actual']) {
@@ -365,8 +366,34 @@ export function ordinaryTestSemanticDiagnosis(result) {
       path.basename(command[0] ?? '') === 'go' && command[1] === 'test')) return goDiagnosis(result);
   const nodeCommand = Array.isArray(command) && ['node', 'nodejs'].includes(path.basename(command[0] ?? '')) &&
     command[1] === '--test';
-  if (result.identity?.runner !== 'node-test' && !nodeCommand) return unavailable('native_failure_report_unsupported');
+  if (result.identity?.runner !== 'node-test' && !nodeCommand) {
+    const report = nativeTextFailureReport(result.run.stdout);
+    if (report !== null) {
+      const root = checkoutRoot(result.identity);
+      const failures = report.failures.map(row => {
+        const location = testLocation(row.location, root);
+        const errorLocation = reportedTestFailureLocation(undefined, row.frames ?? [], root);
+        return { test: { name: row.name, ...(location === undefined ? {} : { location }) },
+          ...(row.error === undefined ? { diagnosis_unavailable: row.diagnosis_unavailable } : {
+            error: { ...row.error, ...(errorLocation === undefined ? {} : { location: errorLocation }) } }) };
+      });
+      return diagnosed(failures, !report.complete || report.failures.some(row => row.error === undefined)
+        ? 'native_failure_report_incomplete' : undefined);
+    }
+    const loading = nativeLoadingFailureReport(result.run.stderr);
+    return loading === null ? unavailable('native_failure_report_unsupported') : diagnosed([loading]);
+  }
   if (typeof result.run.stdout !== 'string' || result.run.stdout.length === 0) return unavailable('native_failure_capture_unavailable');
   const text = stripVTControlCharacters(result.run.stdout).replace(/\r\n/gu, '\n');
   return text.startsWith('TAP version 13\n') ? nodeTapDiagnosis(text, result.identity) : nodeSpecDiagnosis(text, result.identity);
+}
+
+export function nativeExecutionFailureDiagnostic(run) {
+  if (run?.ran !== true || run.disposition !== 'failed' || run.timed_out === true ||
+      run.cancelled === true || run.output_truncated === true || run.exit_code === 0) return null;
+  if (run.test_proof_observation?.detail?.observed_count > 0 || nativeTextFailureReport(run.stdout) !== null) return null;
+  const loading = nativeLoadingFailureReport(run.stderr);
+  if (loading === null) return null;
+  return nativeRecordFailureDiagnostic({ records: [loading.error],
+    origin: { kind: 'phase', name: `${loading.operation.phase} ${loading.operation.subject}` } });
 }

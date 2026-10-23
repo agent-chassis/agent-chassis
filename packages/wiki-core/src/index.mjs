@@ -104,8 +104,6 @@ export {
   ensureSidecarIndex
 } from "./lib/sidecar-ensure.mjs";
 export { SIDECAR_GRAPH_IMPACT_DIFF_RAW_PATCH_LIMITS } from "./lib/sidecar-impact.mjs";
-export { getSidecarContextForPath } from "./lib/sidecar-query-context.mjs";
-export { getSidecarQueryImpact } from "./lib/sidecar-query-impact.mjs";
 export {
   SIDECAR_DIRTY_IGNORED_RUNTIME_PATTERNS,
   SIDECAR_FORBIDDEN_PATH_PATTERNS,

@@ -1367,6 +1367,20 @@ selection nor execution outcomes.
 
 The structured diagnosis recognizes node:test's terminal spec failure section,
 TAP failure diagnostic blocks and Go's standard text test/build reports.
+Node TAP diagnosis preserves the exception type supplied by the reporter's
+`name` field. Both Node formats preserve negative-zero scalar assertion operands as
+`{type:"negative_zero"}` before retention or JSON delivery, keeping them distinct
+from ordinary numeric zero. Ordinary finite, safely represented numbers remain
+numbers. This representation changes neither the reported failed outcome nor
+proof credit; retained native and structured-result reads share the same diagnosis.
+It also joins native failed-result lists to their own terminal exception
+sections by the reported subject. Aggregate failed summaries and passing-test
+output are not additional failures. A unique failed block keeps its exception,
+reported declaration and throw locations, and labelled expected/actual displays;
+printed displays do not establish typed assertion evidence. A missing or
+ambiguous block retains that failure's unavailable diagnosis without borrowing
+another block. A loader's explicit pre-test exception report retains its loading
+subject and stated cause even when no test was observed.
 Node diagnosis applies to the native `node-test` runner and a literal
 `node --test` command. An arbitrary script receiving a `--test` argument does
 not establish that framing. Go
@@ -1561,6 +1575,18 @@ modifiers. No refused executable control is stripped into a runnable worker
 retry. Timeout uses `short`, `medium` (default), `long` or `{seconds}`, sharing
 one total budget across candidate and comparison. Unknown/hybrid fields refuse
 with `run_test.request_invalid.v1` before preparation.
+
+Input refusals report independently known invalid fields and their deciding
+constraints, including accepted patterns, members and locations from the enforced
+schema. Role-excluded execution controls explain the bound-source or assigned-command
+restriction; they do not become an executable request with those controls removed.
+The caller supplies missing choices and explicitly corrects or omits rejected
+inputs. A known, unambiguous retained-read shape correction may be returned directly.
+Large validation diagnoses use the existing authenticated complete-diagnosis call
+with `native:{view:"failure"}`. It preserves the rejected request's validation
+meaning and known nonexecution, and executes nothing. When that reader or retention
+is unavailable, the response states the specific limitation without clipping rules,
+inventing a retry or changing the 1,024-byte native bound.
 
 #### Repository harness (orchestrator/reviewer)
 
@@ -1878,6 +1904,14 @@ Unframed captured text is not proof of causality or a test-count oracle.
 When established structured meaning or environment choices cannot fit this
 native route, an issued `get_run_result({result,native:{view,...}})` call delivers
 that complete selected meaning through the authenticated result reader.
+Structured delivery is selected before excerpt formatting, including when
+essential fields and continuation overhead alone exceed the native bound.
+The compact reply preserves the recorded execution outcome and diagnostic
+uncertainty; its complete-diagnosis call keeps the exact retained result, view
+and explicit failed-result selection. Semantic meaning is delivered whole,
+without clipping it to make room for navigation. If that reader is unavailable,
+the reply states the delivery limitation and known outcome, preserves usable
+corrections that still fit, and offers no invented read or execution retry.
 The same native result and caller authority are required; missing or altered
 bindings prevent the read. This route exposes neither streams nor excerpts,
 reruns nothing and grants no execution or proof authority. Complete environment
@@ -1949,12 +1983,23 @@ if that reader is unavailable the refusal states the precise stopping condition
 instead of erasing the selection error with a presentation overflow. Reading
 assignment guidance does not authorize a command absent from the frozen grant.
 
-A genuinely missing command or moved/unavailable listed definition may offer
-`request_assignment_change` through the existing authenticated completion owner.
-Its acceptance ends the worker attempt. The caller must confirm facts and
-supply truthful completed/remaining-work testimony before submitting the proposal;
-empty arrays in a proposal are incomplete testimony, not a claim that no work
-exists. Offering a proposal submits nothing and changes no frozen grant.
+A genuinely missing command or moved/unavailable listed definition may offer a
+non-executable `request_assignment_change` template through the authenticated
+completion owner. `known_arguments` carries diagnostic evidence;
+`missing_caller_input` names the assignment claim, what it prevents, requested
+correction, and completed/remaining work that the caller must supply. There is
+no terminal call in `next_calls` before this testimony exists. Deliberately
+supplied empty work arrays remain valid; the producer never inserts placeholders
+or infers work. Acceptance ends the worker attempt. Presenting or reading the
+template submits nothing and changes no frozen grant; retained reads recheck
+current completion availability.
+The same assignment-context check used by `request_assignment_change` permits
+an exactly bound worker to report missing or denied frozen content. Recovery
+preserves `assignment.state:"unavailable"` and the specific failed read cause;
+it does not treat the unread content as verified. Invalid pins, corrupt content,
+binding/authentication failures and competing completion retain their refusals.
+An oversized template is available through the returned complete structured
+read; its known arguments are never clipped into a different request.
 
 #### Explicit retries and unavailable recovery
 

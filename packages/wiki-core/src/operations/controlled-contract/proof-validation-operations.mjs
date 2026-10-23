@@ -33,11 +33,11 @@ function validationCall(resolved, fields = {}) {
   } };
 }
 
-function wholeUnitCriterionCoverage(pkg, resolved, validObligationIds) {
+function wholeUnitCriterionCoverage(pkg, resolved, validObligationIds, obligationStatuses = []) {
   return assessAcceptanceCriterionCoverage({
     inventory: acceptanceCriterionInventory(pkg, resolved.unit),
     obligations: resolved.source?.content?.obligations ?? [],
-    validObligationIds, wkId: resolved.wkId, selectedUnit: resolved.selectedUnit,
+    validObligationIds, obligationStatuses, wkId: resolved.wkId, selectedUnit: resolved.selectedUnit,
     focus: resolved.focus });
 }
 function selectedObligationCoverageScope(resolved) {
@@ -121,6 +121,7 @@ const dispatchNotAssessed = resolved => ({ status: 'not_assessed',
 function compactCriterionCoverage(coverage) {
   return { status: coverage.status, criteria: coverage.criterion_count, covered: coverage.covered_count,
     uncovered: coverage.uncovered_count, stale: coverage.stale_association_count,
+    criterion_gaps: coverage.criterion_gaps, removed_criterion_associations: coverage.removed_criterion_associations,
     correction: coverage.correction };
 }
 
@@ -205,6 +206,16 @@ async function captureAssessmentSubjects(inventory, resolved) {
   const source = await createPublicSelectionSource({ captured: resolved, population: 'all' });
   const populations = await Promise.all(['requirements', 'verifications'].map(async population =>
     (await resolvePublicSelections({ source, population, intent: 'read' })).results[0]));
+  const componentCases = relevant.some(diagnosis => diagnosis.subjects.some(subject => subject.component_requirement !== undefined))
+    ? (await resolvePublicSelections({ source, population: 'cases', intent: 'read' })).results[0] : null;
+  const currentComponent = subject => {
+    const selected = componentCases?.status === 'resolved'
+      ? componentCases.matches.find(match => match.selector.id === subject.case_id) : undefined;
+    if (selected === undefined) return { state: 'unavailable',
+      cause: componentCases?.issue?.cause ?? 'The affected case component cannot be established in this captured source.' };
+    const value = selected.meaning.component;
+    return value === undefined ? { state: 'absent' } : { state: 'supplied', value };
+  };
   const matches = populations.flatMap(population => population.status === 'resolved' ? population.matches : [])
     .filter(match => ['requirement', 'verification'].includes(match.kind));
   const unresolved = populations.find(population => population.status !== 'resolved');
@@ -251,6 +262,8 @@ async function captureAssessmentSubjects(inventory, resolved) {
     const affectedField = authoredField ?? ({ controlled_contract_node_ids: 'obligations[].claims', case_id: 'obligations[].case',
       statement: 'obligations[].statement', selection: 'obligations[].proof' })[pathField];
     return { ...facts, ...(affectedField === undefined ? {} : { field: affectedField }),
+      ...(facts.component_requirement === undefined ? {} : { component_requirement: {
+        ...facts.component_requirement, current: currentComponent(subject) } }),
       ...(pathField || path === undefined ? {} : { path }),
       ...(node === undefined && claim === undefined ? {} : { requirements: meanings(node ?? claim, 'requirement') }),
       ...(verification === undefined ? {} : { verification: meanings(verification, 'verification') }),
@@ -487,7 +500,10 @@ function assessProof(input, deps, { capture, fields }) {
     }
 
     const coverage = wholeUnitCriterionCoverage(pkg, resolved,
-      result.rows.filter(row => row.status === 'valid').map(row => row.obligation_id));
+      result.rows.filter(row => row.status === 'valid').map(row => row.obligation_id),
+      result.rows.map(row => ({ obligation_id: row.obligation_id,
+        status: executableMapFailure === null || row.semantic_status === 'invalid' || row.status === 'valid'
+          ? row.status : 'unavailable' })));
     const issues = [...definitions.entries.map(entry => entry.issue), ...proofValidationIssues({ authoringGroups: diagnosticProjection.groups,
       rawGroups: grouped.groups, semanticGroups, semanticMeaning: semanticCauseMeaning })];
     const answer = proofValidationAssessment({

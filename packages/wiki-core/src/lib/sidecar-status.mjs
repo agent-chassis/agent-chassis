@@ -16,8 +16,6 @@ import { SIDECAR_STORE_GRAPH_FILE, SIDECAR_STORE_SCHEMA_VERSION } from
   "./sidecar-store-schema.mjs";
 
 const execFileAsync = promisify(execFile);
-const generatorIdentityCache = new Map();
-const generatorIdentityInFlight = new Map();
 export const SIDECAR_DEFAULT_CACHE_DIR = ".cache/repo-code-index";
 export const SIDECAR_DEFAULT_ARTIFACT_FILE = SIDECAR_STORE_GRAPH_FILE;
 
@@ -243,27 +241,8 @@ function projectClassification(store, classification) {
     available: true, graphAvailable: false };
 }
 
-export async function resolveSidecarGeneratorIdentity(gitState) {
-  const cacheKey = `${gitState.repoRoot}\0${gitState.index_head}`;
-  const settled = generatorIdentityCache.get(cacheKey);
-  if (settled) return settled;
-  let pending = generatorIdentityInFlight.get(cacheKey);
-  if (!pending) {
-    pending = computeSidecarGeneratorIdentity({ repoRoot: gitState.repoRoot });
-    generatorIdentityInFlight.set(cacheKey, pending);
-  }
-  try {
-    const generator = await pending;
-    generatorIdentityCache.set(cacheKey, generator);
-    while (generatorIdentityCache.size > 8) {
-      generatorIdentityCache.delete(generatorIdentityCache.keys().next().value);
-    }
-    return generator;
-  } finally {
-    if (generatorIdentityInFlight.get(cacheKey) === pending) {
-      generatorIdentityInFlight.delete(cacheKey);
-    }
-  }
+export async function resolveSidecarGeneratorIdentity() {
+  return computeSidecarGeneratorIdentity();
 }
 
 export function createSidecarIndexStatusEnvelope({ gitState, artifactPaths, store,
@@ -341,7 +320,7 @@ export async function getSidecarIndexStatus({
         requestedInputIdentity: verifyCheckout ? (await collectSidecarCheckoutInputs(gitState.repoRoot)).identity
           : store.publication.base_coverage?.checkout_identity,
         ...(verifyCheckout ? { generatorIdentity: async () =>
-          (await resolveSidecarGeneratorIdentity(gitState)).generator_identity } : {}),
+          (await resolveSidecarGeneratorIdentity()).generator_identity } : {}),
         providerInputsChanged: async () => verifyCheckout &&
           sidecarProviderInputsChangedAtCommit(store.publication, process.env)
       });

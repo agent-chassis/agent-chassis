@@ -93,6 +93,7 @@ async function saveWorkItem({ repoRoot, unit, revision, changes, exception }, op
 
   const owners = { pkg, now: options.now ?? today, repository: options.repository ?? null,
     registeredTier: options.registeredTier ?? null,
+    requirementAuthoring: options.requirementAuthoring,
     resolveExternalReference: options.resolveExternalReference ?? null,
     resolveRetainedGraphEvidence: options.resolveRetainedGraphEvidence ?? null };
   let plan;

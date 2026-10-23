@@ -2,10 +2,10 @@
   "schema_version": "public-docs-manifest.v1",
   "package": {
     "name": "@agent-chassis/core",
-    "version": "0.12.2"
+    "version": "0.12.3"
   },
-  "entry_count": 127,
-  "available_count": 119,
+  "entry_count": 128,
+  "available_count": 120,
   "entries": [
     {
       "logical_path": "docs/acceptance-coverage-mcp.md",
@@ -13,8 +13,8 @@
       "bundle_path": "docs/acceptance-coverage-mcp.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "4cb2eca74b053d83f85f4e9083d36fb5728de0889825c9fae91d1a12be66af34",
-      "bytes": 159301
+      "sha256": "df49731a8eb85ea6b40f948e3e25b7086d9589d1c0f1bd62f51795634e60e280",
+      "bytes": 172869
     },
     {
       "logical_path": "docs/adoption.md",
@@ -40,8 +40,8 @@
       "bundle_path": "docs/agent-feedback.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "1553ca36b7f89aaed7b066a73e3a0616894a8171495f2203108e004233b159bd",
-      "bytes": 4289
+      "sha256": "3d8bbb3ab310c6defb0dc7b196704b017285a93afa73fbc3e68c0c600d40e7fb",
+      "bytes": 7857
     },
     {
       "logical_path": "docs/agent-launch-conduit-authority-and-review-sources.md",
@@ -85,8 +85,8 @@
       "bundle_path": "docs/agent-launch-family-runtime-state.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "395796b20649668f8b68e5c3314cddb40d63235ab793b9666c20f63c8bbe5238",
-      "bytes": 42813
+      "sha256": "0fca1f593483172dd250f582e9b04971e4a012b9e535abcfdf494a9f151bbc3b",
+      "bytes": 46109
     },
     {
       "logical_path": "docs/agent-launch-git-status-interception.md",
@@ -94,8 +94,8 @@
       "bundle_path": "docs/agent-launch-git-status-interception.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "4b0d80dfae5fac084e329ad0107d23b8b20f47aafe11fa4b809173fec2d2cb72",
-      "bytes": 11397
+      "sha256": "999ade2f572026aebb10b084de7a92353593b1f83239244d472cd0ba0d640e86",
+      "bytes": 11412
     },
     {
       "logical_path": "docs/agent-launch-local-config.md",
@@ -112,8 +112,8 @@
       "bundle_path": "docs/agent-launch-mcp-conduit-lifecycle.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "7ff2f30932fd221faf208bdd541ac19501e54ea5ede178d164a990acdea8ee84",
-      "bytes": 30743
+      "sha256": "3ba1396f64712eaf85b961e92ec8e55aaafc489a8aa96a2eca07e64f7d546852",
+      "bytes": 32113
     },
     {
       "logical_path": "docs/agent-launch-operator-entrypoints.md",
@@ -121,8 +121,8 @@
       "bundle_path": "docs/agent-launch-operator-entrypoints.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "ed40517b9c8e09ef5b0d82e31207a66fb367248d821c786b604f5255cd77fb73",
-      "bytes": 7223
+      "sha256": "d6f666267b4a010083ebd80cb85f1aa0496759239896ef0d9ed2c2d32d359260",
+      "bytes": 8110
     },
     {
       "logical_path": "docs/agent-launch-policy-profiles.md",
@@ -139,8 +139,8 @@
       "bundle_path": "docs/agent-launch-quickstart.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "964a982c79d099aa2ef42193e22e245c3f5e15ac5620a8253c5849e8929b2cd0",
-      "bytes": 12269
+      "sha256": "e0531a6accb556a1781b72198bb01789170c3dcebf906eedd26bc6af3a9e0a94",
+      "bytes": 12668
     },
     {
       "logical_path": "docs/agent-launch-run-provenance.md",
@@ -211,8 +211,8 @@
       "bundle_path": "docs/enforcement-model.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "398ef1b44499f97138c9f4b363929e2125f959767b882f3dfd968dcb0fbd5682",
-      "bytes": 86903
+      "sha256": "72760537a4d4eb365ef16210b93f4bb42345305b094f52c97d3f0e9fa35cd772",
+      "bytes": 88353
     },
     {
       "logical_path": "docs/env-reference.md",
@@ -220,8 +220,8 @@
       "bundle_path": "docs/env-reference.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "6e0e0afc695b037a0ea6adf74eb35f1e5c437da42e1b22d34ddcbc148f63884d",
-      "bytes": 22733
+      "sha256": "717bbe7a853e75e90b590f9b8db68d8596197055fd1f6da105455ea968a01d9d",
+      "bytes": 23070
     },
     {
       "logical_path": "docs/index.md",
@@ -229,8 +229,8 @@
       "bundle_path": "docs/index.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "1ca9590e5157dc9a175a7a390db43b2be737d185dc4ead1fd53fb362f7acfb98",
-      "bytes": 6167
+      "sha256": "1fb23dc9ae1b83cbca2217087d46611c2ed366b230a278e44d6545c1d1e43887",
+      "bytes": 6188
     },
     {
       "logical_path": "docs/initiative-status.md",
@@ -256,8 +256,8 @@
       "bundle_path": "docs/local-package-install.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "8f9f2570a6732dddbb16736b221f68782fd89395d71cd9b010334dc0c0e6bbcd",
-      "bytes": 14458
+      "sha256": "65b6d93b8f14fcedf45b78945b947809f310cfb47a39152f174eaddaa1a1a7b9",
+      "bytes": 17091
     },
     {
       "logical_path": "docs/local-test-runtime-setup.md",
@@ -265,8 +265,8 @@
       "bundle_path": "docs/local-test-runtime-setup.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "35d1f6a7c3ef7720185bcb92fd8d9bcb3d46c3a1f3a8577ba8ffc0f637e5b25a",
-      "bytes": 131179
+      "sha256": "0b0c4d7245bf73b4423cb61dcc090fa1922f1c4456e72b6ebd9c5f26f0772fca",
+      "bytes": 134550
     },
     {
       "logical_path": "docs/mcp-controlled-contract-operations.md",
@@ -274,8 +274,8 @@
       "bundle_path": "docs/mcp-controlled-contract-operations.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "bdf1d6414b9befc6ea924e6283dc22de0d06476989b315ddfd556955addfd07f",
-      "bytes": 120569
+      "sha256": "c26adcb756ddbd437c367441e93bf3b1169ddef402c8e4889ff1f26e6e0681d0",
+      "bytes": 128567
     },
     {
       "logical_path": "docs/mcp-dispatch-assignment-recovery.md",
@@ -292,8 +292,8 @@
       "bundle_path": "docs/mcp-dispatch-launch-and-admission.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "6b682d0f2d71f620032a18a201f73ed1b77bd0358a82559fe664ac3e9df2a1e6",
-      "bytes": 111952
+      "sha256": "c679667fb94b34b4994ee86d018d751979f7f6d758c6bd12f26a49704fbe5496",
+      "bytes": 115867
     },
     {
       "logical_path": "docs/mcp-dispatch-managed-run-lifecycle.md",
@@ -310,8 +310,8 @@
       "bundle_path": "docs/mcp-dispatch-monitoring-and-ownership.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "3987fe723a3b34f40f2dd9c3b426b34fe394bc4b6318ff74f3f99eb83794dd74",
-      "bytes": 20533
+      "sha256": "dbd6892572b8e95cbdc5cde1f56facde4aa9d0bd6e9524cef1a295adb11309d0",
+      "bytes": 21914
     },
     {
       "logical_path": "docs/mcp-dispatch-runtime-contract.md",
@@ -319,8 +319,8 @@
       "bundle_path": "docs/mcp-dispatch-runtime-contract.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "b11fbf38cb59a15133d21c57359153098b6d444acb9495be75c3eb611424aed2",
-      "bytes": 175602
+      "sha256": "a35adccf5d99c8646e182a4b4a608eda0234efc8a5554bdeaae9e9fde489f078",
+      "bytes": 176341
     },
     {
       "logical_path": "docs/mcp-dispatch-slice-integration.md",
@@ -328,8 +328,8 @@
       "bundle_path": "docs/mcp-dispatch-slice-integration.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "5beb80dab96c0e7789dbd2473a9acd00b845c0e10bd91e6bfc96e43a46c014b6",
-      "bytes": 117028
+      "sha256": "6e2d7742f9d148d361631889895e7be3afa998b8de925761a23f8b3b3fb21900",
+      "bytes": 121029
     },
     {
       "logical_path": "docs/mcp-dispatch-terminal-review.md",
@@ -337,8 +337,8 @@
       "bundle_path": "docs/mcp-dispatch-terminal-review.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "0a026891d59624a8644394d17feb125ea3d1e80ea95c4fc4088f11dc6e102b01",
-      "bytes": 156396
+      "sha256": "a1bf5b7cb6273dfb2b8f9d4afa53a5de4bdbb14b4826a1f555b935b5c99472d8",
+      "bytes": 160059
     },
     {
       "logical_path": "docs/mcp-editor-response-projections.md",
@@ -364,8 +364,8 @@
       "bundle_path": "docs/mcp-operation-reference.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "1548fe057479c987aa2ba42548ac04ae1998ddaa68722804e0206cac2955ccd0",
-      "bytes": 24786
+      "sha256": "dbc9798e559ae4cb3be79cad918e469afcba50c635db97278d21ecc659bb34eb",
+      "bytes": 28048
     },
     {
       "logical_path": "docs/mcp-repository-model.md",
@@ -373,8 +373,8 @@
       "bundle_path": "docs/mcp-repository-model.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "b7e30b7cbcef6caf32c99186ecc7b43f5c8bba4961af71bf5dfc52304cda836e",
-      "bytes": 41394
+      "sha256": "8a41e5cf26ba218fd6bdc08374181f5abf15de0435b6a93980dbc9fbd9e52acb",
+      "bytes": 48237
     },
     {
       "logical_path": "docs/mcp-request-assignment-change.md",
@@ -382,8 +382,8 @@
       "bundle_path": "docs/mcp-request-assignment-change.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "10a3b08041daf187b1f57b30ba52ce0141e3716e4bc59509a662ce7533c499e9",
-      "bytes": 5343
+      "sha256": "41e13b7c923c9fe952deccb7f54f4dff2ef0ac32298d40a1492ff1a160d1e8ca",
+      "bytes": 7233
     },
     {
       "logical_path": "docs/mcp-selected-response-details.md",
@@ -391,8 +391,8 @@
       "bundle_path": "docs/mcp-selected-response-details.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "f28d2304d9f1ac53755857c4144f4be7248515bf6fcb73c534fb56070117c738",
-      "bytes": 57551
+      "sha256": "28d296cfd0ae57ab6f5aaaa3d9dc4c0c02024b76637927053db16d9b46d26cf9",
+      "bytes": 58972
     },
     {
       "logical_path": "docs/mcp-telemetry.md",
@@ -436,8 +436,17 @@
       "bundle_path": "docs/package-install.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "a9886ac06c56e859d4b6f9ce8e9f4e023141eff33a4915a1ff298f1a183f2ae8",
-      "bytes": 5139
+      "sha256": "d9010efe7475af396ac32170f1c34c220c7fa21462d5c68d669537daf9d0dd6b",
+      "bytes": 5925
+    },
+    {
+      "logical_path": "docs/paid-library-composition.md",
+      "source_path": "docs/paid-library-composition.md",
+      "bundle_path": "docs/paid-library-composition.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "864058d65e6dac1e168ff12502dae05f887bb6988ea13a1a3a473619066ea6a2",
+      "bytes": 2494
     },
     {
       "logical_path": "docs/proof-pack-parameters.md",
@@ -814,8 +823,8 @@
       "bundle_path": "docs/test-proof-diagnostics.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "8ca7f3d77305e7a4f6959b4ba0797f4808b8894a92b2d22e708b14014f321eff",
-      "bytes": 18259
+      "sha256": "29026faab6b65c2ab1567488c5d8f710a41e27b1b250e3d12a5aec8496c09ff1",
+      "bytes": 18823
     },
     {
       "logical_path": "docs/test-proof-execution.md",
@@ -841,8 +850,8 @@
       "bundle_path": "docs/test-proof-results.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "eee62faf856f4fba438d1635d03049005b3b585d51b2198c0f6bdb4a47a000b4",
-      "bytes": 36898
+      "sha256": "327b1b33074c864f1c7ff5445eebbcc2327e66fa24bd5416bd2df641d04c53b4",
+      "bytes": 39085
     },
     {
       "logical_path": "docs/test-proof-runtime-environments.md",
@@ -886,8 +895,8 @@
       "bundle_path": "docs/tool-discovery-schema.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "8e859a91bf5064f4d22ec91af2fdde1f6da326b66494876dd7bd37b2851b7acf",
-      "bytes": 28964
+      "sha256": "0b88854d979dab800122167ebacaafdb15148266692bb55665af0e89ad9f8f0d",
+      "bytes": 29384
     },
     {
       "logical_path": "docs/tool-discovery-surfaces.md",
@@ -895,8 +904,8 @@
       "bundle_path": "docs/tool-discovery-surfaces.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "95b6aa94f9c8c95873591f88488cfc62772be67d2d91a894f62c9dc382047eb1",
-      "bytes": 6158
+      "sha256": "145400188d2199b343fd70468afe9e27e38b54ca6119c9c810c6b594528f52e7",
+      "bytes": 6446
     },
     {
       "logical_path": "docs/tool-discovery-tiers.md",
@@ -904,8 +913,8 @@
       "bundle_path": "docs/tool-discovery-tiers.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "1ea6f40890bba09ee224d4d29a81634465c602db3c27910bb5461cd703a89c09",
-      "bytes": 6279
+      "sha256": "1d1225e788b1d26fceecda2680f5832e10735ffef76a856c0dd7dfa3f6aef443",
+      "bytes": 6924
     },
     {
       "logical_path": "docs/tool-discovery.md",
@@ -913,8 +922,8 @@
       "bundle_path": "docs/tool-discovery.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "9b9c34bb2d9ad26a06f48a8f3415d663e6981ee467be2ba66dd771e854e0bc95",
-      "bytes": 4835
+      "sha256": "49c9844b3a3136a1a1c4116e0934bf16248c8bfadbbc6d2d5b542384634f2579",
+      "bytes": 5679
     },
     {
       "logical_path": "docs/versioning.md",
@@ -958,8 +967,8 @@
       "bundle_path": "docs/work-record-persistence.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "80c246115cb581e1fe87a7cd25f6836c727cfb6cf631fc5aed41e2c9412e778a",
-      "bytes": 54745
+      "sha256": "e68624ac32a5e3169a5bfbbf7be62f72d3433cff72c72264261357f7e29d105d",
+      "bytes": 68430
     },
     {
       "logical_path": "docs/work-record-schema.md",
@@ -967,8 +976,8 @@
       "bundle_path": "docs/work-record-schema.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "83cbd63d129cbe2979332489ada46fda68f9177e6ca4c8c13621eaf15d7f7ca8",
-      "bytes": 28751
+      "sha256": "6dbbf02fcd0b4926da92cd015abcf1f457d6a4ca3210a77a9970c3721c9df4f7",
+      "bytes": 34791
     },
     {
       "logical_path": "docs/workspace-read-wiki.md",
@@ -976,8 +985,8 @@
       "bundle_path": "docs/workspace-read-wiki.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "a5963bebc1436013f23e5a1aebfd95c4d418ebd2919303e884822c061da2f3b0",
-      "bytes": 12335
+      "sha256": "e9885a51c358c92b2e7e68f33fc5424e40099547d86424742d83322d8caa1bd0",
+      "bytes": 18594
     },
     {
       "logical_path": "internal/docs/branch-worktree-dispatch.md",

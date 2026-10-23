@@ -22,6 +22,11 @@ export const RUN_TEST_EXECUTION_FIELDS = Object.freeze(["entrypoint", "selection
 export const RUN_TEST_CLEARABLE_FIELDS = Object.freeze(["environment", "selection", "timeout", "source"]);
 const MODE_FIELDS = Object.freeze(["read", "retry"]);
 const COMMIT_RE = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
+const ROLE_EXECUTION_FIELDS = Object.freeze({
+  worker: ['entrypoint', 'selection', 'timeout'],
+  reviewer: ['harness', 'environment', 'timeout'],
+  orchestrator: ['harness', 'environment', 'timeout', 'source']
+});
 
 const HARNESS_DESCRIPTION = "Orchestrator/reviewer repository-owned command; workers use entrypoint and selection. " +
   "cwd is a repository-relative directory (including .) inside the authenticated checkout; argv is the " +
@@ -65,9 +70,7 @@ function executionFieldSchemas(z, { described = true, role = null } = {}) {
       z.object({ kind: z.literal("branch"), value: z.string().min(1).max(128) }).strict()
     ]), SOURCE_DESCRIPTION)
   };
-  const allowed = role === 'worker' ? ['entrypoint', 'selection', 'timeout'] :
-    role === 'reviewer' ? ['harness', 'environment', 'timeout'] :
-      role === 'orchestrator' ? ['harness', 'environment', 'timeout', 'source'] : Object.keys(fields);
+  const allowed = ROLE_EXECUTION_FIELDS[role] ?? Object.keys(fields);
   return Object.fromEntries(Object.entries(fields).filter(([key]) => allowed.includes(key)));
 }
 
@@ -83,9 +86,7 @@ export function runTestInputSchema(z, { role = null } = {}) {
       request: locator,
       changes: z.object(executionFieldSchemas(z, { described: false, role })).strict().optional(),
       clear: z.array(z.enum(RUN_TEST_CLEARABLE_FIELDS.filter(field =>
-        role === 'worker' ? ['selection', 'timeout'].includes(field) :
-          role === 'reviewer' ? ['environment', 'timeout'].includes(field) :
-            role === 'orchestrator' ? field !== 'selection' : true))).min(1).optional()
+        ROLE_EXECUTION_FIELDS[role]?.includes(field) ?? true))).min(1).optional()
     }).strict().optional().describe(RETRY_DESCRIPTION)
   }).strict().superRefine((args, context) => {
     const clear = args.retry?.clear ?? [];
@@ -184,13 +185,19 @@ export function runTestReadCorrection(args, schema) {
   return parsed.success ? { read: parsed.data.read } : {};
 }
 
-export function runTestInputRefusal(validationError) {
-  const issues = validationError?.issues ?? [];
-  const field = ({ path, keys }) => [path.map(String).join("."), ...(Array.isArray(keys) ? keys : [])]
-    .filter((part) => part !== "").join(".") || "(request)";
-  return invalid("the workspace_run_test request is not one closed execution, read or retry", {
-    rejected_fields: [...new Set(issues.map(field))].join(", "),
-    issue_count: issues.length,
-    first_issue: issues[0]?.message ?? null
+export function runTestUnavailableInputs(validationError, role) {
+  const allowed = ROLE_EXECUTION_FIELDS[role];
+  if (allowed === undefined) return null;
+  const unavailable = validationError.issues.flatMap(issue => {
+    const changes = issue.path.length === 2 && issue.path[0] === 'retry' && issue.path[1] === 'changes';
+    const keys = issue.code === 'unrecognized_keys' && (issue.path.length === 0 || changes) ? issue.keys
+      : issue.code === 'invalid_enum_value' && issue.path[0] === 'retry' && issue.path[1] === 'clear'
+        ? [issue.received] : [];
+    return keys.filter(key => RUN_TEST_EXECUTION_FIELDS.includes(key) && !allowed.includes(key))
+      .map(key => ({ path: issue.code === 'unrecognized_keys' ? [...issue.path, key] : issue.path, reason: key === 'source'
+        ? 'This role executes only its bound source.' : role === 'worker'
+          ? 'Workers select assigned entrypoint/selection; caller executable controls are unavailable.'
+          : 'This role uses a literal harness; assigned entrypoint/selection are worker inputs.' }));
   });
+  return unavailable.length ? { role, unavailable_inputs: unavailable } : null;
 }

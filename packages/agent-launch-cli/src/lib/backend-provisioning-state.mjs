@@ -277,6 +277,22 @@ function resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch 
 
 function resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch }) {
   return runMaybeAsyncGenerator(function* stableScopeExistenceBaseSteps() {
+
+  let selected = null;
+  if (wkTip === null) {
+    try {
+      selected = yield selectInitialWkBaseBranch({ mainRepo, baseBranch, deps: { runGit } });
+    } catch (error) {
+      return exactSliceResolutionFailure('scope_existence_base_unresolved', { wk_ref: wkRef, base_branch: baseBranch ?? null,
+        resolution_failure: { code: error.code ?? error.name, message: error.message,
+          ...(error.detail === undefined ? {} : { read: error.detail }) } });
+    }
+  }
+  if (wkTip === null && selected === null) return exactSliceResolutionFailure(
+    "scope_existence_base_selection_missing", { wk_ref: wkRef, base_branch: null, required_field: "base_branch",
+      resolution_failure: { code: 'current_checkout_branch_missing',
+        message: 'The root saves no base_branch and the configured checkout HEAD is detached; choose an existing local branch.' } });
+  baseBranch = selected?.branch ?? baseBranch;
   const captured = yield resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch });
   if (captured.ok === false) return captured;
   const recheck = yield observeExactWkTip(runGit, mainRepo, wkRef);
@@ -300,7 +316,8 @@ function resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseB
       actual: observed?.base_sha ?? null
     });
   }
-  return { ok: true, scope_existence_base: captured };
+  return { ok: true, scope_existence_base: captured,
+    ...(selected === null ? {} : { base_selection: selected.selection }) };
   });
 }
 
@@ -355,25 +372,15 @@ export function resolveProspectiveScopeExistenceBase({
   const capturedWk = yield observeExactWkTip(runGit, mainRepo, wkRef);
   if (capturedWk.state === "unreadable") return unreadableWkTipFailure(wkRef, capturedWk, "capture");
   const wkTip = capturedWk.sha;
-
-  const selected = wkTip === null
-    ? yield selectInitialWkBaseBranch({ mainRepo, baseBranch, deps: { runGit } })
-    : null;
-  if (wkTip === null && selected === null) {
-    return exactSliceResolutionFailure("scope_existence_base_selection_missing", {
-      wk_ref: wkRef,
-      required_field: "base_branch"
-    });
-  }
   const stable = yield resolveStableScopeExistenceBase({
-    runGit, mainRepo, wkRef, wkTip, baseBranch: selected?.branch ?? baseBranch
+    runGit, mainRepo, wkRef, wkTip, baseBranch
   });
   if (!stable.ok) return stable;
   return Object.freeze({
     ok: true,
     scope_existence_base: stable.scope_existence_base,
     source: wkTip === null ? "configured_base" : "wk_tip",
-    ...(selected === null ? {} : { base_selection: selected.selection })
+    ...(stable.base_selection === undefined ? {} : { base_selection: stable.base_selection })
   });
   });
 }

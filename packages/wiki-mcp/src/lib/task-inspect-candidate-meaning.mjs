@@ -1,5 +1,5 @@
 import { canonicalCurrentTerminalReviewContract, projectTerminalReviewUnit } from './dispatch-terminal-review-contract.mjs';
-import { buildDispatchContinuation } from './dispatch-tool-helpers.mjs';
+import { candidateInspectionReadCall } from './task-inspect-candidate-read-call.mjs';
 
 function atPointer(document, pointer) {
   let value = document;
@@ -38,8 +38,9 @@ export function candidateDifferenceMeaning({ mainRepo, wkId, selection, requestS
   if (current.ok !== true) return unavailableContract(current.cause, 'current_work_record');
   if (historical.digest !== divergence.historical_digest || current.contract.digest !== divergence.live_digest) {
     return { unavailable: 'The compared authored inputs moved; inspect the WK again after movement settles before choosing an authored correction.',
-      reobserve: buildDispatchContinuation({ tool: 'workspace_inspect_candidate', arguments: { subject: wkId },
-        successPredicate: { fact: 'inspect_candidate.observation_completed', operator: 'is_true' }, requestSchemaAuthority }) };
+      reobserve: candidateInspectionReadCall({ subject: wkId }, {
+        information: 'After the compared authored inputs stop moving, observe current candidate status and the authored differences needed for a review decision. Inspection changes nothing.',
+        requestSchemaAuthority }) };
   }
   const before = projectTerminalReviewUnit(historical.record);
   if (before.ok !== true) return unavailableContract(before.cause, 'candidate_work_record');

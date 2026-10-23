@@ -1,5 +1,13 @@
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { resolveCommittedHead, resolveSidecarRepositoryIdentity } from "./sidecar-repository-identity.mjs";
+import { readCommittedBlobBytes } from "./sidecar-committed-blobs.mjs";
+import { resolveSidecarArtifactPath, runSidecarGit } from "./sidecar-status.mjs";
+import { parseSidecarRuntimeConfig, SidecarRuntimeConfigError } from "./sidecar-runtime-config.mjs";
+import { SidecarIndexEnsureError } from "./sidecar-ensure.mjs";
+import { sidecarPreparationKey, withSidecarPreparation } from "./sidecar-preparation-pool.mjs";
+import { throwIfSidecarPreparationCancelled } from "./sidecar-store-lifecycle.mjs";
 import { observeSidecarRefreshWorker } from "./sidecar-refresh-process.mjs";
 import { projectFailureDiagnosis } from "./diagnostic-projection.mjs";
 
@@ -16,12 +24,102 @@ export const SIDECAR_REFRESH_STATES = Object.freeze(["idle", "queued", "running"
 
 const WORKER_PATH = fileURLToPath(new URL("./sidecar-refresh-worker.mjs", import.meta.url));
 
-export function launchSidecarRefreshWorker({ repoRoot, cacheDir }) {
-  const child = fork(WORKER_PATH, [], { execArgv: [], env: process.env,
-    stdio: ["ignore", "pipe", "pipe", "ipc"] });
-  const worker = observeSidecarRefreshWorker(child);
-  worker.send({ dir: repoRoot, cacheDir });
-  return worker;
+export async function readSidecarRuntimeConfig(repoRoot) {
+  const file = path.join(repoRoot, "agent-launch.toml");
+  const unreadable = cause => new SidecarRuntimeConfigError("sidecar_config_unreadable", {
+    file, cause,
+    correction: `Restore readable committed Git objects for ${file}, then commit a valid code_index.build_heap_mib setting and retry the requesting operation.`
+  });
+  let head, record;
+  try {
+    head = await resolveCommittedHead(repoRoot);
+    record = await runSidecarGit(repoRoot,
+      ["--no-replace-objects", "ls-tree", "-z", head, "--", ":(literal)agent-launch.toml"]);
+  } catch (error) {
+    const diagnosis = projectFailureDiagnosis(error);
+    const reason = diagnosis.errors?.length
+      ? diagnosis.errors.map(row => row.reason).join("; ") : diagnosis.message;
+    throw unreadable(`committed configuration tree lookup failed (${error.code ?? error.name}): ${reason}`);
+  }
+  if (record === "") return parseSidecarRuntimeConfig(null, { file });
+  const entry = /^(100644|100755|120000|040000|160000) (blob|tree|commit) ([a-f0-9]{40}|[a-f0-9]{64})\tagent-launch\.toml\0$/u.exec(record);
+  if (!entry) throw unreadable(`Git returned an invalid configuration tree entry at commit ${head}`);
+  if (!["100644", "100755"].includes(entry[1]) || entry[2] !== "blob") {
+    throw new SidecarRuntimeConfigError("sidecar_config_unsupported_source", {
+      file, cause: `committed configuration has nonregular Git mode ${entry[1]} (${entry[2]})`,
+      correction: `Replace ${file} with a regular TOML file containing a positive integer code_index.build_heap_mib, commit it and retry the requesting operation.`
+    });
+  }
+  let blob;
+  try {
+    blob = (await readCommittedBlobBytes({ repoRoot, objectIds: [entry[3]] })).get(entry[3]);
+  } catch (error) {
+    throw unreadable(`committed configuration blob ${entry[3]} could not be read (${error.code ?? error.name})`);
+  }
+  if (blob?.state !== "available") {
+    throw unreadable(`committed configuration blob ${entry[3]} is unavailable (${blob?.reason ?? "missing result"})`);
+  }
+  let source;
+  try { source = new TextDecoder("utf-8", { fatal: true }).decode(blob.bytes); }
+  catch (error) { throw unreadable(`committed configuration is not valid UTF-8 (${error.name})`); }
+  return parseSidecarRuntimeConfig(source, { file });
+}
+
+export function launchSidecarRefreshWorker({ repoRoot, cacheDir, mode = "refresh",
+  rebuild = false, providerDeadlineMs }) {
+  const controller = new AbortController();
+  let worker = null;
+  const done = (async () => {
+    const config = await readSidecarRuntimeConfig(repoRoot);
+    throwIfSidecarPreparationCancelled(controller.signal);
+    const child = fork(WORKER_PATH, [], {
+      execArgv: [`--max-old-space-size=${config.buildHeapMiB}`], env: process.env,
+      stdio: ["ignore", "pipe", "pipe", "ipc"]
+    });
+    worker = observeSidecarRefreshWorker(child, {
+      operation: mode === "build" ? "buildSidecarIndex" : "ensureSidecarIndex"
+    });
+    worker.send({ dir: repoRoot, cacheDir, mode, rebuild, providerDeadlineMs });
+    return worker.done;
+  })();
+  return { done, get pid() { return worker?.pid ?? null; }, terminate() {
+    controller.abort(new Error("preparation host cancelled the launch"));
+    worker?.terminate();
+  } };
+}
+
+export async function buildSidecarIndexInWorker({ dir = ".", cacheDir, rebuild = false,
+  providerDeadlineMs, signal = null } = {}) {
+  throwIfSidecarPreparationCancelled(signal);
+  let repoRoot;
+  try { repoRoot = await resolveSidecarRepositoryIdentity({ dir }); }
+  catch (cause) {
+    throw new SidecarIndexEnsureError(
+      `repo code-index preparation requires one git repository: ${cause?.message ?? cause}`,
+      { code: "sidecar_repository_unavailable", cause });
+  }
+  const artifact = resolveSidecarArtifactPath({ repoRoot, cacheDir });
+  const key = sidecarPreparationKey(repoRoot, artifact.cacheDir,
+    rebuild ? "rebuild" : "update", true, "explicit-child");
+  const { result } = await withSidecarPreparation(key, async ownedSignal => {
+    const worker = launchSidecarRefreshWorker({ repoRoot, cacheDir: artifact.cacheDir,
+      mode: "build", rebuild, providerDeadlineMs });
+    const cancel = () => worker.terminate();
+    ownedSignal.addEventListener("abort", cancel, { once: true });
+    if (ownedSignal.aborted) cancel();
+    try {
+      return (await worker.done).result;
+    } catch (error) {
+      if (!(error instanceof SidecarRuntimeConfigError)) throw error;
+      const typed = new SidecarIndexEnsureError(error.message, { code: error.code, cause: error });
+      typed.details = error.details;
+      typed.envelope = Object.freeze({ ...typed.envelope, configuration: error.details });
+      throw typed;
+    } finally {
+      ownedSignal.removeEventListener("abort", cancel);
+    }
+  }, signal);
+  return result;
 }
 
 function samePublication(left, right) {
@@ -84,7 +182,8 @@ export function createSidecarRefreshCoordinator({
         ...(error?.details ? { details: Object.fromEntries(Object.entries(error.details)
           .filter(([key]) => key !== "diagnostics")) } : {}),
         subject: { repository: entry.repoRoot, cache: entry.cacheDir, target_commit: entry.target_commit },
-        correction: "Correct the reported repository, cache or worker failure before retrying; publication_outcome states the known effects." };
+        correction: error?.details?.correction ??
+          "Correct the reported repository, cache or worker failure before retrying; publication_outcome states the known effects." };
       entry.retry_not_before = entry.finished_at +
         Math.min(retryBaseMs * 2 ** (entry.consecutive_failures - 1), retryMaxMs);
     }

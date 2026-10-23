@@ -28,10 +28,15 @@ agent-launch review   --app <app> <unit>   # dispatch a findings-only reviewer
 agent-launch redteam  --app <app> <unit>   # dispatch a findings-only redteam
 ```
 
-Where `<app>` is `codex` or `claude` for supported launches and `<unit>` is a
-`WK-####[#slice]` address (or `IN-####` for initiative-scoped redteam). Agy has
-no supported confined launcher adapter and fails closed; do not select it for a
-worker, reviewer, redteam, or orchestrator launch.
+For these direct role commands, `<app>` is `codex` or `claude`, and `<unit>` is a
+`WK-####[#slice]` address (or `IN-####` for initiative-scoped redteam). Agy and
+OpenCode support managed roles and operator orchestrator start/resume. Agy
+direct role commands remain planning-only; OpenCode roles use managed dispatch.
+For both families, select an explicit registered model/effort and enable
+`high_priority_role_guide = true` in the applicable role table. Their resume
+paths use the retained exact native session identity. See [family runtime
+state](agent-launch-family-runtime-state.md#family-runtime-state) for setup and
+native qualification limits.
 
 Examples:
 
@@ -113,8 +118,8 @@ neither merges nor completes work. The current contracts live in
 
 ### Transport and confinement
 
-Managed Codex and Claude clients use a launcher-pinned stdio connector over a
-private Unix-domain socket admission service. Each admitted connection receives
+Managed Codex, Claude, Agy, and OpenCode clients use a launcher-pinned stdio
+connector over a private Unix-domain socket admission service. Each admitted connection receives
 one launcher-owned host wiki-MCP process, its role/tier surface and readiness
 observer. Server code and dependencies stay on the host. Named FIFOs, HTTP/SSE,
 caller-selected endpoints and operator-shell role commands are not this transport.
@@ -136,7 +141,7 @@ session grants determine which operations are available. See
 ### Confined source access and host wiki-MCP
 
 The launcher-owned repository namespace, shared host wiki-MCP socket conduit, and
-unsupported Agy posture are documented in
+family-specific native configuration boundaries are documented in
 [agent-launch-confinement-mcp-conduit.md](agent-launch-confinement-mcp-conduit.md)
 and [agent-launch-mcp-conduit-lifecycle.md](agent-launch-mcp-conduit-lifecycle.md).
 
@@ -149,9 +154,9 @@ boundary, and the `prepared_new_write_roots` dry-run surface are documented in
 
 ### Family runtime state
 
-The per-family launcher runtime-state facts for supported Codex and Claude, plus
-the explicit unsupported Agy posture,
-the four runtime-state classes, and the state-class summary table are
+The per-family launcher runtime-state facts for Codex, Claude, Agy, and OpenCode,
+their native qualification limits, the four runtime-state classes, and the
+state-class summary table are
 documented in
 [agent-launch-family-runtime-state.md](agent-launch-family-runtime-state.md).
 

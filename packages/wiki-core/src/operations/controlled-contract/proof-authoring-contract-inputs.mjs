@@ -1,56 +1,31 @@
 import { accountParentRequirementSource, compactRequirementSourceAccounting } from './contract-requirement-source-links.mjs';
-import { controlledContractContentDigest } from "../../lib/controlled-contract-tools.mjs";
+import { ControlledContractToolError, controlledContractContentDigest } from "../../lib/controlled-contract-tools.mjs";
 import { today } from "../../lib/wiki-shared.mjs";
 import {
   inspectWorkRecordProofPosture,
   prepareControlledAcceptanceProofPostureAmendment
 } from "../../lib/work-record-proof-posture.mjs";
-import {
-  compileControlledContractRequirements,
-  projectControlledContractRequirements,
-  projectControlledContractReferenceClosure,
-  controlledContractIdentityScope
-} from "./contract-requirement-authoring.mjs";
-import { prepareRequirementBatch, requirementDescriptionEntities } from "./contract-requirement-projection.mjs";
+import { projectControlledContractRequirements, projectControlledContractReferenceClosure } from "./contract-requirement-authoring.mjs";
+import { controlledContractIdentityScope } from "./contract-requirement-identity.mjs";
+import { requirementDescriptionEntities } from "./contract-requirement-projection.mjs";
 import { prepareRequirementDescriptionSources } from './contract-requirement-description-sources.mjs';
-import {
-  deriveControlledContractAuthoringVocabulary
-} from "./contract-requirement-vocabulary.mjs";
 
 function contractInput(input, key) {
   return Object.hasOwn(input, key) ? input[key] : undefined;
 }
 
-const requirementCompiler = ({ pkg, initial, contract, retainedReferenceIds = [] }) =>
-  (answer, { statementsOfRows = answer.authored_requirements !== undefined } = {}) =>
-  compileControlledContractRequirements({
-    wkId: initial.wkId,
-    focus: initial.focus,
-    answer,
-    contract,
-    vocabulary: deriveControlledContractAuthoringVocabulary(
-      pkg.NATIVE_CONTRACT_SCHEMA_V1
-    ),
-    buildTestProofTemplate: pkg.buildStableTestProofBindingTemplate,
-    schemaIdentity: {
-      schema_version: pkg.SCHEMA_VERSION_V1,
-      vocabulary_version: pkg.VOCABULARY_VERSION_V1,
-      profile_id: pkg.PROFILE_ID_V1,
-      test_proof_version: pkg.TEST_PROOF_VERSION_V1
-    },
-    retainedReferenceIds,
-
-    ...(statementsOfRows ? { statementBound: Number.POSITIVE_INFINITY } : {})
-  });
-
-export function prepareProofAuthoringRequirementBatch({ pkg, initial, batch, removeRowIds, retireClaimIds, sourceText, selectionContext }) {
-  const contract = initial.contract?.content ?? null;
-  return prepareRequirementBatch({ wkId: initial.wkId, focus: initial.focus, contract, batch, removeRowIds, retireClaimIds,
-    sourceText, selectionContext, compile: requirementCompiler({ pkg, initial, contract }) });
+export function requireRequirementAuthoringOperation(requirementAuthoring, member) {
+  if (typeof requirementAuthoring?.[member] !== "function") throw new ControlledContractToolError(
+    "record_authoring_operation_unavailable",
+    `The captured requirement authoring operation ${member} is unavailable.`, {
+      changed: false, phase: "preparation", operation: member,
+      cause: "The trusted composition supplied no callable operation.",
+      correction: "Supply the captured requirementAuthoring group through trusted host options." });
+  return requirementAuthoring[member];
 }
 
 export function compileProofAuthoringContractInputs({
-  pkg, initial, input, baseContract = initial.contract?.content ?? null,
+  pkg, initial, input, requirementAuthoring, baseContract = initial.contract?.content ?? null,
   retainedReferenceIds = [],
   now = today
 }) {
@@ -59,7 +34,8 @@ export function compileProofAuthoringContractInputs({
   let contract = baseContract;
   let requirementCompilation = null;
   if (requirements !== undefined) {
-    requirementCompilation = requirementCompiler({ pkg, initial, contract, retainedReferenceIds })(requirements);
+    requirementCompilation = requireRequirementAuthoringOperation(requirementAuthoring, "compileRequirements")({
+      pkg, initial, baseContract: contract, retainedReferenceIds, answer: requirements });
     contract = requirementCompilation.content;
   }
   let record = initial.record;

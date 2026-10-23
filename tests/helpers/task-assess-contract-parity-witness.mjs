@@ -46,13 +46,36 @@ export function assertAssessmentIssueSubset(summary, complete) {
   }
 }
 
-export const diagnosisNavigation = body => body.next_calls.filter(call => call.arguments.original?.diagnosis_id)
-  .map(call => ({ ...call, diagnosis_id: call.arguments.original.diagnosis_id }));
+export const diagnosisNavigation = body => body.next_calls.filter(call => call.arguments.original?.diagnoses?.[0]?.diagnosis_id)
+  .map(call => {
+    const subjects = call.subject_definitions === undefined ? call.subjects
+      : call.subjects.map(({ definition_id, ...association }) => {
+        assert.ok(call.subject_definitions[definition_id], 'shared subject meaning is necessary for this choice');
+        return { ...association, ...call.subject_definitions[definition_id] };
+      });
+    return { ...call, subjects: subjects.map(subject => ({ ...subject,
+      ...(subject.requirements === undefined ? {} : { requirements: subject.requirements.map(row => {
+      if (row.definition_id === undefined) return row;
+      assert.ok(body.requirement_definitions?.[row.definition_id], 'shared requirement meaning is necessary for this choice');
+      return body.requirement_definitions[row.definition_id];
+      }) }) })), diagnosis_id: call.arguments.original.diagnoses[0].diagnosis_id };
+  });
 
 export function assessmentSource(body) {
   const source = body.next_calls.find(call => call.arguments.original?.source)?.arguments.original.source;
   assert.ok(source?.ref_id, 'the response must issue a source before historical selection');
   return source;
+}
+
+export function selectAssessmentDiagnoses(calls) {
+  assert.ok(calls.length > 0, 'choose at least one issued diagnosis');
+  const { tool, arguments: { original: { source } } } = calls[0];
+  for (const call of calls) {
+    assert.equal(call.tool, tool);
+    assert.deepEqual(call.arguments.original.source, source, 'selected diagnoses must share an exact retained source');
+    assert.ok(call.arguments.original.diagnoses?.length);
+  }
+  return { tool, arguments: { original: { source, diagnoses: calls.flatMap(call => call.arguments.original.diagnoses) } } };
 }
 
 export async function readAssessmentChoices(body, follow) {
@@ -70,9 +93,18 @@ export function assertDiagnosisMenuMeaning(body) {
   return calls;
 }
 
-export function assertDiagnosisChoiceMeaning(call, selected) {
-  const item = selected.selected_diagnosis, diagnosis = item.diagnosis;
-  assert.equal(call.arguments.original.diagnosis_id, item.diagnosis_id);
+export function selectedAssessmentDiagnosis(body, index = 0) {
+  if (body.selected_diagnoses === undefined) return undefined;
+  const item = body.selected_diagnoses[index];
+  if (item.save_guidance === undefined) return item;
+  const context = body.correction_contexts?.[item.save_guidance.unit];
+  assert.ok(context, 'selected save guidance requires its shared correction context');
+  return { ...item, save_guidance: { ...item.save_guidance, ...context } };
+}
+
+export function assertDiagnosisChoiceMeaning(call, selected, index = 0) {
+  const item = selectedAssessmentDiagnosis(selected, index), diagnosis = item.diagnosis;
+  assert.equal(call.arguments.original.diagnoses[0].diagnosis_id, item.diagnosis_id);
   assert.equal(call.family, diagnosis.family);
   assert.equal(call.code, diagnosis.code);
   assert.equal(call.cause, diagnosis.meaning);
@@ -83,7 +115,7 @@ export function assertDiagnosisChoiceMeaning(call, selected) {
   } else {
     assert.ok(item.recovery?.stop || item.recovery?.instruction || item.recovery?.cause,
       'uncorrectable causes retain their precise limitation');
-    assert.equal(selected.next_calls.some(call => call.purpose === 'current_correction_context'), false);
+    if (selected.selected_diagnoses.length === 1) assert.equal(selected.next_calls.some(call => call.purpose === 'current_correction_context'), false);
   }
 }
 
@@ -108,13 +140,11 @@ export function assertProjectedDiagnostics(diagnostics, label) {
 const definitionReads = new WeakMap();
 export async function readDefinitionDiagnoses(body, follow) {
   if (!definitionReads.has(body)) definitionReads.set(body, (async () => {
-    const diagnoses = [];
-    for (const call of diagnosisNavigation(await readAssessmentChoices(body, follow)).filter(row => row.family === 'definition')) {
-      const selected = await follow(call);
-      assertDiagnosisChoiceMeaning(call, selected);
-      diagnoses.push(selected.selected_diagnosis);
-    }
-    return diagnoses;
+    const calls = diagnosisNavigation(await readAssessmentChoices(body, follow)).filter(row => row.family === 'definition');
+    if (calls.length === 0) return [];
+    const selected = await follow(selectAssessmentDiagnoses(calls));
+    for (const [index, call] of calls.entries()) assertDiagnosisChoiceMeaning(call, selected, index);
+    return selected.selected_diagnoses.map((_, index) => selectedAssessmentDiagnosis(selected, index));
   })());
   return definitionReads.get(body);
 }

@@ -13,6 +13,8 @@ import { WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA } from
 import { RECORD_AUTHORING_SHARED_DEFINITION_CODES as CODES, recordAuthoringDefinitionName,
   recordAuthoringDefinitionReference, resolveRecordAuthoringDefinition, shareRecordAuthoringDefinitions } from
   "../../packages/wiki-core/src/lib/record-authoring-shared-definitions.mjs";
+import { admit, assertInterpretable } from '../../packages/wiki-core/src/lib/controlled-requirement-authoring-schema.mjs';
+import { recordAuthoringSchemaValidator } from '../../packages/wiki-core/src/lib/record-authoring-schema-validation.mjs';
 import { resolveServedNode } from "../helpers/served-request-contract.mjs";
 
 const snapshot = value => JSON.parse(JSON.stringify(value));
@@ -31,9 +33,10 @@ test("a work item's repeated owner objects are stated once and mean what they di
     const schema = recordAuthoringChangeSchema("work_item", context);
     const { case: obligationCase } = WORK_ITEM_SHARED_DEFINITIONS;
 
-    const shared = Object.values(WORK_ITEM_SHARED_DEFINITIONS);
-    assert.deepEqual(shared, ["obligation_case", "case_component", "case_target", "case_falsification", "ready_slice_edit_targets"]);
-    assert.deepEqual(Object.keys(schema.$defs).slice(-shared.length), shared, context);
+    const shared = ['obligation_case', ...['statement', 'criteria', 'claims', 'proof'].map(member => `obligation_${member}`),
+      ...Object.values(WORK_ITEM_SHARED_DEFINITIONS).filter(name => name !== 'obligation_case' && (context !== RECORD_AUTHORING_SLICE_CONTEXT || name !== 'ready_slice_edit_targets'))];
+    const additional = ['content_carrier', ...(context === RECORD_AUTHORING_SLICE_CONTEXT ? [] : ['edit_target_provenance']), 'requirement_selector', 'validation_input'];
+    assert.deepEqual(Object.keys(schema.$defs).slice(-shared.length - additional.length), [...shared, ...additional], context);
     assert.equal(recordAuthoringChangeSchema("work_item", context), schema, "one schema per variant");
     assert.deepEqual(Object.keys(schema.$defs), [...new Set(Object.keys(schema.$defs))]);
 
@@ -47,12 +50,13 @@ test("a work item's repeated owner objects are stated once and mean what they di
     const batch = workItemRequirementBatchSchema(context);
     const { $defs: batchDefinitions, ...batchNode } = batch;
     assert.deepEqual(snapshot(schema.properties.requirements), snapshot(batchNode), context);
-    for (const [name, body] of Object.entries(batchDefinitions)) assert.equal(schema.$defs[name], body, `${context}: ${name} is the batch owner's node`);
+    for (const [name, body] of Object.entries(batchDefinitions)) assert.deepEqual(schema.$defs[name], body, `${context}: ${name} is the batch owner's complete node`);
     assert.deepEqual(schema.properties.requirements.properties.requirements.items,
       { oneOf: [{ $ref: "#/$defs/requirement" }, { $ref: "#/$defs/membership_requirement" },
-        { $ref: "#/$defs/definition_requirement" }] });
+        { $ref: "#/$defs/definition_requirement" }, ...['requirement', 'membership_requirement', 'definition_requirement'].map(name => ({ $ref: `#/$defs/replacement_${name}` }))] });
     const [statementRow, membershipRow] = [schema.$defs.requirement, schema.$defs.membership_requirement];
-    for (const row of [statementRow, membershipRow]) assert.deepEqual(row.properties.verification, { $ref: "#/$defs/requirement_verification" });
+    assert.deepEqual(statementRow.properties.verification, { $ref: "#/$defs/requirement_verification" });
+    assert.equal(Object.hasOwn(membershipRow.properties, 'verification'), false, 'closed membership has no independent check input');
     assert.deepEqual([statementRow.properties.behavior, statementRow.properties.subject, membershipRow.properties.subject],
       [{ $ref: "#/$defs/behavior" }, { $ref: "#/$defs/entity_id" }, { $ref: "#/$defs/entity_id" }]);
 
@@ -86,22 +90,28 @@ test("a work item's repeated owner objects are stated once and mean what they di
     const ownerCase = owner.properties.obligations.items.properties.case.properties;
     const resolved = name => dereferenced(schema, schema.$defs[name]);
     assert.deepEqual([resolved("case_component"), resolved("case_target"), resolved("case_falsification")],
-      [snapshot(ownerCase.component), snapshot(ownerCase.target), snapshot(ownerCase.falsification)]);
-    assert.deepEqual(resolved("ready_slice_edit_targets"),
+      [snapshot(ownerCase.component.oneOf.find(row => row.properties?.identity)), snapshot(ownerCase.target), snapshot(ownerCase.falsification)]);
+    if (context !== RECORD_AUTHORING_SLICE_CONTEXT) assert.deepEqual(resolved("ready_slice_edit_targets"),
       { type: "array", items: snapshot(WORK_RECORD_READY_SLICE_EXPECTED_EDIT_TARGET_SCHEMA) });
     assert.deepEqual(caseBody.oneOf.map(variant => [variant.properties.component, variant.properties.target, variant.properties.falsification]),
       Array(2).fill([{ $ref: "#/$defs/case_component" }, { $ref: "#/$defs/case_target" }, { $ref: "#/$defs/case_falsification" }]));
-    assert.deepEqual(schema.properties.ready_slices.items.oneOf.map(row => row.properties.expected_edit_targets),
+    if (context !== RECORD_AUTHORING_SLICE_CONTEXT) assert.deepEqual(schema.properties.ready_slices.items.oneOf.map(row => row.properties.expected_edit_targets),
       Array(2).fill({ $ref: "#/$defs/ready_slice_edit_targets" }));
 
-    const rowShapes = source => Object.fromEntries(["ready_slices", "obligations"].map(member =>
+    const rowShapes = source => Object.fromEntries([...(context === RECORD_AUTHORING_SLICE_CONTEXT ? [] : ['ready_slices']), "obligations"].map(member =>
       [member, dereferenced(source, source.properties[member])]));
     const meaning = rowShapes(schema);
     const birth = rowShapes(recordAuthoringChangeSchema("work_item", "birth"));
-    assert.deepEqual(meaning.ready_slices.items.oneOf[0], snapshot(birth.ready_slices.items));
+    if (context !== RECORD_AUTHORING_SLICE_CONTEXT) assert.deepEqual(meaning.ready_slices.items.oneOf[0], snapshot(birth.ready_slices.items));
     const { case: resolvedCase, ...resolvedObligation } = meaning.obligations.items.oneOf[0].properties;
     const { case: birthCase, ...birthObligation } = snapshot(birth.obligations.items.properties);
-    assert.deepEqual([resolvedObligation, resolvedCase.oneOf[0]], [birthObligation, birthCase]);
+
+    const { claims: _claims, criteria: _criteria, ...remaining } = resolvedObligation;
+    const { claims: _birthClaims, criteria: _birthCriteria, ...birthRemaining } = birthObligation;
+    assert.deepEqual(remaining, birthRemaining);
+    const { verification: _verification, ...caseRemaining } = resolvedCase.oneOf[0].properties;
+    const { verification: _birthVerification, ...birthCaseRemaining } = birthCase.properties;
+    assert.deepEqual(caseRemaining, birthCaseRemaining);
     assert.deepEqual(meaning.obligations.items.oneOf[0].properties.case, meaning.obligations.items.oneOf[1].properties.case);
     assert.equal(references(meaning).length, 0);
   }
@@ -114,38 +124,42 @@ test("birth shares repeated content and target provenance while other kinds keep
   assert.equal(names.some(name => Object.hasOwn(birth.$defs, name)), false, "birth declares no shared row definition");
 
   const { contentCarrier } = WORK_ITEM_BIRTH_SHARED_DEFINITIONS;
-  assert.deepEqual([contentCarrier, Object.keys(birth.$defs).at(-2), Object.hasOwn(birth.$defs[contentCarrier], "$ref"),
+  assert.deepEqual([contentCarrier, Object.keys(birth.$defs).at(-3), Object.hasOwn(birth.$defs[contentCarrier], "$ref"),
     references(birth.$defs[contentCarrier]).length], ["content_carrier", "content_carrier", false, 0]);
   const carrier = { $ref: "#/$defs/content_carrier" };
   for (const member of ["summary", "user_requirements", "why_it_matters", "notes"]) {
-    assert.deepEqual(birth.properties[member], { anyOf: [{ type: "string" }, carrier] }, member);
+    const bound = member === "notes" ? { max_utf8_bytes: 8192,
+      description: "At most 8192 UTF-8 bytes, including resolved content and separators; characters may occupy multiple bytes." } : {};
+    assert.deepEqual(birth.properties[member], { anyOf: [{ type: "string", ...bound }, carrier],
+      ...(member === "notes" ? { description: bound.description } : {}) }, member);
   }
   assert.deepEqual(birth.properties.entries.items.properties.content, carrier);
   assert.equal(references(birth.properties).filter(ref => ref.endsWith('content_carrier"')).length, 8);
 
-  const inlineCarrier = snapshot(existing.properties.summary.anyOf[1]);
+  const inlineCarrier = snapshot(existing.$defs.content_carrier);
   assert.deepEqual(snapshot(birth.$defs[contentCarrier]), inlineCarrier);
-  assert.deepEqual(dereferenced(birth, birth.properties.summary), snapshot(existing.properties.summary));
+  assert.deepEqual(dereferenced(birth, birth.properties.summary), dereferenced(existing, existing.properties.summary));
   const changed = structuredClone(birth);
   changed.$defs[contentCarrier].oneOf[2].properties.parts.minItems = 0;
-  assert.notDeepEqual(dereferenced(changed, changed.properties.summary), snapshot(existing.properties.summary));
+  assert.notDeepEqual(dereferenced(changed, changed.properties.summary), dereferenced(existing, existing.properties.summary));
   const { [contentCarrier]: _withheld, ...remaining } = birth.$defs;
   assert.throws(() => resolveRecordAuthoringDefinition({ ...birth, $defs: remaining }, birth.properties.entries.items.properties.content),
     refused(CODES.REFERENCE_UNRESOLVED, contentCarrier));
   assert.equal(references(birth.properties).some(ref => names.some(name => ref.endsWith(`${name}"`))), false);
 
-  const selectors = ["row_id", "id", "rebind_case_ids"];
+  const selectors = ["target", "rebind_case_ids", "source_role"];
   assert.deepEqual(Object.keys(birth.$defs.requirement.properties),
     Object.keys(existing.$defs.requirement.properties).filter(member => !selectors.includes(member)));
   assert.deepEqual(Object.keys(birth.$defs.membership_requirement.properties),
     Object.keys(existing.$defs.membership_requirement.properties).filter(member => !selectors.includes(member)));
   assert.equal(Object.hasOwn(birth.$defs.collection.properties, "row_id"), false);
+  assert.deepEqual(dereferenced(birth, birth.$defs.definition_requirement.properties.source_role).const, 'context');
+  assert.deepEqual(dereferenced(existing, existing.$defs.requirement.properties.source_role).const, null,
+    'only a saved target can clear classification while changing to normative meaning');
   for (const name of ["requirement_verification", "behavior", "entities", "membership_clause", "unresolved_meaning"]) {
     assert.deepEqual(snapshot(birth.$defs[name]), snapshot(existing.$defs[name]), name);
   }
-  const meaning = { obligations: dereferenced(existing, existing.properties.obligations) };
-  assert.deepEqual(snapshot(birth.properties.obligations.items.properties.case),
-    meaning.obligations.items.oneOf[0].properties.case.oneOf[0]);
+  assert.equal(birth.properties.obligations.items.properties.case.properties.verification.pattern, '^\\$[a-z][a-z0-9-]{0,63}$');
   for (const kind of ["initiative", "decision"]) {
     const schema = recordAuthoringChangeSchema(kind, "existing");
     assert.equal(names.some(name => Object.hasOwn(schema.$defs, name)), false, kind);
@@ -160,7 +174,7 @@ test("birth target provenance keeps the ready-slice owner's complete meaning and
   const { editTargetProvenance: name } = WORK_ITEM_BIRTH_SHARED_DEFINITIONS;
   const target = birth.properties.ready_slices.items.properties.expected_edit_targets.items;
   const fields = ownerBefore.properties.facet_provenance.properties;
-  assert.equal(Object.keys(birth.$defs).at(-1), name);
+  assert.equal(Object.keys(birth.$defs).at(-2), name);
   assert.deepEqual(birth.$defs[name], fields.path);
   for (const field of Object.keys(fields)) {
     assert.deepEqual(target.properties.facet_provenance.properties[field], { $ref: `#/$defs/${name}` });
@@ -168,7 +182,7 @@ test("birth target provenance keeps the ready-slice owner's complete meaning and
   }
   assert.deepEqual(dereferenced(birth, target), ownerBefore);
   const changed = structuredClone(birth);
-  changed.$defs[name].anyOf[0].enum = changed.$defs[name].anyOf[0].enum.slice(1);
+  changed.$defs[name].anyOf[0].pattern = changed.$defs[name].anyOf[0].pattern.replace('authored_record|', '');
   assert.notDeepEqual(dereferenced(changed, target), ownerBefore, "a removed allowed provenance is a different meaning");
   const { [name]: _withheld, ...remaining } = birth.$defs;
   assert.throws(() => resolveRecordAuthoringDefinition({ ...birth, $defs: remaining },
@@ -225,4 +239,22 @@ test("a name that collides, a node that is unused or a reference that cannot be 
   }
   assert.throws(() => recordAuthoringDefinitionName({ $ref: 7 }), error => error.code === CODES.REFERENCE_UNSUPPORTED);
   assert.equal(recordAuthoringDefinitionName({ type: "string" }), null);
+});
+
+test('conditional source-role admission composes base, allOf and chosen branches without ignoring constraints', () => {
+  const schema = { type: 'object', additionalProperties: false, properties: {
+    role: { enum: ['context', 'ordinary'] }, passage: { type: 'string', minLength: 1 }, target: { type: 'string', minLength: 1 } },
+  required: ['role'], allOf: [{ if: { required: ['role'], properties: { role: { const: 'context' } } },
+    then: { required: ['passage'] }, else: { required: ['target'] } }] };
+  assertInterpretable(schema);
+  const validate = recordAuthoringSchemaValidator(schema);
+  for (const [value, accepted] of [
+    [{ role: 'context', passage: 'Exact source.' }, true], [{ role: 'ordinary', target: 'Chosen target.' }, true],
+    [{ role: 'context', target: 'Target is not a passage.' }, false], [{ role: 'ordinary', passage: 'Not a target.' }, false],
+    [{ role: 'context', passage: '' }, false], [{ role: 'context', passage: 'Exact.', extra: true }, false],
+    [{ passage: 'No role inferred.' }, false]
+  ]) {
+    assert.equal(validate(value), accepted, JSON.stringify(value));
+    assert.equal(admit(schema, value).length === 0, accepted, JSON.stringify(value));
+  }
 });

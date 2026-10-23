@@ -156,3 +156,17 @@ test('process failures retain exit facts and every distinct explicit reason with
   assert.deepEqual(shared.diagnostic.cause.errors, projected.cause.errors);
   assert.doesNotMatch(JSON.stringify(shared), /RAW_STDERR_SENTINEL|RAW_STDOUT_SENTINEL|command failed/u);
 });
+
+test('captured Node fatal diagnostics and uppercase errors project without their surrounding transcript', () => {
+  const error = Object.assign(new Error('process failed'), { signal: 'SIGABRT', stderr:
+    'RAW_TRANSCRIPT_SENTINEL\nFATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory\n' +
+    'ERROR: secondary explicit diagnosis\nFatal: another explicit cause\n    at stack frame\n' });
+  const diagnosis = projectFailureDiagnosis(error);
+  assert.equal(diagnosis.signal, 'SIGABRT');
+  assert.deepEqual(diagnosis.errors, [
+    { severity: 'fatal', reason: 'Reached heap limit Allocation failed - JavaScript heap out of memory' },
+    { severity: 'error', reason: 'secondary explicit diagnosis' },
+    { severity: 'fatal', reason: 'another explicit cause' }
+  ]);
+  assert.doesNotMatch(JSON.stringify(diagnosis), /RAW_TRANSCRIPT_SENTINEL|stack frame/u);
+});

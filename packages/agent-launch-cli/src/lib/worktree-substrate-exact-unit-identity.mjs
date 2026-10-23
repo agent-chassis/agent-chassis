@@ -119,11 +119,20 @@ export function selectInitialWkBaseBranch({ mainRepo, baseBranch, deps = {} } = 
   const runGit = deps.runGit ?? defaultRunGit;
   const repo = assertAbsolutePath(mainRepo, "mainRepo");
   const decide = (result) => {
+    if (result?.ok !== true) {
+
+      if (result?.status === 1 && result.stdout === '' && result.stderr === '' &&
+          !result.error && !result.signal && !result.overflow) return null;
+      fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
+        "cannot resolve the configured checkout's current local branch", { git_operation: 'read_current_checkout_branch',
+          status: result?.status ?? null, error: result?.error ?? null, stderr: result?.stderr ?? null,
+          signal: result?.signal ?? null });
+    }
     const ref = result?.ok === true && typeof result.stdout === "string" ? result.stdout.trim() : "";
     const branch = ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : null;
-    return isCanonicalWorkRecordBaseBranch(branch)
-      ? Object.freeze({ branch, selection: WK_BASE_SELECTION.DEFAULTED })
-      : null;
+    if (!isCanonicalWorkRecordBaseBranch(branch)) fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_REF,
+      'the configured checkout HEAD does not select a canonical local branch', { ref });
+    return Object.freeze({ branch, selection: WK_BASE_SELECTION.DEFAULTED });
   };
   const read = runGit({ repo, args: ["symbolic-ref", "--quiet", "HEAD"] });
   return typeof read?.then === "function" ? read.then(decide) : decide(read);

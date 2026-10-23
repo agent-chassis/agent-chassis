@@ -159,7 +159,7 @@ export function createIntegrationOriginals({ workspace, sessionEnv = process.env
     return project === null ? summary : project({ binding, carrier, summary });
   }
 
-  async function unfinishedPreparation({ units, candidate = null, delivery: requestedDelivery = null }) {
+  function preparationAccounts({ units, delivery: requestedDelivery = null, approvedDelivery = null }) {
     authenticateSession();
     const accounts = new Map();
     for (const unit of units) {
@@ -172,17 +172,38 @@ export function createIntegrationOriginals({ workspace, sessionEnv = process.env
         const approved = carrier.approved_delivery;
         if (!current || typeof delivery?.ref_id !== 'string' || result?.integrated !== true ||
             requestedDelivery !== null && requestedDelivery.ref_id !== delivery.ref_id ||
+            approvedDelivery !== null && !isDeepStrictEqual(approvedDelivery, approved) ||
             approved?.subject !== unit || approved.commit !== result.delivery_sha ||
-            !COMMIT_RE.test(result.wk_sha ?? '')) continue;
-        const account = accounts.get(delivery.ref_id) ?? { complete: false, pending: [] };
-        if (result.candidate_preparation?.state === 'complete' && result.recovery_failure === undefined) account.complete = true;
-        else if ((result.review_target != null || result.integrated_state === 'final') &&
+            !COMMIT_RE.test(result.slice_sha ?? '')) continue;
+        const account = accounts.get(delivery.ref_id) ?? { complete: null, pending: [], entries: [] };
+        const entry = { unit, delivery, integrated: result.slice_sha, result };
+        account.entries.push(entry);
+        if (result.candidate_preparation?.state === 'complete' && result.recovery_failure === undefined) {
+
+          if (account.complete?.result.cleanup?.state !== 'complete' || result.cleanup?.state === 'complete') account.complete = entry;
+        } else if ((result.review_target != null || result.integrated_state === 'final') &&
             result.record_reconciliation?.state !== 'pending' && result.record_reconciliation?.state !== 'blocked') {
-          account.pending.push({ unit, delivery, integrated: result.wk_sha, result });
+          account.pending.push(entry);
         }
         accounts.set(delivery.ref_id, account);
       }
     }
+    return accounts;
+  }
+  function deliveryPreparation({ unit, delivery = null, approvedDelivery = null }) {
+
+    if (delivery === null && approvedDelivery === null) throw new TypeError('delivery preparation requires its authenticated selection');
+    const accounts = preparationAccounts({ units: [unit], delivery, approvedDelivery });
+    if (accounts.size !== 1) return null;
+    const account = accounts.values().next().value;
+    const entries = account.entries;
+    if (new Set(entries.map(entry => JSON.stringify([entry.result.delivery_sha, entry.integrated]))).size !== 1) {
+      refuse('retained_delivery_integration_disagrees');
+    }
+    return { ...(account.complete ?? entries[0]), complete: account.complete !== null };
+  }
+  async function unfinishedPreparation({ units, candidate = null, delivery = null }) {
+    const accounts = preparationAccounts({ units, delivery });
     const choices = [];
     for (const account of accounts.values()) {
       if (account.complete) continue;
@@ -205,14 +226,21 @@ export function createIntegrationOriginals({ workspace, sessionEnv = process.env
     return { tool: 'integrate_work', arguments: { delivery: choices[0].delivery,
       candidate_version: candidate.version_decision.version_identity } };
   }
-  return Object.freeze({ retain, read, unfinishedPreparation });
+  return Object.freeze({ retain, read, unfinishedPreparation, deliveryPreparation });
 }
 
 function failureMeaning(value) {
   if (value?.code === COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED &&
-      value.detail?.reason === "committed_slice_delta_not_applicable") return {
-    code: value.code, reason: value.detail.reason,
-    message: "The selected immutable delivery conflicts with the current WK tip." };
+      value.detail?.reason === "committed_slice_delta_not_applicable" ||
+      value?.code === 'agent_launch.slice_integration.rebase_conflict.v1') {
+    const native = value.detail?.merge_tree;
+    return { code: value.code, ...(value.detail?.reason === undefined ? {} : { reason: value.detail.reason }),
+      message: "The selected immutable delivery conflicts with the current WK tip.",
+      ...(native?.operation === undefined ? {} : { operation: native.operation }),
+      ...(native?.identities === undefined ? {} : { sources: native.identities }),
+      ...(native?.conflicts?.state === 'available' ? { conflicted_paths: native.conflicts.paths }
+        : { affected_paths: { state: 'unavailable', cause: native?.conflicts?.cause ?? 'conflict_paths_unestablished' } }) };
+  }
 
   const evidence = value?.recovery_failure ?? value?.evidence ?? value?.cause;
   const [origin, ...nested] = distillCapturedCauses(evidence?.schema_version ===
@@ -229,6 +257,20 @@ function failureMeaning(value) {
     message: primary.message ?? value?.message ?? value?.reason ?? null,
     ...(primary.diagnostics === undefined ? {} : { diagnostics: primary.diagnostics }),
     ...(causes.length === 0 ? {} : { causes }) };
+}
+
+function remainingEffects(result, cause = {}) {
+  return Object.entries({ record: result.record_reconciliation,
+    retirement: result.cleanup?.managed_identity_retirement,
+    checkout: result.cleanup?.wk_checkout, slice_checkout: result.cleanup?.slice_checkout
+  }).filter(([, value]) => isOutstandingEffect(value)).map(([effect, value]) => {
+    const { code, message, causes, diagnostics } = failureMeaning(value);
+    return { effect, state: value.state,
+      ...(code == null || code === cause.code ? {} : { code }),
+      ...(message == null || message === cause.message ? {} : { message }),
+      ...(diagnostics === undefined || isDeepStrictEqual(diagnostics, cause.diagnostics) ? {} : { diagnostics }),
+      ...(causes === undefined || isDeepStrictEqual(causes, cause.causes) ? {} : { causes }) };
+  });
 }
 
 export async function prepareIntegrateWorkResponse({ result, original, request,
@@ -256,14 +298,23 @@ export async function prepareIntegrateWorkResponse({ result, original, request,
     ...(subject === null ? {} : { subject }),
     effects: outcome === "integrated" ? { integrated: true }
       : integrated === true ? effects : { integrated, ...statedEffects },
-    ...(result.delivery_sha == null && result.wk_sha == null ? {} : {
-      delivery: { commit: result.delivery_sha ?? null, integrated_sha: result.wk_sha ?? null } }),
+    ...(result.delivery_sha == null && result.slice_sha == null ? {} : {
+      delivery: { commit: result.delivery_sha ?? null, integrated_sha: result.slice_sha ?? null } }),
 
     ...(locator === null ? { original: { available: false } } : {}),
     next_calls: locator === null ? [] : [{ tool: "get_run_result", arguments: { result: locator },
       recommended: false, condition: "if further integration outcome detail is needed" }] };
+  if (result.prior_integration !== undefined) {
+    const remaining = remainingEffects({ cleanup: result.prior_cleanup });
+    body.prior_integration = { ...result.prior_integration, ...(remaining.length === 0 ? {} : { remaining }) };
+  }
+  if (result.preparation_not_attempted === true) {
+    body.effects_scope = 'this_invocation';
+    body.effects.candidate_preparation = 'not_attempted';
+  }
   if (outcome !== "integrated") {
     if (request?.delivery !== undefined) body.selection = request.delivery;
+    if (request?.candidate_version !== undefined) body.candidate_version = request.candidate_version;
 
     const retentionFailure = retained?.original?.retention_failure;
     const failures = [result.refusal,
@@ -276,21 +327,14 @@ export async function prepareIntegrateWorkResponse({ result, original, request,
     body.cause = failures.find(value => value.code !== null || value.message !== null || value.causes !== undefined)
       ?? { code: null, message: null };
 
-    body.remaining = Object.entries({
-      record: result.record_reconciliation,
-      retirement: result.cleanup?.managed_identity_retirement,
-      checkout: result.cleanup?.wk_checkout, slice_checkout: result.cleanup?.slice_checkout
-    }).filter(([, value]) => isOutstandingEffect(value))
-      .map(([effect, value]) => {
-        const { code, message, causes, diagnostics } = failureMeaning(value);
-        return { effect, state: value.state,
-          ...(code == null || code === body.cause.code ? {} : { code }),
-          ...(message == null || message === body.cause.message ? {} : { message }),
-          ...(diagnostics === undefined || isDeepStrictEqual(diagnostics, body.cause.diagnostics) ? {} : { diagnostics }),
-          ...(causes === undefined || isDeepStrictEqual(causes, body.cause.causes) ? {} : { causes }) };
-      });
+    body.remaining = remainingEffects(result, body.cause);
     if (body.remaining.length === 0) delete body.remaining;
     if (result.recovery !== undefined) body.recovery = result.recovery;
+    if (body.cause.conflicted_paths !== undefined || body.cause.affected_paths !== undefined) body.recovery = {
+      state: 'no_supported_route',
+      message: 'An authorized implementation worker must resolve the conflicting content in the intended work. ' +
+        'This immutable delivery cannot be edited or merged through this call. Preserve this selection; ' +
+        'a corrected delivery requires a new explicit integration decision.' };
   }
   let correction = result.correction;
   const stale = result.code === "agent_launch.slice_integration.approved_delivery_mismatch.v1";
@@ -303,24 +347,29 @@ export async function prepareIntegrateWorkResponse({ result, original, request,
   if (correction !== undefined) {
     body.correction = { reason: correction.reason, message: correction.message };
     body.next_calls.unshift(correction.call);
+    if (correction.choice !== undefined) body.next_calls.push(correction.choice);
   }
   if (stale && selection?.observation_unavailable !== undefined) {
     body.observation_unavailable = selection.observation_unavailable;
   }
   const repairable = integrated === true && outcome === "partial" && result.approval_refusal === undefined &&
+    correction?.reason !== 'candidate_preparation_selection_moved' &&
     (body.remaining?.some(item => item.state !== "superseded") ||
       result.recovery_failure !== undefined && result.cleanup?.state !== "complete" ||
       result.cleanup?.state === "pending");
   if (repairable && request?.delivery !== undefined) {
-    body.recovery = { state: "after_correction", message: "Integration stands. The reported condition must be corrected before " +
-      "the returned integration call can finish the remaining work. No correction call is available here." };
+    body.recovery = { state: "after_correction", message: correction === undefined
+      ? "Integration stands. The reported condition must be corrected before " +
+        "the returned integration call can finish the remaining work. No correction call is available here."
+      : "Integration stands. Follow the returned correction and resolve the reported condition before retrying this exact delivery " +
+        "to finish only the remaining work." };
     body.next_calls.push({ tool: "integrate_work", arguments: request, recommended: false,
       condition: "after the reported remaining condition is corrected" });
   }
 
-  if (integrated === true && typeof result.wk_sha === "string" && COMMIT_RE.test(result.wk_sha) &&
+  if (integrated === true && typeof result.slice_sha === "string" && COMMIT_RE.test(result.slice_sha) &&
       typeof subject === "string" && subject.length > 0 && receivingRole === "orchestrator") {
-    body.next_calls.push({ ...buildNextCall({ tool: "verify_proof", arguments: { subject, git_sha: result.wk_sha },
+    body.next_calls.push({ ...buildNextCall({ tool: "verify_proof", arguments: { subject, git_sha: result.slice_sha },
       condition: "if required verification of this integrated commit is still outstanding" }),
       recommended: false });
   }
@@ -333,7 +382,12 @@ export async function prepareIntegrateWorkResponse({ result, original, request,
         ? "Integration stands; a newer integration owns the checkout. Repeating this delivery cannot restore it."
         : "Stop this integration request at the reported cause. No supported in-session correction is available; " +
           "do not retry unchanged or replace the selected source." };
-  if (request?.candidate_version !== undefined && result.candidate_preparation?.state === 'complete') {
+  const selectedPreparation = request?.candidate_version !== undefined &&
+    result.candidate_preparation?.version === request.candidate_version ? result.candidate_preparation : null;
+  if (selectedPreparation?.state === 'complete' || selectedPreparation?.state === 'incomplete') {
+    body.observed_facts = { 'integration.preparation_complete': selectedPreparation.state === 'complete' };
+  }
+  if (selectedPreparation?.state === 'complete') {
     body.candidate_preparation = result.candidate_preparation;
     body.next_calls.push({ ...buildNextCall({ tool: 'workspace_publish_work',
       arguments: { subject: subject.split('#')[0] } }), recommended: false,
@@ -355,9 +409,11 @@ export async function prepareIntegrateWorkResponse({ result, original, request,
   if (repairable && !permitted.some(call => call.tool === "integrate_work")) body.recovery = {
     state: "no_supported_route", message: "Integration stands, but this session cannot finalize the reported remaining effects. " +
       "Stop this recovery; do not reapply work or replace the selected source." };
-  if (correction !== undefined && !permitted.includes(correction.call)) body.recovery = {
-    state: "no_supported_route", message: "The required source observation is unavailable in this session. " +
-      "Stop this selection correction; do not retry the rejected approval or choose a replacement source." };
+  if (correction !== undefined && !permitted.includes(correction.call)) {
+    body.next_calls = body.next_calls.filter(call => call.tool !== "integrate_work");
+    body.recovery = { state: "no_supported_route", message: "The required correction read is unavailable in this session. " +
+      "Stop this correction; do not retry unchanged or choose a replacement source." };
+  }
   return Object.freeze({ registered: false, body, approval: request, source: locator });
 }
 

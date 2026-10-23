@@ -198,12 +198,13 @@ Scope comes from DESCRIPTOR PROVENANCE, never from probing which filesystem
 happens to contain the relative path:
 
 - A built-in AgentChassis descriptor row is **package-scoped**. Its executable
-  read route is `workspace_read_wiki` with the reference
-  `{reference:{tool_name,path}}`, served from the documentation bundle the
+  read route is `workspace_read_wiki` with
+  `{reads:[{reference:{tool_name,path},select:{field:"text"}}]}`, served from the documentation bundle the
   launching package supplies.
 - A row may name individual references as **workspace-scoped** through
-  `docs_ref_scopes`. Those use `workspace_read_wiki` with `subject` to select
-  the document, then its returned reference and selection.
+  `docs_ref_scopes`. Those use `workspace_read_wiki` with
+  `{reads:[{subject:<document path>,select:{field:"body"}}]}` for known content.
+  Context is needed only to discover missing selections.
 - When the same logical path exists in both places the declared owner wins
   deterministically. A workspace file can never shadow a package-owned built-in
   reference, and a package-owned reference never reads the consuming workspace.
@@ -249,16 +250,19 @@ advertised):
 | `package_docs_reference_not_bundled` | The bound carrier's manifest does not carry this logical path (declared but not shipped, or absent from the installed bundle). |
 
 `workspace_read_wiki` reads a package document by
-`{reference:{tool_name,path}}`: `tool_name` is a tool the session can see and
-`path` one logical path that tool advertises. The answer is the compact
-`package_document` context with the requested reference and optional returned
-section or full-text selections. The full-text call repeats the reference with
-`select:{field:"text"}` and returns the complete document text. The serving
+`{reads:[{reference:{tool_name,path},select:{field:"text"}}]}`: `tool_name` is a tool the session can see and
+`path` one logical path that tool advertises. This directly returns complete
+selected text. Omit `select` for package context only when its section or other
+choices are needed. Mixed granted reads share the same bulk call. The serving
 package binding, version, digest and byte count remain internal; neither read
 resolves a workspace source or executes a write.
 
-A refused read answers with `tool-doc-read-refusal.v1`, naming `tool` as
-`workspace_read_wiki` and one of these codes:
+A refused package read is one item in the bulk result: its status is `refused`
+or `unavailable`, and `issue` names `tool` as `workspace_read_wiki` and one of
+these codes. The caller-supplied subject is echoed as input attribution; it is
+not confirmation that a hidden tool is installed or visible. The package owner
+uses `tool-doc-read-refusal.v1` internally; the bulk item does not expose that
+transport schema:
 
 | Code | Refused because |
 | --- | --- |
@@ -266,7 +270,7 @@ A refused read answers with `tool-doc-read-refusal.v1`, naming `tool` as
 | `package_docs_manifest_unreadable` | The carrying package's documentation manifest is absent, unreadable, or not valid JSON. |
 | `package_docs_manifest_schema_mismatch` | The manifest does not declare `public-docs-manifest.v1`. |
 | `package_docs_package_version_mismatch` | The manifest names a different package identity or version than the carrying package. |
-| `tool_not_visible_to_session` | The named tool is not visible to this session's launcher-minted role and registered tier. The refusal does not confirm the name back to the caller. |
+| `tool_not_visible_to_session` | The named tool is not visible to this session's launcher-minted role and registered tier. No returned package facts confirm that name; the bulk item still attributes the caller-supplied subject. |
 | `documentation_reference_not_advertised` | The tool does not currently advertise that package-scoped logical path. |
 | `descriptor_manifest_disagreement` | Discovery advertised the reference and the bound manifest does not carry it, so nothing is read. |
 | `invalid_documentation_path` | The path is not an advertised repository-relative logical path: absolute, `~`-rooted, drive-lettered, backslashed, NUL-bearing, untrimmed, empty, or carrying a `.`/`..` segment. |
@@ -275,8 +279,9 @@ A refused read answers with `tool-doc-read-refusal.v1`, naming `tool` as
 
 The reference is closed: exactly `tool_name` and `path`. A caller-supplied
 package root, docs root, or manifest path is refused by the published request
-schema as `tool_input_validation_failed` before the reader runs, as is an empty
-`path`. The response names only the logical path and the owning package
+schema as `workspace_read_wiki_selection_invalid` in the affected read item
+before the package reader runs, as is an empty `path`. A malformed bulk envelope
+is refused as `tool_input_validation_failed` before any read runs. The response names only the logical path and the owning package
 identity — never an installation root.
 
 ### Routing Metadata Fields
@@ -375,7 +380,7 @@ durable documentation projection, not an independent registry.
 | `refresh-derived-evidence` | Refresh generated or derived evidence surfaces. |
 | `query-graph-impact` | Inspect compact code-index or graph impact evidence; `verbose:true` or a raw/debug route exposes the full envelope. |
 | `search-wiki` | Search canonical wiki content. |
-| `read-canonical` | Read a canonical wiki page or work record. For tracker WK-level defaults, compact record reads omit detailed `done`, `cancelled`, and `parked` slice bodies and WK-level agent note bodies; use status counts, omission metadata, `agent_notes_bytes`, targeted selected-slice reads, or explicit full/debug opt-ins for hidden detail. |
+| `read-canonical` | Read requested saved meaning in bulk, including mixed kinds. Known subjects and public semantic selections are directly usable. Context and inventories discover missing information; they are not prerequisites for a known selection. |
 | `cleanup-runtime-artifacts` | Remove local runtime artifacts or stale launcher state. |
 | `inspect-provenance` | Inspect provenance, descriptor digest, or source evidence. |
 | `set-closure` | Apply a structured closure patch to a work record or slice. |

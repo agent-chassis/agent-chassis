@@ -187,7 +187,7 @@ function refusalDiagnostics(contract, request, typedError) {
 
 export function createSaveRecordSurface({ workspace, z, responseEnv = process.env, sessionEnv = process.env, generateAndLint,
   assessment = null, resolveRetainedFindingsSource = null, dispatchSessionIdentity = null,
-  registeredTier = null, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION, saveOptions = {}, maintenanceOptions = {} }) {
+  registeredTier = null, requirementAuthoring, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION, saveOptions = {}, maintenanceOptions = {} }) {
 
   const resolveExternalReference = retainedFindingsReferenceResolver(resolveRetainedFindingsSource,
     dispatchSessionIdentity);
@@ -215,7 +215,7 @@ export function createSaveRecordSurface({ workspace, z, responseEnv = process.en
           requirementGuidanceCall: path => requirementGuidanceRecoveryCall(path, registeredTier, exceptionPublication),
           ...(resolveExternalReference === null ? {} : { resolveExternalReference }),
           resolveRetainedGraphEvidence: source => readRetainedGraphImpact(source, { repository: workspace.repo, responseEnv }),
-          ...saveOptions, registeredTier,
+          ...saveOptions, registeredTier, requirementAuthoring,
           ...(assessment === null ? {} : { assess: async () => {
             const { body } = await assessment.prepare({ unit });
             return { assessment: body.assessment, original: body.original };
@@ -301,10 +301,11 @@ export function createSaveRecordTask(configuration) {
   const navigation = createSaveRecordInputNavigation({ requestContracts, saveTool: SAVE_RECORD_TOOL_NAME,
     readTool: buildUnitReadCall("WK-0001").tool, variantOf: saveRecordUnitVariant, exceptionPublication: configuration.exceptionPublication });
 
-  const schemaGuidance = async (request) => {
-    if (request?.maintenance_retry !== undefined) return null;
+  const schemaGuidance = async (request, diagnostics = []) => {
+    if (['retry', 'observe', 'recover'].includes(saveRecordRequestVariant(request))) return null;
     if (request?.exception?.kind === "grammar" && !recordAuthoringAvailability(configuration.registeredTier).grammar_exception) return null;
-    if (Object.hasOwn(request?.changes ?? {}, 'refresh_proofs') &&
+    if (diagnostics.some(issue => issue.path === 'changes.refresh_proofs' ||
+      (issue.path?.[0] === 'changes' && issue.path?.[1] === 'refresh_proofs')) &&
         /^WK-[0-9]{4,}#SLICE-[0-9]{3,}$/u.test(request?.unit)) {
       const recovery = proofRefreshRecovery(request.unit);
       const call = recovery.read;
@@ -316,7 +317,7 @@ export function createSaveRecordTask(configuration) {
     if (saveRecordRequestVariant(request) === "exception") {
       return navigation.exceptionGuidance({ unit: request?.unit, acquire: acquireSavedUnitReference, kind: request?.exception?.kind === "controlled_acceptance" ? "controlled_acceptance" : null });
     }
-    const guidance = await navigation.refusalGuidance({ unit: request?.unit, changes: request?.changes,
+    const guidance = await navigation.refusalGuidance({ unit: request?.unit, changes: request?.changes, revision: request?.revision, diagnostics,
       acquire: acquireSavedUnitReference });
     const retired = retiredExceptionMemberPaths(request?.changes);
     if (retired.length === 0) return guidance;
@@ -510,8 +511,8 @@ export function registerSaveRecordTools({ registerTool, ...configuration }) {
     'After acknowledgment or mappings are lost, use {recover:{request:<exact original save request>}} to observe retained operation state without executing it. ' +
     sessionAuthoringDescription(configuration.registeredTier) +
     (recordAuthoringAvailability(configuration.registeredTier).compile_requirements
-      ? `Before authoring requirements, obligations or test cases, read their vocabulary and authoring guidance: ${REQUIREMENT_GUIDANCE_ENTRY_STATEMENT}. ` +
-        `For the accepted terms of a requirement, read: ${REQUIREMENT_VOCABULARY_ENTRY_STATEMENT}. ` : "") +
+      ? `If authoring guidance is missing, discover its task scopes and overlap: ${REQUIREMENT_GUIDANCE_ENTRY_STATEMENT}. ` +
+        `Read known family or capability topics directly in one mixed workspace_read_wiki reads request; reuse held guidance. Complete combined vocabulary remains available at ${REQUIREMENT_VOCABULARY_ENTRY_STATEMENT}. ` : "") +
     SAVE_RECORD_MEMBER_CONTRACT_GUIDANCE,
     inputSchema: task.inputContract.inputSchema,
     advertisedInputSchema: task.inputContract.advertisedInputSchema,
@@ -521,18 +522,34 @@ export function registerSaveRecordTools({ registerTool, ...configuration }) {
       variants: SAVE_UNIT_VARIANTS, registeredTier: configuration.registeredTier }),
     inputValidationErrorProjector: async ({ args, validationError }) => {
       const selected = saveRecordRequestVariant(args);
-      const shaped = task.inputContract.shape.options[SHAPE_VARIANTS.indexOf(selected)].safeParse(args);
-      const variant = shaped.success && selected !== "retry" ? saveRecordUnitVariant(args.unit) : undefined;
+      const envelopeSchema = task.inputContract.shape.options[SHAPE_VARIANTS.indexOf(selected)];
+      const shaped = envelopeSchema.safeParse(args);
+      const variant = ['save', 'exception'].includes(selected) ? saveRecordUnitVariant(args?.unit) : undefined;
+      const typedSchema = selected === 'save' && variant !== undefined
+        ? task.inputContract.inputSchema.options[SAVE_UNIT_VARIANTS.indexOf(variant)] : null;
+      const typed = typedSchema?.safeParse(args) ?? null;
 
       const ownerDiagnostics = variant === undefined ? null
         : selected === "exception" ? validateRecordAuthoringException(args.exception)
           : validateRecordAuthoringChanges(variant.kind, variant.context, args.changes);
+      const issues = ownerDiagnostics?.map(recordAuthoringIssueByMemberPath) ?? [];
+
+      const envelopeIssues = shaped.success ? [] : shaped.error.issues;
+      const bodyMember = selected === 'exception' ? 'exception' : 'changes';
+      const rejectedBody = envelopeIssues.some(issue => issue.path.length === 1 && issue.path[0] === bodyMember);
+      const diagnostics = [...envelopeIssues, ...(rejectedBody ? [] : issues)];
+      const diagnosedError = !shaped.success ? shaped.error : typed?.success === false ? typed.error : validationError;
       const failure = await projectToolInputValidationFailure({
         tool: SAVE_RECORD_TOOL_NAME, args,
-        validationError: shaped.success ? validationError : shaped.error,
-        ownerDiagnostics: ownerDiagnostics?.length > 0 ? ownerDiagnostics.map(recordAuthoringIssueByMemberPath) : null,
+        inputSchema: typedSchema ?? envelopeSchema,
+        validationError: diagnosedError,
+        ...(variant === undefined && ['save', 'exception'].includes(selected) ? { notEvaluated: [{ path: [bodyMember],
+          cause: 'The unit does not establish an authoring kind/context. Supply a supported unit before its authored body can be evaluated.' }] } : {}),
+        ownerDiagnostics: diagnostics.length > 0 ? diagnostics : null,
 
-        ownerGuidance: variant === undefined ? null : await task.schemaGuidance(args)
+        ownerGuidance: variant === undefined || (envelopeIssues.length === 0 &&
+          ownerDiagnostics?.length > 0 && ownerDiagnostics.every(issue => issue.constraint?.rule))
+          ? null : await task.schemaGuidance(args, diagnostics.length ? diagnostics : diagnosedError.issues)
       });
       return { terminal_result: { ...jsonContent({ ...failure,
         ...(args?.changes !== null && typeof args?.changes === 'object' && Object.hasOwn(args.changes, 'refresh_proofs')

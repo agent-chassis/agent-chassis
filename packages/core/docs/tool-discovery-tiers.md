@@ -85,8 +85,9 @@ save_record({
 })
 ```
 
-Read the root WK first, then read its returned reference with
-`select:{input_contract:{tool:"save_record", operation:"exception"}}`.
+Read the known root's exception grammar directly with
+`workspace_read_wiki({reads:[{subject:<root-WK>,select:{input_contract:{tool:"save_record",operation:"exception"}}}]})`.
+Request context only when the root or needed selection is unknown.
 The rationale is recorded as written and is not assessed for eligibility. If
 repository policy requires compiled requirements for this work and does not
 permit an exemption, report that exact authority/capability mismatch; do not
@@ -109,3 +110,12 @@ and any configured CCE policy, not a side effect of result observation.
 Per-tier prose must describe the capability actually served. Paid-only
 explanations or recovery routes must not appear as mandatory free instructions.
 Payload-size modes and lexical match tiers are unrelated to product availability.
+
+Paid code queries and requirement editing require a compatible private package
+in the serving installation. Installation grants no access; CCE and role/tier
+restrictions remain authoritative. Free sessions need no private package.
+
+A missing or invalid provider refuses paid startup before readiness with its
+specific mechanical diagnosis. Correct the serving installation and restart.
+See [paid capability availability and recovery](paid-library-composition.md).
+Detailed implementation documentation accompanies the private package.

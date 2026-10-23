@@ -256,19 +256,19 @@ function taskRouteGuidance(meaning, firstCallArguments) {
   };
 }
 
-const READ_WIKI_NOTES =
-  'Read compact canonical context, then one semantic selection from its returned reference. ' +
-  "A WK subject's context facts carry the advisory terminal_review_designation; a findings unit's " +
-  'context facts and each inventory:"slices" member carry its effective review_purpose when one exists. ' +
-  'Both are read-only observations of the saved record that grant or withhold no dispatch, admission, ' +
-  'integration or handoff decision.';
+const READ_WIKI_MEANING = 'Read known subjects and public semantic selections directly in one bulk call, including mixed kinds.';
+const READ_WIKI_NOTES = READ_WIKI_MEANING +
+  ' Use {reads:[Read,...]}; one selection is length one. Context/discovery fills missing information only. ' +
+  'WK context exposes advisory terminal_review_designation; findings context and inventory:"slices" expose review_purpose. ' +
+  'These read-only facts grant no dispatch, admission, integration or handoff authority.';
+const READ_WIKI_ARGUMENTS = { reads: [{ subject: '$canonical_subject', select: '$semantic_selection' }] };
 
 const CURRENT_WORK_RECORD_ROUTE_CONTRACTS = [
   {
     toolName: 'workspace_read_wiki',
-    meaning: 'Read compact canonical context, then one semantic selection from its returned reference.',
+    meaning: READ_WIKI_MEANING,
     notes: READ_WIKI_NOTES,
-    firstCallArguments: { subject: '$canonical_subject' },
+    firstCallArguments: READ_WIKI_ARGUMENTS,
     task_ids: ['read-canonical'],
     side_effects: ['read_only'],
   },
@@ -359,11 +359,13 @@ test('workspace_read_wiki discovery stays a read-only observation that claims no
     'the durable operation reference must be discoverable',
   );
 
-  assert.match(notes, /WK subject's context facts carry the advisory terminal_review_designation/u);
-  assert.match(notes, /each inventory:"slices" member carry its effective review_purpose when one exists/u);
-  assert.match(notes, /read-only observations of the saved record that grant or withhold no /u);
-  assert.deepEqual(readTool.recommended_first_call.arguments, { subject: '$canonical_subject' },
-    'the facts are reached from the default subject read, not from a dedicated input');
+  assert.match(notes, /WK context exposes advisory terminal_review_designation/u);
+  assert.match(notes, /findings context and inventory:"slices" expose review_purpose/u);
+  assert.match(notes, /read-only facts grant no /u);
+  assert.deepEqual(readTool.recommended_first_call.arguments, READ_WIKI_ARGUMENTS,
+    'known subjects and selections bind directly inside a one-item bulk request');
+  assert.match(notes, /one selection is length one/u);
+  assert.match(notes, /Context\/discovery fills missing information only/u);
 
   const candidates = [...await readFamilyTools(), ...(await readFragment(TASK_MCP_FRAGMENT)).tools];
   assert.deepEqual(

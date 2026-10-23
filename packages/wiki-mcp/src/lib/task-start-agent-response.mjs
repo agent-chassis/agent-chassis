@@ -2,10 +2,9 @@ import { INTEGRATED_SLICE_REDISPATCH_CODE } from "@agent-chassis/wiki-core/src/l
 import { servedGuidanceRead, servedControlledAcceptanceRecovery, servedControlledAcceptanceFailure, projectControlledFailureFacts } from "./task-start-agent-guidance.mjs";
 export { servedGuidanceRead } from "./task-start-agent-guidance.mjs";
 import { readRecordAuthoringRevision, saveRecord } from "@agent-chassis/wiki-core/src/operations/save-record.mjs";
+import { readWorkRecordById } from "@agent-chassis/wiki-core/src/operations/work-records-store-io.mjs";
 import { WK_BASE_SELECTION } from
   "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate-exact-unit-identity.mjs";
-import { WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES } from
-  "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate.mjs";
 import { buildDispatchToolExceptionDetail, projectDispatchFailureDetail } from "./dispatch-tool-helpers.mjs";
 import { EXACT_SLICE_TARGET_REASON } from "./dispatch-tools/agent-dispatch-refusal-projection.mjs";
 import { INTEGRATE_WORK_TOOL_NAME } from "./task-integrate-work-schema.mjs";
@@ -33,8 +32,16 @@ export function startAgentBaseSelection({ wkId, branch, selection, saved }) {
 
 export async function saveStartAgentDefaultBase({ wkId, branch, workspace }) {
   try {
+
+    const revision = await readRecordAuthoringRevision({ repoRoot: workspace.dir, unit: wkId });
+    const loaded = await readWorkRecordById({ dir: workspace.dir, id: wkId });
+    if (loaded.record?.id !== wkId) throw Object.assign(
+      new Error(`Cannot read ${wkId} to establish that base_branch is absent.`), { code: 'canonical_root_unreadable' });
+    if (typeof loaded.record.base_branch === 'string' && loaded.record.base_branch.length > 0) {
+      return { saved: false, outcome: 'selected_concurrently' };
+    }
     const saved = await saveRecord({ repoRoot: workspace.dir, unit: wkId,
-      revision: await readRecordAuthoringRevision({ repoRoot: workspace.dir, unit: wkId }),
+      revision,
       changes: { base_branch: branch } }, { repository: workspace.repo });
     return saved.outcome === "saved" ? { saved: true }
       : { saved: false, outcome: saved.outcome, diagnostics: saved.diagnostics ?? [] };
@@ -80,11 +87,19 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
   }
   const nextCalls = [];
   let guidanceLimitation = null;
+
+  const materialReason = value?.blocker?.reason ?? value?.detail?.reason;
+  if (materialReason === 'range_empty' && request.diff_base_sha === request.reviewed_sha &&
+      ['agent_launch.advisory_review.material_invalid.v1',
+        'agent_launch.advisory_material_resolution.failed.v1'].includes(value?.blocker?.code ?? value?.code)) {
+    const call = { tool: START_TOOL, arguments: { subject: request.subject, role: request.role,
+      material: { kind: 'canonical_design', supporting_sha: request.reviewed_sha } } };
+    const contract = requestContracts?.contractFor?.(START_TOOL);
+    if (contract && await contract.acceptsArguments(call.arguments)) nextCalls.push(call);
+  }
   const baseFailure = value?.blocker?.detail?.originating_detail;
   if (correction === null && request.role === 'worker' &&
-      baseFailure?.reason === 'scope_existence_base_unresolved' &&
-      baseFailure.base_branch === null &&
-      baseFailure.resolution_failure?.code === WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_REF) {
+      baseFailure?.reason === 'scope_existence_base_selection_missing') {
 
     const root = await startAgentBaseCorrection({ wkId: request.subject.split('#')[0], workspace, request });
     correction = root.correction;
@@ -175,7 +190,7 @@ export async function startAgentRefusal(value, { workspace, request, responseEnv
   } else if (controlledFailure === null && value?.refusal?.carried?.guidance_unavailable !== undefined) {
     observationLimitation = { code: "existing_attempt_read_not_offered", tool: RESULT_TOOL };
   }
-  if (classified && !observes && value.refusal.carried.guidance_unavailable === undefined) {
+  if (classified && !observes && correction === null && value.refusal.carried.guidance_unavailable === undefined) {
     const offered = value.refusal.recovery?.state === "callable" && value.refusal.route === START_TOOL
       ? (value.refusal.next_calls ?? []).filter(call => call.tool === START_TOOL && call.kind !== "guidance") : [];
     const limit = code => { correctionLimitation = { code, tool: START_TOOL }; };

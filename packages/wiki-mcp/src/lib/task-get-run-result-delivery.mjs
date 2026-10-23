@@ -146,9 +146,14 @@ function attemptTaskChoice(item, attempts) {
   if (peers.length < 2) return {};
   const title = value => value.review_task?.brief?.material?.selected?.title;
   const text = value => typeof value === "string" && value.trim().length > 0;
-  const range = candidate => {
+  const kind = candidate => candidate.review_task?.material_kind === 'canonical_design' ? 'canonical_design'
+    : ['explicit_sha_range', 'canonical_implementation_slice', 'launcher_terminal_candidate']
+      .includes(candidate.review_task?.material_kind) ? 'code' : 'unknown';
+  const target = candidate => {
     const source = candidate.review_task;
-    return text(source?.base_sha) && text(source?.reviewed_sha)
+    if (kind(candidate) === 'canonical_design') return text(source.reviewed_sha)
+      ? { supporting_sha: source.reviewed_sha } : undefined;
+    return kind(candidate) === 'code' && text(source?.base_sha) && text(source?.reviewed_sha)
       ? { base_sha: source.base_sha, reviewed_sha: source.reviewed_sha } : undefined;
   };
   const criteria = candidate => (candidate.review_task?.brief?.material?.selected?.acceptance?.criteria ?? [])
@@ -156,11 +161,16 @@ function attemptTaskChoice(item, attempts) {
   const meaning = candidate => {
     const name = title(candidate);
     const task = text(name) ? { title: name } : {};
+    if (kind(candidate) !== 'code') task.material = { kind: kind(candidate) };
     const sameTitle = peers.filter(other => title(other) === name);
-    if (!text(name) || new Set(sameTitle.map(other => JSON.stringify(range(other)))).size > 1) {
-      if (range(candidate) !== undefined) task.reviewed_range = range(candidate);
+    if (!text(name) || new Set(sameTitle.map(other => JSON.stringify(target(other)))).size > 1) {
+      if (target(candidate) !== undefined) {
+        if (kind(candidate) === 'canonical_design') Object.assign(task.material, target(candidate));
+        else task.reviewed_range = target(candidate);
+      }
     }
-    const sameTarget = sameTitle.filter(other => JSON.stringify(range(other)) === JSON.stringify(range(candidate)));
+    const sameTarget = sameTitle.filter(other => kind(other) === kind(candidate) &&
+      JSON.stringify(target(other)) === JSON.stringify(target(candidate)));
     if (sameTarget.length > 1) {
       const distinct = criteria(candidate).filter(criterion => sameTarget.every(other => other === candidate ||
         !criteria(other).includes(criterion))).sort((a, b) => a.length - b.length || a.localeCompare(b));
@@ -169,8 +179,9 @@ function attemptTaskChoice(item, attempts) {
     return task;
   };
   const task = meaning(item);
-  if (Object.keys(task).length === 0) return { selection_limitation: { code: "review_task_unavailable",
-    message: "This review has no recorded task title or reviewed range. Its purpose cannot be identified from this menu." } };
+  if (!text(task.title) && task.reviewed_range === undefined && task.material?.supporting_sha === undefined &&
+      task.criterion === undefined) return { selection_limitation: { code: "review_task_unavailable",
+    message: "This review has no recorded task title or known material target. Its purpose cannot be identified from this menu." } };
   const indistinguishable = peers.some(other => other !== item &&
     JSON.stringify(meaning(other)) === JSON.stringify(task));
   return { task, ...(indistinguishable ? { selection_limitation: { code: "review_attempts_indistinguishable",
@@ -187,6 +198,8 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
   const publication = observation.original_publication;
   const worker = observation.role === "worker" || selected?.dispatch_tuple != null;
   const terminal = observation.terminal ?? (change != null ? selected?.result != null : undefined);
+  const selectionRefused = ["attempt_selection_ambiguous", "attempt_selector_mismatch"]
+    .includes(observation.code ?? observation.refusal?.reason);
   const summary = { subject: observation.subject ?? subject,
     ...(attemptId === undefined ? {} : { attempt_id: attemptId }),
     ...(observation.role === undefined ? {} : { role: observation.role }),
@@ -228,7 +241,7 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
   if (change == null && result !== undefined && !meaning.unavailable) {
     summary.original = { available: true, result };
     summary.next_calls.push(detailCall(result));
-  } else if (change == null && !meaning.unavailable && observation.observation_failure === undefined) {
+  } else if (change == null && !selectionRefused && !meaning.unavailable && observation.observation_failure === undefined) {
     summary.original = { available: false, reason: observation.producer_pending === true ? "producer_original_pending"
       : publication?.state === "failed" ? publication.stage === "original_capture"
         ? "producer_original_capture_failed" : "producer_completion_failed"
@@ -246,7 +259,7 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
       : { subject: summary.subject, attempt_id: attemptId, timeout_ms: RUN_WAIT_TIMEOUT_MS_BOUNDS.max } }));
   }
   const attempts = observation.candidates ?? observation.attempts ?? observation.refusal?.detail?.attempts;
-  if ((observation.code === "attempt_selection_ambiguous" || observation.refusal?.reason === "attempt_selection_ambiguous") && Array.isArray(attempts)) {
+  if (selectionRefused && Array.isArray(attempts)) {
     summary.attempt_choices = attempts.map(item => {
       const id = item.attempt_id ?? item.run_id ?? item.dispatch_tuple?.run_id;
       if (typeof id !== "string" || id.length === 0) return { selection_limitation: {
@@ -281,7 +294,7 @@ export function presentRunObservation(observation, detailCall, responseEnv, subj
     summary.next_calls.push(buildNextCall({ tool: route, arguments: { result: summary.assignment_change.result } }));
   }
   if (observation.delivery !== undefined && change == null) {
-    summary.delivery = observation.delivery.cause === undefined ? observation.delivery
+    summary.delivery = observation.delivery.state === 'unavailable' || observation.delivery.cause === undefined ? observation.delivery
       : { available: false, references: [], cause: observation.delivery.cause };
     if (summary.delivery.choices === undefined) for (const reference of summary.delivery.references ?? []) {
       summary.next_calls.push(buildNextCall({ tool: route, arguments: { result: reference } }));

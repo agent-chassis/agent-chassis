@@ -101,7 +101,7 @@ export async function completeAgyOrchestratorInvocation({ stateRoot, repo, previ
       native_state_failure: { message: stateError.message, code: stateError.code ?? null } } };
   }
   const decoded = headlessResult ?? facts.completion;
-  const stateCompletion = headlessResult?.stateCompletion ?? facts.completion;
+  const stateCompletion = facts.completion;
   const identityMatches = nativeExport === null || decoded.nativeSessionId === facts.nativeSessionId;
   return { ok: decoded.ok && stateCompletion.ok && identityMatches,
     reason: !decoded.ok ? decoded.reason : !stateCompletion.ok ? stateCompletion.reason

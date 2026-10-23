@@ -317,22 +317,27 @@ response, or separate publication step is part of the public contract.
 
 ## Obligation-source authoring operations
 
-Coordinators create and amend obligations through `save_record`. Read the
-selected unit with
-`workspace_read_wiki({subject:unit,select:{context:true,for_changes:["obligations"]}})`
-and follow its returned input-contract call. Save with that context's `revision`
-and the caller-chosen `changes.obligations` under the served schema. The current
+Coordinators create and amend obligations through `save_record`. When a current
+write revision is needed, use
+`workspace_read_wiki({reads:[{subject:unit,for_changes:["obligations"]}]})`.
+It returns `contexts[unit].revision` and fitting input-contract calls; read
+missing grammar only. Known subjects accept contract selections directly in
+the same `reads` array, including mixed selections. Save with that revision,
+or one returned by a successful mutation, and the caller-chosen
+`changes.obligations` under the served schema. The current
 public authoring owner composes the internal controlled-contract settlement;
 internal operation names and combined content digests are not public save inputs.
-Selected reads use the context's returned reference and contract selections.
+Selected reads use a known subject or an issued reference and contract selections.
 
 An assigned population with no saved mapping returns
 `population.recovery.actor:"coordinator"`, an exact context call for that unit,
 and the missing choices: obligation statements, requirement claims and criterion
 associations. These are caller decisions, never generated IDs. Recovery grants
 no mutation authority to the receiving reviewer or worker. The coordinator
-obtains the input contract before choosing values, saves them, and reads the
-selected obligations back. An empty mapping is not complete contract meaning.
+reuses held grammar and semantic selections, obtains missing inputs and a
+current write revision, then saves the chosen meaning. A successful save may
+finish; readback is needed only when the task needs saved meaning. An empty
+mapping is not complete contract meaning.
 
 A contract requirement replaces a stored requirement when it names it with
 `replace_claim_id`. The same requirement may list `rebind_case_ids` to retain
@@ -346,9 +351,12 @@ settlement; see [Requirement retirement](#requirement-retirement).
 Optional `statement` and `controlled_contract_node_ids` replace only their
 corresponding authored fields. Empty node lists are savable. Optional
 `mechanism: {owner, kind, selector}` replaces the whole object; null clears it.
-Omission preserves the existing value. Optional `acceptance_criteria` lists the
-exact criterion identities of the selected unit, from query `acceptance_criteria[].identity`,
-that the obligation covers: never criterion text, positions or invented labels. A supplied list replaces the saved associations, `[]`
+Omission preserves the existing value. Public `changes.obligations[].criteria`
+lists semantic selectors for the selected unit's saved criteria, for example
+`{kind:"criterion",match:{text:"The component exists."}}`, or `$key` labels
+for criteria created through `changes.criteria` in that same request.
+The internal settlement's `acceptance_criteria` identities are resolved by the
+save owner, not authored as public inputs. A supplied list replaces the saved associations, `[]`
 clears them and omission preserves them, as
 [Author-declared criterion coverage](#author-declared-criterion-coverage)
 describes. No obligation member declines proof and no `controlled_acceptance`
@@ -723,7 +731,8 @@ UTF-8 request plus CallToolResult bytes: the first response (7,795 bytes, one ca
 carries every slot's resolved refinements, including the component refinement; the
 whole parameter contract, reassembled from that response and the six emitted field
 reads (two slots and four contract members), costs 48,286 bytes over seven calls.
-A compact or inventory answer for a unit with criteria then carries, before any
+A compact or inventory answer from the internal coverage-query owner for a unit
+with criteria then carries, before any
 optional member, `criterion_identities`: an object whose keys are the owner's
 zero-based criterion `position` as a decimal string and whose values are the
 `identity` an obligation names, projected from `acceptance_criteria` without text
@@ -740,7 +749,10 @@ whose count is `selected_detail.collections.acceptance_criteria`. A whole result
 carries those rows and no map. Measured with nine long multibyte criteria, UTF-8
 request plus CallToolResult bytes, the first response carries all nine identities
 in one call: 5,421 bytes compact and 6,744 bytes inventory for the parent, 5,487
-and 6,870 bytes for a slice with longer criterion prose.
+and 6,870 bytes for a slice with longer criterion prose. These internal query
+bindings are not public `save_record` selectors: public criterion associations
+use `changes.obligations[].criteria` with semantic selectors or request-local
+labels, as described in [Author-declared criterion coverage](#author-declared-criterion-coverage).
 After `criterion_identities` and before any optional member, a compact or inventory
 answer carries `case_links`: an object keyed by each selected obligation's exact
 `obligation_id` whose value is that obligation's exact saved `case_id`, or `null`
@@ -885,13 +897,14 @@ The results owner's `deliverCurrent(selection, project)` and
 for the surface's trusted projection; a request supplies neither a projector nor
 an expected binding.
 
-`original` also accepts `diagnosis_id` and, with it, `obligation_id`; each supplied
-selector is a nonempty string, `null` is not omission, and any other key — `repo`
+`original` also accepts a nonempty ordered `diagnoses` array of
+`{diagnosis_id, obligation_id?}`; each supplied selector is a nonempty string,
+`null` is not omission, and any other key — `repo`
 included, on `current` as on `original` — is refused: the repository is the trusted
 workspace configuration. Membership is inspected only after the session and source
 authenticate, and solely in the saved inventory. `diagnosis_id` selects exactly one
 diagnosis of a whole-unit or selected-obligation original by its saved
-`diagnostic_group_id`; the read then adds `selected_diagnosis` — the saved diagnosis
+`diagnostic_group_id`; each successful selection in `selected_diagnoses` holds the saved diagnosis
 and the saved correction definitions its subjects reference — beside the unchanged
 carrier, provenance and currentness. With `obligation_id` the diagnosis is restricted
 to every saved subject of that obligation, with the definitions those subjects use and
@@ -909,7 +922,10 @@ capture and the requested diagnosis was not observed — never reported as unkno
 `original_has_no_selectable_diagnoses` for a source-absent original;
 `retained_diagnosis_inventory_malformed`, `retained_diagnosis_malformed`,
 `retained_diagnosis_identity_ambiguous` and `retained_correction_definition_missing`
-for retained bytes that do not hold the inventory. No obsolete retained format is read
+for retained bytes that do not hold the inventory. Each selection failure is returned
+in its ordered entry's `failure`, preserving code, cause, subject and recovery;
+it does not discard independently available selections. Authentication and source
+failures refuse the whole request before membership is inspected. No obsolete retained format is read
 or migrated.
 
 ### Public contract assessment responses
@@ -921,11 +937,15 @@ sessions use their authenticated frozen source. No response grants permission to
 write, start an action, execute a proof or claim credit.
 
 The closed request is `{unit?, focus?, obligation_id?, original?}`, where
-`original` is `{source, diagnosis_id?, obligation_id?, view?:"diagnoses"}`.
+`original` is `{source, diagnoses?:[{diagnosis_id, obligation_id?}, ...], view?:"diagnoses"}`.
 A fresh request requires `unit`. An original read authenticates the supplied
 source before inspecting diagnosis membership and runs no assessment.
-`original.obligation_id` requires `diagnosis_id`; `view` is exclusive with those
-nested selectors. Top-level selectors alongside an original must restate it.
+`diagnoses` selects exactly the listed retained diagnoses, in requested order;
+each optional `obligation_id` restricts only its own entry. A singleton uses the
+same array. `view:"diagnoses"` selects the complete choice inventory and is
+exclusive with `diagnoses`. Top-level selectors alongside an original must restate
+the captured scope or a restriction shared by every selected entry. Neither
+restatement changes the original assessed scope used by reassessment.
 Conflicting selectors return separate original-only and fresh requests; neither
 is chosen or run. A slice is addressed in `unit`, never `focus`. The existing
 initiative-only lookup and slice-as-focus correction preserve caller selectors
@@ -938,6 +958,39 @@ inventory, source digests, authority identity or retention bookkeeping.
 Missing whole-unit criterion coverage is a separate qualification; a selected
 obligation establishes no whole-unit assessment. A saved exemption retains its
 unassessed rationale and consequence rather than becoming proof credit.
+Every captured user-requirement passage needs explicit obligation coverage,
+explicitly classified contextual meaning or source-bound residue; unaccounted requirements prevent
+`specification:"complete"` even when the selected definitions are complete.
+Accounting covers the captured parent and its slices, while reassessment retains
+the original unit, focus and obligation selection. Full declaration coverage
+requires its complete assertion set across explicit obligation links; grouped
+subsets and verification-only associations retain their exact meaning.
+Each source-linked behavioral declaration needs those associations independently
+of source-passage coverage. A different declaration or residue covering the same
+passage cannot hide a missing association or make specification complete. If
+unavailable associations could supply that membership, it remains unassessed
+rather than being diagnosed as an established omission.
+Unresolved association evidence remains unavailable. This qualification changes
+no readiness, execution or publication gate and grants no proof credit.
+When context or residue contributes, `assessment.requirement_accounting` supplies its owning
+`unit`, accounting `status`, `obligation_coverage:"full"|"partial"|"none"|"unavailable"|"unknown"`
+and the applicable `context_accounted:true` or `unmet_residue:true` qualifications.
+Context is counted separately, never as obligation coverage or unmet residue.
+Complete accounting with residue still leaves the
+specification incomplete. Its saved text, reason and current/stale source
+passages remain available through selected diagnoses and semantic reads;
+unbound residue accounts for nothing. A full successful accounting check adds no
+successful-check inventory. Neither outcome establishes faithful interpretation,
+implementation success, satisfaction of residue or proof credit.
+When the captured assessment carries the user-request-comparison qualification,
+every public view retains `scope_limit`: authored validity and specification
+completeness do not establish faithful coverage of the user's request. No
+additional read, approval or automated prose comparison is implied. Absent or
+empty recorded user requirements retain the owner's coverage-unestablished limit.
+The same compact fidelity limit accompanies an established complete accounting
+fact or complete specification with unknown source accounting, including when an
+independent authored defect remains. Unknown accounting is not reported as empty
+or complete coverage.
 
 Public validity distinguishes a demonstrated authored defect (`invalid`) from
 validity the validator could not establish (`unavailable`). Independent
@@ -953,21 +1006,100 @@ uses one returned `purpose:"diagnostic_inventory"` request with
 `original.view:"diagnoses"`. Compaction retains independent `gaps`, unavailable
 owner causes and historical-source qualifications immediately; only the wide
 diagnosis menu moves to that read. Unfinished-meaning choices include their
-authored text so the caller can select the intended behavior before opening a
+authored text, reason and semantic fragment selector so the caller can distinguish
+the intended behavior before opening a
 dossier. Its complete selected answer needs no pagination,
 decoding, integrity checks or filesystem rescue. Size never substitutes
 obligation narrowing for complete selected meaning. An explicit obligation
 restriction is the caller's choice and preserves the original captured scope.
+Inventory choices share equal complete subject facts through local
+`subject_definitions` references while retaining every affected obligation.
+Requirements repeated across choices live once in `requirement_definitions`;
+each requirement reference's `definition_id` selects that response-local fact.
+These keys address no authored row: the shared facts retain the real semantic
+selections. Different causes, applicability, uses and selections remain distinct.
 
-An exact returned diagnosis call selects `selected_diagnosis`. It contains its
+An exact returned diagnosis call selects `selected_diagnoses`, an ordered array.
+`requirement_obligation_association_missing` distinguishes a source-linked
+declaration from explicit obligation coverage. Its subjects retain the reusable
+requirement `target` and full declaration in detail. When assertions exist, the
+selected answer states the missing caller choices and offers
+`purpose:"choose_obligation_owner"` bulk reads for the captured parent/slices,
+each with its title, public unit, obligation population and `for_changes:["obligations"]`.
+Repeated titles also offer `purpose:"distinguish_obligation_owners"` through the
+existing slice inventory; its authored targets and assignment headings distinguish
+available choices without opening every obligation population. An explicitly
+ambiguous inventory member does not establish the caller's intended owner.
+Choose the intended owner, then an existing obligation or a new authored statement
+using the returned current revision and grammar. Preserve its existing `claims`,
+grouped subsets, explicit checks and cases while adding the intended coverage.
+No save or owner is invented. The selected recovery's conditional `after_save`
+keeps the original assessment scope. A missing receiving reader leaves a precise
+stop. An incomplete declaration with no assertions needs authored meaning first;
+a complete declaration with no supported obligation-association selection instead stops
+with `obligation_association_unavailable`. Closed membership currently has this
+representation limit; changing its meaning or automatically recording residue
+is not an established correction.
+
+An authored `definition:true` row is non-normative and requires no behavioral
+obligation. Its provenance alone classifies nothing. Only an explicit saved
+`source_role:"context"`, complete definition and current valid source binding
+contribute contextual accounting. Neither classification nor source accounting
+establishes faithful interpretation, implementation assurance or proof credit;
+the compact `scope_limit` retains that distinction across public views.
+
+`definition_source_classification_missing` retains the exact affected passage,
+semantic target and declaration and asks for the caller's classification. If it
+is context, follow the returned current parent context and save grammar, then
+restate the preserved definition with `source_role:"context"` and the chosen exact
+`user_requirement`/occurrence. If it is requested behavior, preserve the definition
+and author the actual behavioral declaration and associations. Nothing is inferred
+or converted into unmet residue. `definition_context_source_stale` retains the
+saved role and stale passage; its bulk correction read also supplies the current
+parent prose. Choose any rebinding explicitly. Source movement grants no new
+credit; clearing the role removes only contextual accounting. Missing/ambiguous
+targets, findings authority, focused-contract limits and unavailable receiving
+contracts retain their precise stopping points. A successful save may finish;
+the optional reassessment retains the original scope.
+
+The caller can combine explicitly chosen calls from the same `original.source`
+by concatenating their `original.diagnoses` arrays; sources cannot be combined.
+Each entry repeats its `diagnosis_id` and optional `obligation_id`, and contains its
 meaning and affected subjects, relevant authored correction inputs or the
-precise stopping condition. Equal definition facts are shared through
+precise stopping condition, or an individual `failure` with the selection refusal.
+A successful entry is `{diagnosis_id, obligation_id?, diagnosis, recovery,
+save_guidance?}`. `diagnosis` holds its `meaning`, `subjects`, `family`, applicable
+`code`/`reason_codes`, and any category, gap class or shared subject definitions.
+A failed entry is `{diagnosis_id, obligation_id?, failure}`: `failure` preserves
+`code`, `cause`, `subject` and the applicable `failed_condition`, unavailable-owner
+causes or precise `stop`. Per-selection failure is data in that entry; it does not
+set a whole-request error or suppress other entries. Missing or altered selections
+never become empty diagnoses or trigger reassessment.
+Compatible current-correction calls occur once in top-level `next_calls`; for the same
+unit their `for_changes` members are the union needed by successful selected
+corrections. Each successful entry's `save_guidance` contains only `unit` and its
+correction-specific `instruction`. `correction_contexts[unit]` supplies
+`revision_from`, `changes_schema_from` and conditional original-scope `after_save`
+once for that unit. Separate owning units retain separate contexts. Refresh-only
+guidance retains its own call and sole-change constraint. Nothing in
+this retained read executes, saves, changes the selected source or obtains a
+current replacement for historical facts.
+Equal definition facts are shared through
 `subject_definitions`; their associations stay with the affected obligations.
 Native validator check inventories, intermediate failed paths, source-generation
 metadata and duplicate coverage recipes are not detail content. A retained
 authoring diagnosis without its captured public-subject projection stops with
 `assessment_authored_selection_unavailable`; current storage and native identities
 cannot substitute for that missing historical meaning.
+
+When the case owner establishes that a component supplies no runtime module
+location, `component_requirement` retains its authored field, required identity
+kind and fields, and the reason a descriptive identity is unsuitable. Its
+`current` fact distinguishes a supplied value from absent input or unavailable
+component evidence, resolved against the same captured source. A supplied
+`profile_term` is not described as an omitted component. The caller supplies the
+actual repository and path; assessment chooses no replacement location, edits
+no identity and publishes no derived binding or validator paths.
 
 Definition subjects carry whole authored declarations and semantic `target`
 selectors from the common public-selection resolver, together with the required
@@ -992,6 +1124,13 @@ passages and evidence associations. Intentional foreign references retain their
 meaning and remain outside the bound source-resolution scope.
 Same-repository missing committed files and unresolved declarations keep the
 source owner's separate diagnoses and existing supported correction choices.
+Their compact choices distinguish a mistaken existing-source reference from
+planned functionality before detail is opened. Selected recovery asks for that
+caller choice rather than unconditionally requiring a new typed definition.
+Planned functionality uses a specification-owned identity without requiring
+implementation; either correction preserves the authored behavior and its uses.
+Reader/provider failures and unavailable or ambiguous authored targets do not
+advertise this identity-replacement route.
 
 Public requirement source links share one projection across selected rows,
 full requirements and coverage. It retains the owning work record, source
@@ -1633,24 +1772,30 @@ aid for finding coverage gaps, not an adequacy review: the server checks only
 mechanical integrity and never infers an association from counts, order,
 wording or proof results.
 
-- Query returns `acceptance_criteria`, the selected unit's current criteria as
-  the criterion-identity owner names them: `identity`, `position`, `text` and
-  `text_sha256`. An obligation names criteria by `identity`. A compact or
-  inventory answer also carries the whole `criterion_identities` position map
-  when it fits; positions only locate a criterion for the reader, and the
-  upsert takes the mapped `identity`.
+- A public `{contract:"criteria"}` read returns the selected unit's criterion
+  meaning and `members[].selector`. Public `changes.obligations[].criteria`
+  uses `{kind:"criterion",match:{text?,typed_identity?}}`, with at least one
+  authored field and exactly one saved match. Only an actually authored typed
+  identity is eligible. Held semantic selectors can be used directly; read
+  missing meaning with
+  `workspace_read_wiki({reads:[{subject:unit,select:{contract:"criteria"},for_changes:["obligations"]}]})`.
+  The ordered result supplies criterion selectors and `contexts[unit].revision`
+  supplies the write revision. `$key` selects only a criterion created in that
+  same save. Generated identities, positions and AC labels are not selectors.
+- The internal coverage query returns `acceptance_criteria` with `identity`,
+  `position`, `text` and `text_sha256`, and may project `criterion_identities`.
+  These describe server bindings; the public author supplies semantic selectors.
 - Each saved association lives on its owning obligation as
   `acceptance_criteria: [{identity, text_sha256}]`, binding the identity to the
   criterion text it was declared against. There is no second mapping. One
   obligation may cover several criteria and several obligations may cover one.
-- `save_record` refuses an identity the selected unit does not currently have
-  with `obligation_coverage_acceptance_criterion_unknown`, naming the unit,
-  obligation and identities and returning the exact-unit read,
-  `workspace_read_wiki({subject: unit})` with any slice suffix intact. That
-  read's reference with `select: {contract: "criteria"}` lists the unit's
-  current identities. A parent's criteria are not a slice's and a slice's are
-  not the parent's. Duplicate identities are a request schema refusal. Every
-  refusal happens before effects.
+- Public selection refuses missing or ambiguous criterion meaning as
+  `selection_not_found` or `selection_ambiguous` before publication. The internal
+  association owner separately refuses an unknown resolved identity with
+  `obligation_coverage_acceptance_criterion_unknown` and returns the exact bulk
+  criteria read above, with any slice suffix intact. A parent's criteria are
+  not a slice's and a slice's are not the parent's. Duplicate selectors are a
+  request schema refusal. Every refusal happens before effects.
 - Incomplete coverage is savable. It is an assessment result, not a reason to
   refuse authoring.
 - When a criterion's text changes, an association declared against the old text
@@ -1679,14 +1824,15 @@ unit's own valid obligations. Its `status` is `complete`, `incomplete`, or
 `not_applicable` when the unit has no criteria. It reports `uncovered_criteria`
 by identity and position, `stale_associations`, bounded lists with omitted
 counts, `verification_credit: 0`, and for an incomplete unit a `correction`
-naming the query and upsert for that exact unit and the
-`obligations[].acceptance_criteria` field. Individually valid obligations
+naming the internal query and upsert for that exact unit and the stored
+`obligations[].acceptance_criteria` field. Public authoring uses
+`changes.obligations[].criteria`. Individually valid obligations
 remain valid when coverage is incomplete. A parent's obligations never cover a
 slice's criteria, and covering a slice changes no parent or sibling state.
-A slice obligation may reference a shared parent case as `case:{case_id}` where
+A slice obligation may reference a shared parent case as `case:{id:caseId}` where
 that case's meaning applies, but the reference carries no coverage: the slice
-still authors its own obligations and associates them with its own query
-criterion identities, never by AC label, position or similar wording. The
+still authors its own obligations and associates them with its own criteria's
+semantic selectors, never by AC label, position or similar wording. The
 upsert authoring overview states this rule.
 
 `workspace_validate_proof` reports this assessment's status, counts and correction
@@ -2090,21 +2236,23 @@ identity and safe held-instruction reuse rules are described in
 Declaring applicability supplies no missing meaning or evidence and establishes
 no readiness verdict.
 
-Use `workspace_read_wiki({subject: unit})` for the current authored context and
-write revision. Its returned reference supports complete contract selections,
-including `select: {contract: "coverage"}`. Save supported authored changes with
-`save_record({unit, revision, changes})`, using that current read revision and
+Use direct bulk selections for known authored meaning, including
+`workspace_read_wiki({reads:[{subject:unit,select:{contract:"coverage"}}]})`.
+Request `for_changes` on a read only when a current write context is needed;
+plain reading supplies no write revision. Save supported authored changes with
+`save_record({unit, revision, changes})`, using `contexts[unit].revision` from
+an explicit write context or a successful mutation's returned revision and
 the serving tool's typed work-item changes schema. Existing obligation and case
-rows use `id`; new rows use `key`. Obligation associations use `criteria` and
-`claims`; proof choices and parameters use `proof.name` and `proof.parameters`.
+rows use `id`; new rows use `key`. Obligation associations use semantic
+selectors in `criteria` and `claims`, or the appropriate same-request `$key`;
+proof choices and parameters use `proof.name` and `proof.parameters`.
 Requirements are authored as the one `changes.requirements` batch
 (`entities`, `requirements`, `collections`, `unresolved`), which the host's
 paid tier alone serves; its members, row identities, source links and readback
 are stated in
 [Controlled contract operations](mcp-controlled-contract-operations.md). A
-requirement label in an obligation's `claims` names every claim its row emits,
-and the save answers that label with the row: its `row_id`, `state`,
-`constraint_ids` and `claim_ids`.
+requirement label in an obligation's `claims` names every behavioral claim its
+row emits; generated compiler identities are not public association inputs.
 A refused save publishes the owner's refusal details with the authored `field`,
 the identities the owner considered, its correction and its next calls. It never
 publishes a `guidance_path`, the owner's internal location of a guidance member.
@@ -2119,22 +2267,22 @@ guidance is dropped with no call.
 ### Requirement-authoring guidance
 
 `save_record`'s advertised description states the entry call
-`workspace_read_wiki({subject: {requirement_guidance: true}})`. It needs no
+`workspace_read_wiki({reads:[{subject:{requirement_guidance:true}}]})`. It needs no
 saved requirement, obligation or selected proof. For the accepted terms of a
 requirement it also states the focused call
-`workspace_read_wiki({subject: {requirement_guidance: true, topic: ["vocabulary"]}})`,
-whose recommended selection is the `vocabulary` topic. The declaration itself
+`workspace_read_wiki({reads:[{subject:{requirement_guidance:true},select:{guidance:["vocabulary"]}}]})`,
+which reads the `vocabulary` topic directly. The declaration itself
 carries no vocabulary. `{contract: true}` still names the repository manifest.
 
-The entry returns compact context: the overview, one shared `reference`, the
-complete ordered `selections` (one `{guidance: [<member>, ...]}` per topic) and
-one returned call, the recommended first selection. Any other topic is read
-with `{reference, select}` built from that reference and its returned
-selection. A selection is delivered whole through the reader's ordinary
+The entry's ordered result contains compact context with a `reference` and
+available `selections`, including `{guidance:[<member>,...]}` topics. Choices
+share a `selection_context` template; the entry recommends no default topic.
+Read a known topic directly, or use `{reads:[{reference,select}]}` with an issued
+reference and chosen selection. A selection is delivered whole through the reader's ordinary
 selected delivery, and a path may name any nested member by literal segments,
 for example `["vocabulary", "modalities"]`. An optional `topic` on the subject
-returns the same context with that member's selection first and as the one
-returned call; a save refusal's `guidance_call` uses this form. A path that names no member refuses with
+selects that member directly when `select` is omitted; a save refusal's
+`guidance_call` uses this form. A path that names no member refuses with
 `requirement_guidance_topic_not_found` and the entry call as its correction.
 
 | Topic | Content |
@@ -2153,11 +2301,16 @@ slice: a slice is covered only by obligations saved on that slice unit.
 `save_record_inputs.slice_coverage.steps` states the sequence for a slice
 whose criterion an already saved parent requirement and test case show:
 
-1. Read the slice with `workspace_read_wiki({subject: "WK-NNNN#SLICE-NNN"})`
-   for its current `revision` and `reference`; that reference's
-   `{contract: "criteria"}` selection returns each criterion's `identity`.
-2. Read the parent's `{contract: "requirements"}` selection for `claim_id` and
-   its `{contract: "cases"}` selection for `case_id`.
+1. Reuse held slice criterion selectors and a current write revision. If the
+   revision is missing, request `for_changes:["obligations"]` on the slice read;
+   include only needed selections. To obtain missing criterion meaning too, use
+   `workspace_read_wiki({reads:[{subject:"work record",select:{contract:"criteria"},for_changes:["obligations"]}]})`.
+   Use `results[0].value.members[].selector` for the criterion and
+   `contexts["work record"].revision` for the save.
+2. Reuse held parent requirement selectors and saved case identities, or include
+   the parent's `{contract:"requirements"}` and `{contract:"cases"}` reads
+   in the same bulk call to obtain missing meaning. No catalogue or context
+   read is required before known semantic selections.
 3. Save the slice's own obligations on the slice unit at the slice's revision.
    No requirement and no case body is restated, so neither is duplicated.
    A proof-backed obligation names `claims`, the applicable saved `case.id`,
@@ -2210,9 +2363,10 @@ and carries no arguments; a saved proof name is a complete `{tool, arguments:
 {proof_name}}` read. Assessment supplies no query, proof or parameter.
 Selecting a proof clears only the unselected diagnosis; what the chosen proof
 itself still needs remains reported.
-The save instructions, revision source and schema-discovery pointer are stated
-once per correction as `save_guidance`, inside the relevant gap or
-`selected_diagnosis`. A frozen, focused or unavailable correction has its
+A gap carries its save recipe in `save_guidance`. Selected diagnoses carry
+correction-specific instructions in each entry's `save_guidance`, with revision,
+schema and conditional reassessment shared once in `correction_contexts[unit]`.
+A frozen, focused or unavailable correction has its
 limitation instead of a save recipe. No result embeds a copy of the
 `save_record` changes schema; the serving tool's published schema is its owner.
 The current read is executable; the save guidance awaits caller-authored values
@@ -2236,6 +2390,37 @@ Original diagnosis and inventory calls return immutable assessed facts after
 source movement, with a material currentness qualification when needed. They
 supply no current write revision. A complete answer offers no automatic
 historical reread; supported authoring uses the returned current correction read.
+
+Malformed assessment requests retain the shared validator's deciding constraints,
+accepted members and accepted field locations. Diagnosis reads require
+`original: {source, diagnoses: [{diagnosis_id, obligation_id?}, ...]}`; the
+complete inventory uses `original: {source, view: "diagnoses"}` exclusively.
+A refusal may return a schema-validated corrected call for misplaced current
+members or a single selection object supplied instead of its array. It preserves
+the supplied source, order, restrictions and scope; it does not run or authenticate
+the correction. Missing values, unknown spellings and conflicting choices require
+caller input. No alternate spelling is accepted by the tool.
+
+Incomplete criterion coverage retains the current authored criterion meaning and its
+affected obligation associations. Missing or stale links offer current authoring
+context and one mixed read of criteria and obligations for explicit caller choice.
+Current links to invalid obligations instead point to those obligations' content
+diagnoses; repairing the component, statement or other actual defect preserves the
+links. Unavailable validity remains uncertain and establishes no authored-content
+correction. A retained assessment without those cause facts supplies no invented
+association fix. Conditional reassessment preserves the original scope; successful
+save needs no compulsory read or reassessment.
+
+The coverage gap's `criteria` contains `{criterion: {text, typed_identity?},
+associations: [{obligation_id, association, validity}]}`. Association is `current`
+or `criterion_text_changed`; validity is `valid`, `invalid` or `unavailable`.
+An empty association list means no saved link to that current criterion.
+`removed_criterion_associations` separately identifies obligations whose saved
+criterion is absent. These are cause facts; reusable correction selectors come
+from the returned `criterion_association_choices` bulk read's ordered criteria
+and obligation results. A large summary points to the existing complete retained
+diagnosis inventory for every coverage cause; populations are not truncated.
+
 Frozen reviewers retain their source and population boundaries and receive no
 authoring permission. The current save schema addresses root and slice units,
 but has no focus argument: correction of a named focused contract is explicitly

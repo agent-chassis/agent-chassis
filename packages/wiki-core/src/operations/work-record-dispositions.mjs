@@ -1,8 +1,25 @@
 
 
-import { normalizeAdvisoryDispositions, validateWorkRecordDispositions } from "../lib/review-disposition.mjs";
+import { ADVISORY_DISPOSITION_JUDGMENTS, normalizeAdvisoryDispositions, validateWorkRecordDispositions } from "../lib/review-disposition.mjs";
 import { computeWorkRecordSourceDigest } from "../lib/work-record-schema.mjs";
 import { loadWorkRecordById } from "../lib/work-record-store.mjs";
+
+export function workRecordDispositionRowSchema({ label, entryId }) {
+  const object = (properties, required) => ({ type: "object", additionalProperties: false, properties, required });
+  const judgment = { type: "string", enum: [...ADVISORY_DISPOSITION_JUDGMENTS] };
+  const amendment = { disposition: judgment, rationale: { type: "string" } };
+  const source = { entry: object({ id: entryId, version: { type: "integer", minimum: 1 } }, ["id"]) };
+  return { "x-record-authoring-row": "key_or_id", oneOf: [
+    { ...object({ key: label, ...source, ...amendment,
+      finding_id: { type: "string", minLength: 1 }, selected_text: object({ text: { type: "string", minLength: 1 },
+        occurrence: { type: "integer", minimum: 0 } }, ["text"]) }, ["key", "entry", "disposition"]),
+      allOf: [{ oneOf: [{ required: ["finding_id"], not: { required: ["selected_text"] } },
+        { required: ["selected_text"], not: { required: ["finding_id"] } }] }],
+      description: "A new judgment names its captured entry, disposition and exactly one of finding_id or selected_text." },
+    { ...object({ id: { type: "integer", minimum: 1 }, ...amendment }, ["id"]),
+      description: "An existing judgment retains its source; change only disposition and/or rationale." }
+  ] };
+}
 
 const CAPTURED_FINDINGS_SOURCE_KIND = "original_managed_findings";
 const refusal = (code, path, message) => ({ ok: false, diagnostics: [{ code, severity: "error", path, message }] });

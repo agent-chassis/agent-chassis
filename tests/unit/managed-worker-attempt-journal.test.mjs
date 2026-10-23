@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { activeCompletion, arbitrateCompletion, completionObservations } from "../../packages/agent-launch-cli/src/lib/managed-run-completion-observation.mjs";
+import { activeCompletion, arbitrateCompletion, completionObservations, deliveryCompletionRelease, deliveryCompletionReleaseFacts, reconcileDeliveryCompletion } from "../../packages/agent-launch-cli/src/lib/managed-run-completion-observation.mjs";
 
 import {
   ATTEMPT_EVENT_KINDS,
@@ -75,6 +75,19 @@ test("completion observations preserve lifecycle while the binding owner arbitra
         completion: { ...delivery, intent_id: "corrected-delivery" } }).ok, true);
       assert.equal(arbitrateCompletion({ events: released.events, selected, completion: release }).appended, false);
       assert.deepEqual(reduce(released.events).next_command, reduce(pending.events).next_command);
+      const compensated = { ...release, known_effects: "delivery ref restored; canonical review not written" };
+      const compensatedRelease = admitAttemptCommand({ repository: REPO, subject: SUBJECT, events: accepted.events,
+        attempt: dispatch, kind: ATTEMPT_EVENT_KINDS.COMPLETION_OBSERVATION_RECORDED,
+        payload: { dispatch_tuple: dispatch, invocation_id: compensated.intent_id, completion: compensated } });
+      assert.equal(compensatedRelease.admitted, true);
+      assert.equal(activeCompletion(completionObservations(compensatedRelease.events, dispatch)), null);
+      assert.equal(arbitrateCompletion({ events: compensatedRelease.events, selected, completion: request }).ok, true);
+      for (const known_effects of ["canonical write unknown", "delivery completed"]) {
+        assert.equal(admitAttemptCommand({ repository: REPO, subject: SUBJECT, events: accepted.events,
+          attempt: dispatch, kind: ATTEMPT_EVENT_KINDS.COMPLETION_OBSERVATION_RECORDED,
+          payload: { dispatch_tuple: dispatch, invocation_id: release.intent_id,
+            completion: { ...release, known_effects } } }).admitted, false);
+      }
     }
     if (first === request) {
       const retry = arbitrateCompletion({ events: accepted.events, selected,
@@ -88,6 +101,59 @@ test("completion observations preserve lifecycle while the binding owner arbitra
   const terminal = buildPrefix([ATTEMPT_EVENT_KINDS.ATTEMPT_TERMINAL], { events: pending.events });
   assert.equal(arbitrateCompletion({ events: terminal, selected: { attempt: dispatch, dispatch_tuple: dispatch }, completion: request }).code,
     "completion_attempt_terminal");
+});
+
+test("retained release evidence requires the exact binding, intent and established transaction effects", () => {
+  const intent = { alternative: "delivery", intent_id: "failed-delivery", phase: "before_materialization", known_effects: "none at acquisition" };
+  const binding = { unit_address: SUBJECT, run_id: "bound-run", retry_id: 0 };
+  const original = { identity: { unit: SUBJECT, binding }, completion_intent: intent,
+    outcome: { response: { committed: false, submitted_for_review: false, delivery_ref: "restored",
+      completion_recovery: { available: false }, transaction: { delivery_commit: "a".repeat(40), prior_tip: "b".repeat(40),
+        canonical_review: { written: false }, compensation: { state: "restored", published_commit: "a".repeat(40), restored_tip: "b".repeat(40) } } } } };
+  const select = value => deliveryCompletionRelease({ subject: SUBJECT, sliceBinding: binding, original: value });
+  assert.equal(select(original).ok, true);
+  assert.equal(select(original).completion.released_intent_id, intent.intent_id);
+  for (const alter of [
+    value => { value.outcome.response.submitted_for_review = null; },
+    value => { value.outcome.response.committed = true; },
+    value => { value.outcome.response.transaction.canonical_review.written = null; },
+    value => { value.outcome.response.transaction.compensation.state = "failed"; },
+    value => { value.outcome.response.transaction.compensation.restored_tip = "foreign"; },
+    value => { value.outcome.response.transaction.compensation.published_commit = "foreign"; },
+    value => { delete value.completion_intent; },
+    value => { value.identity.unit = OTHER_SUBJECT; },
+    value => { value.identity.binding.retry_id = 1; },
+    value => { value.outcome.response.completion_recovery.available = true; }
+  ]) {
+    const control = structuredClone(original);
+    alter(control);
+    assert.equal(select(control).code, "completion_release_evidence_unproven");
+  }
+  assert.equal(deliveryCompletionReleaseFacts({ committed: false, submitted_for_review: false, delivery_ref: "unchanged",
+    transaction: { delivery_commit: null, canonical_review: { state: "not_attempted" } } }),
+  "delivery ref unchanged; canonical review not attempted");
+  assert.equal(deliveryCompletionReleaseFacts({ committed: false, submitted_for_review: false, delivery_ref: "unchanged",
+    transaction: { delivery_commit: "pre-existing", canonical_review: { state: "not_attempted" } } }), null);
+
+  const selected = { attempt: tuple(), dispatch_tuple: tuple(), released: false };
+  const observation = completion => ({ kind: ATTEMPT_EVENT_KINDS.COMPLETION_OBSERVATION_RECORDED,
+    attempt: tuple(), payload: { dispatch_tuple: tuple(), completion } });
+  const completion = select(original).completion;
+  const run = events => reconcileDeliveryCompletion({ events, selected, intent, completion });
+  assert.equal(run([observation(intent)]).appended, true);
+  assert.equal(run([]).code, "completion_release_owner_mismatch");
+  assert.equal(run([observation({ ...intent, intent_id: "other-intent" })]).code, "completion_release_owner_mismatch");
+  const released = [observation(intent), observation(completion)];
+  assert.equal(run(released).appended, false);
+  assert.equal(run([...released, observation({ ...intent, intent_id: "new-delivery" })]).code, "completion_binding_consumed");
+  assert.equal(run([...released, observation({ alternative: "assignment_change_requested", intent_id: "accepted" })]).code,
+    "completion_binding_consumed");
+  assert.equal(run([...released, { kind: ATTEMPT_EVENT_KINDS.ATTEMPT_TERMINAL, attempt: tuple() }]).code,
+    "completion_attempt_terminal");
+  assert.equal(reconcileDeliveryCompletion({ events: released, selected: { ...selected, released: true }, intent, completion }).code,
+    "completion_attempt_terminal");
+  const foreign = released.map(event => ({ ...event, payload: { ...event.payload, dispatch_tuple: tuple("another-attempt") } }));
+  assert.equal(run(foreign).code, "completion_release_owner_mismatch");
 });
 
 function tuple(runId = "run-1", retryId = 0) {

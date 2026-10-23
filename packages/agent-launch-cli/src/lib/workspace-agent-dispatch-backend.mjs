@@ -530,7 +530,8 @@ function assembleDispatchBackend(options, createLifecycle) {
           const nothingSelected = worker.refusal == null &&
             ["attempt_selector_mismatch", "attempt_observation_unavailable"].includes(worker.code);
           if (review.ok) return input.attemptId != null || nothingSelected ? review : worker;
-          return nothingSelected && (review.refusal != null || review.code === "attempt_selection_ambiguous")
+          return nothingSelected && (review.refusal != null || review.code === "attempt_selection_ambiguous" ||
+            review.code === "attempt_selector_mismatch" && review.candidates?.length > 0 && worker.attempts?.length === 0)
             ? review : worker;
         },
 

@@ -1,5 +1,7 @@
 
 
+import { isDeepStrictEqual } from 'node:util';
+
 const OWN = 'workspace_assess_contract';
 
 async function check(call, contracts) {
@@ -44,10 +46,40 @@ async function serveCorrection(value, contracts) {
 }
 
 export async function serveContractAssessmentResponse(body, contracts) {
-  if (body.selected_diagnosis !== undefined) {
-    const selected = await serveCorrection({ ...body.selected_diagnosis, next_calls: body.next_calls }, contracts);
-    const { next_calls, ...selected_diagnosis } = selected;
-    return { ...body, selected_diagnosis, next_calls };
+  if (body.selected_diagnoses !== undefined) {
+    const checked = await Promise.all(body.next_calls.map(call => check(call, contracts)));
+    const missing = checked.flatMap((result, index) => result.unavailable ? [{
+      ...result.unavailable, call: body.next_calls[index] }] : []);
+    const selected_diagnoses = await Promise.all(body.selected_diagnoses.map(async entry => {
+      if (entry.failure !== undefined) return entry;
+      const unit = entry.save_guidance?.unit ?? entry.recovery?.then?.known_arguments?.unit;
+      const members = entry.save_guidance === undefined ? Object.keys(entry.recovery?.then?.known_arguments?.changes ?? {})
+        : body.correction_contexts[unit].changes_schema_from.select.input_contract.members;
+      const contextMissing = missing.find(failure => failure.call.purpose === 'current_correction_context' &&
+        failure.call.arguments.reads?.some(read => read.subject === unit && isDeepStrictEqual(read.for_changes, members)));
+      const { recovery, save_guidance, ...meaning } = entry;
+      if (contextMissing) {
+        const { call: _call, ...cause } = contextMissing;
+        return { ...meaning, recovery: { ...cause,
+          stop: 'This server supplies no usable current correction context; no save is offered.' } };
+      }
+      if (recovery?.status === 'awaiting_obligation_choice' &&
+          !checked.some(result => result.call?.purpose === 'choose_obligation_owner')) {
+        const { call: _call, ...cause } = missing.find(failure => failure.call.purpose === 'choose_obligation_owner');
+        return { ...meaning, recovery: { ...cause,
+          stop: 'No registered reader accepts an offered obligation-owner correction context; no association save is available.' } };
+      }
+      return { ...meaning, ...(recovery === undefined ? {} : { recovery: await recoveryCalls(recovery, contracts) }),
+        ...(save_guidance === undefined ? {} : { save_guidance }) };
+    }));
+    const { correction_contexts: contexts, ...answer } = body;
+    const used = Object.fromEntries(Object.entries(contexts ?? {}).filter(([unit]) =>
+      selected_diagnoses.some(entry => entry.save_guidance?.unit === unit)));
+    return { ...answer, selected_diagnoses, ...(Object.keys(used).length ? { correction_contexts: used } : {}),
+      ...(missing.some(failure => failure.call.purpose !== 'current_correction_context') ? {
+        unavailable_detail: missing.filter(failure => failure.call.purpose !== 'current_correction_context')
+          .map(({ call: _call, ...failure }) => failure) } : {}),
+      next_calls: checked.flatMap(result => result.call ? [result.call] : []) };
   }
   return { ...body, ...(body.gaps === undefined ? {} : {
     gaps: await Promise.all(body.gaps.map(gap => serveCorrection(gap, contracts))) }) };

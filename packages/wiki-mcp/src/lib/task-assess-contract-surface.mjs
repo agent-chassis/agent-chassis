@@ -15,7 +15,7 @@ import { assessmentAuthoredValidity, projectContractAssessmentResponse } from '.
 import { serveContractAssessmentResponse } from './task-assess-contract-response-calls.mjs';
 import { assessmentCurrentRead, projectAssessmentGuidance, projectSelectedDiagnosisGuidance } from
   "./task-assess-contract-corrections.mjs";
-import { exclusiveWith, requiredWithout, requiresPath, withDeclaredCrossFieldRules } from
+import { exclusiveWith, requiredWithout, withDeclaredCrossFieldRules } from
   "./zod-request-constraint-declarations.mjs";
 
 const AUTHENTICATED_ORIGINAL_RULE = "With original, top-level unit, focus and obligation_id are compared with the " +
@@ -28,11 +28,11 @@ export function createContractAssessmentInputContract(z) {
   const selector = (name) => requestSchema(z, declared.properties[name], declared.$defs);
   const original = withDeclaredCrossFieldRules(z.object({
     source: selectedResponseDetailSchema(z).shape.source,
-    diagnosis_id: selector("diagnostic_group_id").optional(),
-    obligation_id: selector("obligation_id").optional(),
+    diagnoses: z.array(z.object({ diagnosis_id: selector("diagnostic_group_id"),
+      obligation_id: selector("obligation_id").optional() }).strict()).min(1)
+      .describe("Read these explicitly chosen diagnoses in order from this source; each obligation_id restricts only its entry.").optional(),
     view: z.literal("diagnoses").optional()
-  }).strict(), [requiresPath({ field: "obligation_id", path: ["diagnosis_id"] }),
-    exclusiveWith({ field: "view", others: ["diagnosis_id", "obligation_id"] })]);
+  }).strict(), [exclusiveWith({ field: "view", others: ["diagnoses"] })]);
   const inputSchema = withDeclaredCrossFieldRules(z.object({
     unit: proofAuthoringUnitInputSchema(z).optional(),
     focus: proofAuthoringFocusInputSchema(z).optional(),
@@ -57,7 +57,7 @@ function normalizeAgainstOriginal(request, carrier) {
   const restates = {
     unit: (value) => value === carrier.unit,
     focus: (value) => value === carrier.focus,
-    obligation_id: (value) => value === original.obligation_id ||
+    obligation_id: (value) => original.diagnoses?.every(item => item.obligation_id === value) === true ||
       (carrier.selection.scope === "selected_obligation" && value === carrier.selection.obligation_id)
   };
   const supplied = Object.keys(top);
@@ -125,11 +125,9 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
     const { carrier } = read;
     const normalized = requested === undefined ? {} : { normalized: normalizeAgainstOriginal(request, carrier) };
     const source = read.original.locator;
-    const selected = read.selected_diagnosis;
+    const selected = read.selected_diagnoses;
     const inventoryView = requested?.view === "diagnoses";
-    const navigation = capturedDiagnosisNavigation(carrier.diagnosis_inventory).map(row =>
-      selected !== undefined && requested.obligation_id !== undefined && row.diagnosis_id === selected.diagnosis_id
-        ? { ...row, subjects: selected.diagnosis.subjects.length, obligation_ids: [requested.obligation_id], obligations_omitted: 0 } : row);
+    const navigation = capturedDiagnosisNavigation(carrier.diagnosis_inventory);
     const retained = navigation.map(row => row.diagnosis_id);
     const equivalentCount = navigation.reduce((count, row) => count + (row.equivalent_diagnoses?.length ?? 0), 0);
     const complete = selected === undefined ? assessmentBody(carrier, registeredTier, source !== null) : null;
@@ -137,7 +135,7 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
     const summary = complete;
     const historicalCall = (arguments_) => ({ ...contractAssessmentCall(arguments_), purpose: "historical_retrieval" });
     const diagnosisCall = (arguments_) => {
-      const row = navigation.find(row => row.diagnosis_id === arguments_.original.diagnosis_id);
+      const row = navigation.find(row => row.diagnosis_id === arguments_.original.diagnoses[0].diagnosis_id);
 
       return { ...contractAssessmentCall(arguments_),
         ...(row.code === undefined ? { information: `${row.recovery_status.replaceAll('_', ' ')}: ${row.reason_codes.map(code =>
@@ -147,8 +145,7 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
         subjects: row.subjects };
     };
 
-    const diagnosisRequest = (id) => ({ original: { source, diagnosis_id: id,
-      ...(selected !== undefined && requested.obligation_id !== undefined ? { obligation_id: requested.obligation_id } : {}) } });
+    const diagnosisRequest = (id) => ({ original: { source, diagnoses: [{ diagnosis_id: id }] } });
     const originalRequest = source === null ? null : { original: { source } };
     const inventoryRequest = source === null ? null : { original: { source, view: "diagnoses" } };
     let includeOriginalCall = true;
@@ -161,7 +158,8 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
             ? { assessment: { save_guidance: summary.save_guidance } } : {}) }
           : selected === undefined ? { assessment }
           : { source: carrier.assessment.source, content_digest: carrier.assessment.content_digest,
-            selected_diagnosis: selectedDiagnosisBody(carrier, selected, requested.obligation_id, registeredTier) }),
+            selected_diagnoses: selected.map(item => item.failure ? item
+              : selectedDiagnosisBody(carrier, item, item.obligation_id, registeredTier)) }),
         original: present({ available: read.original.available, revision: read.original.revision, source,
           purpose: "historical_retrieval", write_authority: false,
           retention_failure: read.original.retention_failure }),
@@ -187,7 +185,7 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
         assessment_context_currentness: read.assessment_context_currentness });
       const continuations = source === null ? { original: null, unavailable_reason: "original_not_retained" } : {
         original: originalRequest,
-        ...(selected !== undefined ? { diagnosis: diagnosisRequest(selected.diagnosis_id) }
+        ...(selected !== undefined ? { diagnoses: [{ original: requested }] }
           : { diagnoses: offered.map(diagnosisRequest) }) };
       const currentRead = assessmentCurrentRead(body);
       const diagnosisCalls = selected === undefined ? (continuations.diagnoses ?? []).map(diagnosisCall) : [];
@@ -203,7 +201,7 @@ export function createContractAssessmentSurface({ workspace, z, sessionEnv = pro
     let projected = answer(summary, []);
     if (selected !== undefined) {
 
-      projected = answer(null, [selected.diagnosis_id]);
+      projected = answer(null, selected.map(item => item.diagnosis_id));
     } else if (source !== null) {
 
       includeOriginalCall = !inventoryView;

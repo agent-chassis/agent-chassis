@@ -3,11 +3,10 @@
 import { scopeAllowsPath } from "../../../agent-launch-core/src/lib/role-guard-path-policy.mjs";
 import { resolveLauncherRunState } from "./launcher-run-credential.mjs";
 import { authenticateManagedWorkerSliceBinding } from "./managed-test-source-context.mjs";
-import { readManagedAssignmentPresentation } from "./managed-assignment-read.mjs";
+import { captureAssignmentChangeContext } from './task-request-assignment-change-context.mjs';
 import { readManagedCompletion, readAttemptJournalEvents } from "../../../agent-launch-cli/src/lib/managed-run-process-identity-store.mjs";
 import { selectManagedAttempt } from "../../../agent-launch-core/src/lib/managed-run-observation.mjs";
 import { arbitrateCompletion } from "../../../agent-launch-cli/src/lib/managed-run-completion-observation.mjs";
-import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 
 function unavailable(capability, error) {
   return { missing_capability: capability,
@@ -68,20 +67,24 @@ export async function projectSymlinkSourceRecovery(evidence, { workspace, sessio
     recovery.missing_capability = "mutable_source_bound_to_current_worker_attempt";
     return finish();
   }
-  const request = {
-    assignment_fact: { kind: "contradictory", statement: `Proof execution for ${evidence.subject.requested} is blocked by a symlink at ${affected}, outside the authenticated assignment write scope.` },
+  const proposed = await projectAssignmentChangeRecovery({ workspace, sessionEnv, requestContracts, state, binding,
     evidence: [{ description: `${evidence.reason_code}; path ${affected}; status ${evidence.status}; zero proof credit.`,
-      references: [affected, `assigned unit ${source.selected_unit}`, `source digest ${source.source_digest}`] }],
-    prevents: "Execution of the selected proof population.",
-    requested_change: `Coordinator correction of the source prerequisite at ${affected}; this request does not expand scope or repair the source.`,
-    completed_work: [], remaining_work: []
-  };
-  const proposed = await projectAssignmentChangeRecovery({ workspace, sessionEnv, requestContracts, state, binding, request });
+      references: [affected, source.selected_unit] }] });
   recovery = { ...recovery, ...proposed.recovery };
   return finish(proposed.call);
 }
 
-export async function projectAssignmentChangeRecovery({ workspace, sessionEnv, requestContracts, state, binding, request }) {
+export async function projectAssignmentChangeRecoveryForCaller({ workspace, sessionEnv, requestContracts, state, evidence }) {
+  try {
+    const binding = authenticateManagedWorkerSliceBinding({ mainRepo: workspace.dir, state,
+      wkId: state.assignedUnit.split('#')[0] });
+    return await projectAssignmentChangeRecovery({ workspace, sessionEnv, requestContracts, state, binding, evidence });
+  } catch (error) {
+    return { call: null, recovery: unavailable('authenticated_assignment_change_recovery', error) };
+  }
+}
+
+export async function projectAssignmentChangeRecovery({ workspace, sessionEnv, requestContracts, state, binding, evidence }) {
   let recovery = {};
   const contract = requestContracts?.contractFor("request_assignment_change");
   if (!contract) {
@@ -90,7 +93,6 @@ export async function projectAssignmentChangeRecovery({ workspace, sessionEnv, r
   }
   let missingCapability = "authenticated_frozen_assignment_for_request_assignment_change";
   try {
-    const assignment = readManagedAssignmentPresentation({ env: sessionEnv });
     missingCapability = "unused_worker_attempt_completion_authority";
     const completion = readManagedCompletion({ mainRepo: workspace.dir, subject: state.assignedUnit, sliceBinding: binding });
     if (!completion.ok || (completion.completion !== null && completion.completion !== undefined)) {
@@ -110,29 +112,21 @@ export async function projectAssignmentChangeRecovery({ workspace, sessionEnv, r
         ...(availability?.cause === undefined ? {} : { cause: availability.cause }) };
       return { recovery, call: null };
     }
-    if (assignment.presentation.identity.run_id !== completion.dispatch_tuple.run_id ||
-        assignment.presentation.identity.canonical_source_digest !== binding.source_digest) {
-      recovery.missing_capability = "frozen_assignment_matching_current_attempt";
-      return { recovery, call: null };
-    }
+    missingCapability = "authenticated_frozen_assignment_for_request_assignment_change";
+    const context = captureAssignmentChangeContext({ env: sessionEnv, session: state, binding,
+      dispatchTuple: completion.dispatch_tuple });
+
+    if (context.assignment.state === 'unavailable') recovery.assignment = context.assignment;
   } catch (error) {
     recovery = { ...recovery, ...unavailable(missingCapability, error) };
     return { recovery, call: null };
   }
-  try {
-    if (!await contract.acceptsArguments(request)) {
-      recovery.missing_capability = "registered_request_assignment_change_schema_accepting_refusal_testimony";
-      return { recovery, call: null };
-    }
-  } catch (error) {
-    recovery = { ...recovery, ...unavailable("registered_request_assignment_change_schema_validation", error) };
-    return { recovery, call: null };
-  }
+
   recovery.assignment_change = {
-    effect: "Acceptance ends this worker attempt as blocked through launcher termination. No final report, further model turn, commit or delivery follows acceptance. It does not expand scope or repair the source.",
-    testimony_required: ["Confirm or correct assignment_fact, prevents and requested_change from your assignment.",
-      "Supply completed_work and remaining_work from your own knowledge before submitting; the empty arrays are incomplete testimony, not claims that no work exists."],
-    automatically_submitted: false
+    tool: "request_assignment_change", executable: false,
+    known_arguments: { evidence },
+    missing_caller_input: ["assignment_fact", "prevents", "requested_change", "completed_work", "remaining_work"],
+    effect: "Acceptance ends this worker attempt as blocked; no further report or delivery. It does not expand scope or repair the source."
   };
-  return { recovery, call: buildNextCall({ tool: "request_assignment_change", recommended: true, arguments: request }) };
+  return { recovery, call: null };
 }

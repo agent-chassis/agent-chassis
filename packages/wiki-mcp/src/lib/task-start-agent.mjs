@@ -48,8 +48,9 @@ export function createStartAgentTask({ workspace, sessionEnv = process.env, resp
       if (selected.response) return refuse(selected.response,
         { workspace, request: args, responseEnv, requestContracts });
 
-      if (selected.args.role === "worker" && args.diff_base_sha !== undefined) return refuse({
-        code: "caller_supplied_committed_slice_authority", reason: "worker_review_pair_forbidden" },
+      if (selected.args.role === "worker" && (args.diff_base_sha !== undefined || args.material !== undefined)) return refuse({
+        code: args.material === undefined ? 'caller_supplied_committed_slice_authority' : 'start_agent_findings_material_required',
+        reason: args.material === undefined ? 'worker_review_pair_forbidden' : 'worker_review_material_forbidden' },
         { workspace, request: selected.args, responseEnv });
       if (selected.args.role === "worker") {
         const completed = await loadIntegratedSliceDispatchRefusal({ dir: workspace.dir, unitAddress: selected.args.subject });
@@ -74,7 +75,7 @@ export function createStartAgentTask({ workspace, sessionEnv = process.env, resp
       }
       let correction = null;
 
-      let defaultAttempted = false;
+      let defaultAttempted = false, baseSelectedConcurrently = false, baseSelectionError = null;
       stage = "dispatch";
       const run = createAgentDispatchPipeline({ ...context, jsonContent: value => value,
 
@@ -91,8 +92,17 @@ export function createStartAgentTask({ workspace, sessionEnv = process.env, resp
           } },
         projectAcceptedLaunch: ({ launch }) => startAgentAccepted({ launch, workspace, buildResultCall, requestContracts, responseEnv }),
         buildMissingBaseGuidance: async ({ wkId, classification }) => {
-          const proposal = defaultAttempted ? null : await selectInitialWkBaseBranch({
-            mainRepo: classification.diagnostics.repository_path, baseBranch: undefined });
+
+          stage = 'base_selection';
+          let proposal;
+          try {
+            proposal = defaultAttempted ? null : await selectInitialWkBaseBranch({
+              mainRepo: classification.diagnostics.repository_path, baseBranch: undefined });
+          } catch (error) {
+
+            baseSelectionError = error;
+            return { code: error.code, authority_limb: 'mechanical_failure', effects_started: false };
+          }
           defaultAttempted = true;
           const save = proposal === null ? null
             : await saveStartAgentDefaultBase({ wkId, branch: proposal.branch, workspace });
@@ -100,11 +110,16 @@ export function createStartAgentTask({ workspace, sessionEnv = process.env, resp
             defaulted = startAgentBaseSelection({ wkId, ...proposal, saved: true });
             return { code: "managed_worktree_base_selection_defaulted", authority_limb: "mechanical_failure" };
           }
+          if (save?.outcome === 'selected_concurrently') {
+            baseSelectedConcurrently = true;
+            return { code: 'managed_worktree_base_selection_selected_concurrently', authority_limb: 'mechanical_failure' };
+          }
 
           const root = await startAgentBaseCorrection({ wkId, workspace, request: args });
           correction = root.correction;
           return { code: save === null ? "managed_worktree_base_selection_missing"
             : "managed_worktree_base_selection_save_failed", authority_limb: "mechanical_failure",
+            effects_started: false,
             original_failure: { code: classification.refusal_code, reason: classification.refusal_reason,
               detail: classification.diagnostics },
             ...(save === null ? {} : { base_selection_save: { branch: proposal.branch, ...save } }),
@@ -112,7 +127,11 @@ export function createStartAgentTask({ workspace, sessionEnv = process.env, resp
             recovery: { state: "choice_required", responsible_actor: "operator", root_unit: wkId } };
         } });
       let result = await run(selected.args);
-      if (defaulted !== null) result = await run(selected.args);
+      if (baseSelectionError !== null) throw baseSelectionError;
+      if (defaulted !== null || baseSelectedConcurrently) {
+        stage = 'dispatch';
+        result = await run(selected.args);
+      }
 
       const named = value => defaulted === null ? value : { ...value, base_selection: defaulted };
       if (result.outcome === "started" && result.base_selection_reassessment?.original_failure !== undefined) {
@@ -132,7 +151,7 @@ export function createStartAgentTask({ workspace, sessionEnv = process.env, resp
       const refusal = await refuse({ code: error.code ?? "start_agent_preparation_failed", failed_stage: stage,
         reason: error.detail?.reason,
         detail: error.detail === undefined ? captured : projectDispatchFailureDetail(error.detail, { env: responseEnv }) },
-      { workspace, request: args, responseEnv });
+      { workspace, request: args, responseEnv, requestContracts });
       const observed = stage === "dispatch" ? await observeProblem(refusal, args) : refusal;
       return defaulted === null ? observed : { ...observed, base_selection: defaulted };
     }

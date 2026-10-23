@@ -26,10 +26,12 @@ import {
 import { measureMcpInlineResultBytes } from "./mcp-response.mjs";
 import { selectedResponseDeliveryBound } from "./selected-response-snapshot.mjs";
 import { advanceRequest as ownerAdvanceRequest } from "./task-advance-candidate.mjs";
+import { buildPublishWorkRequest } from "./task-publish-work.mjs";
+import { candidateInspectionReadCall } from "./task-inspect-candidate-read-call.mjs";
 import { isDeepStrictEqual } from "node:util";
 import { TerminalWkCandidateError, TERMINAL_WK_CANDIDATE_CODES } from
   "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
-import { CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES } from
+import { CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES, isControlledContractGenerationNotPersisted } from
   "@agent-chassis/agent-launch-cli/src/lib/controlled-carrier-attachment-primitive.mjs";
 
 export const INSPECT_CANDIDATE_TOOL_NAME = "workspace_inspect_candidate";
@@ -385,13 +387,27 @@ export function createCandidateInspectionResponder({
       : selection.selection.kind === "historical" ? observed(selection, {})
         : observedCurrent(selection);
 
+    if (selection.selection.kind === "current" && isControlledContractGenerationNotPersisted(selection.failure)) {
+      const publication = buildPublishWorkRequest(selection.subject.unit, { requestSchemaAuthority });
+      const callable = publication.callable !== false;
+      body = { ...body, next_calls: callable ? [publication] : [], recovery: {
+        state: callable ? "callable" : "no_supported_route",
+        prerequisite: "Publication of current work must be explicitly intended and permitted by the applicable lifecycle.",
+        explanation: "Current canonical changes have not been persisted to the WK branch. Publication synchronizes those changes, " +
+          "may replace the selected candidate, and publishes to the configured handoff destination. " +
+          "It rechecks its prerequisites and may refuse; this observation neither authorizes publication nor promises success." +
+          (callable ? "" : " No supported publication call is available in this session; stop this synchronization here.")
+      } };
+      if (callable) delete body.no_supported_route;
+    }
+
     if (selection.failure instanceof TerminalWkCandidateError &&
         selection.failure.code === TERMINAL_WK_CANDIDATE_CODES.INPUT_MOVED) {
-      const call = buildDispatchContinuation({
-        tool: INSPECT_CANDIDATE_TOOL_NAME,
-        arguments: { subject: selection.subject.unit,
-          ...(selection.selection.kind === "historical" ? { version: selection.selection.version } : {}) },
-        successPredicate: { fact: "inspect_candidate.observation_completed", operator: "is_true" },
+      const call = candidateInspectionReadCall({ subject: selection.subject.unit,
+        ...(selection.selection.kind === "historical" ? { version: selection.selection.version } : {}) }, {
+        information: selection.selection.kind === "historical"
+          ? "After the same selected material is available, valid and no longer moving, observe this exact historical candidate version. Inspection repairs nothing."
+          : "After inputs stop moving, observe current candidate status. Inspection repairs nothing.",
         requestSchemaAuthority
       });
       if (call !== null) body = { ...body, next_calls: [call] };
@@ -418,10 +434,10 @@ export function candidateInspectionSubjectCorrection(args, { requestSchemaAuthor
   const versionValid = !versionPresent || typeof args.version === "string" && /^[0-9a-f]{64}$/u.test(args.version);
   const onlyKnownFields = Reflect.ownKeys(args).every(key => key === "subject" || key === "version");
   const corrected = { subject: classified.record_id, ...(versionPresent ? { version: args.version } : {}) };
-  const call = !onlyKnownFields || !versionValid || !isCanonicalNextCallTool(INSPECT_CANDIDATE_TOOL_NAME) ? null : buildDispatchContinuation({
-    tool: INSPECT_CANDIDATE_TOOL_NAME,
-    arguments: corrected,
-    successPredicate: { fact: "inspect_candidate.subject_is_root_wk", operator: "is_true" },
+  const call = !onlyKnownFields || !versionValid ? null : candidateInspectionReadCall(corrected, {
+    information: versionPresent
+      ? "Observe the same immutable candidate version for the parent WK; a slice has no separate candidate."
+      : "Observe current candidate status for the parent WK; a slice has no separate candidate.",
     requestSchemaAuthority
   });
   return {

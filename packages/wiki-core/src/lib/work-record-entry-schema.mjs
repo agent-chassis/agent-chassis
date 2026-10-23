@@ -20,6 +20,20 @@ export const WORK_RECORD_ENTRY_METADATA_PAGE_DEFAULT = 25;
 export const WORK_RECORD_ENTRY_METADATA_PAGE_MAX = 50;
 export const WORK_RECORD_ENTRY_REFERENCE_PREFIX = "wkentry.v1.";
 
+const scalarText = { type: "string", pattern: "^(?![\\s\\S]*[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF]))(?![\\s\\S]*(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF])[\\s\\S]*$",
+  description: "Use Unicode scalar text; unpaired surrogate code units are invalid." };
+const contentObject = (properties, required) => ({ type: "object", additionalProperties: false, properties, required });
+const contentLeaf = { oneOf: [contentObject({ text: scalarText }, ["text"]),
+  contentObject({ ref: { ...scalarText, minLength: 1 } }, ["ref"])] };
+export const WORK_RECORD_ENTRY_CONTENT_SCHEMA = { oneOf: [...contentLeaf.oneOf,
+  contentObject({ parts: { type: "array", minItems: 1, maxItems: WORK_RECORD_CONTENT_MAX_PARTS, items: contentLeaf } }, ["parts"])] };
+export const WORK_RECORD_ENTRY_TITLE_SCHEMA = { ...scalarText, minLength: 1,
+  maxLength: WORK_RECORD_ENTRY_TITLE_MAX_SCALARS, max_utf8_bytes: WORK_RECORD_ENTRY_TITLE_MAX_UTF8_BYTES,
+  description: `Use nonempty Unicode scalar text, at most ${WORK_RECORD_ENTRY_TITLE_MAX_SCALARS} scalars and ${WORK_RECORD_ENTRY_TITLE_MAX_UTF8_BYTES} UTF-8 bytes.` };
+export const WORK_RECORD_ENTRY_KIND_SCHEMA = { ...scalarText, maxLength: WORK_RECORD_ENTRY_KIND_MAX_SCALARS,
+  max_utf8_bytes: WORK_RECORD_ENTRY_KIND_MAX_UTF8_BYTES,
+  description: `Use Unicode scalar text, at most ${WORK_RECORD_ENTRY_KIND_MAX_SCALARS} scalars and ${WORK_RECORD_ENTRY_KIND_MAX_UTF8_BYTES} UTF-8 bytes; empty is allowed.` };
+
 export const WORK_RECORD_REFERENCE_FIELDS = Object.freeze([
   "v", "p", "r", "w", "u", "f", "i", "g", "o", "l", "t"
 ]);

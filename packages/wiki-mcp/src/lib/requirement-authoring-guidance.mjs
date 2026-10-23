@@ -15,7 +15,7 @@ import { selectCelDefinition } from
   "@agent-chassis/wiki-core/src/operations/controlled-contract/contract-requirement-vocabulary.mjs";
 
 import { CONTRACT_ASSESSMENT_ROUTE as ASSESS_TOOL } from "./controlled-contract-query-context.mjs";
-import { authoredFalsificationFacts, familyAuthoringFacts } from "./proof-discovery-response.mjs";
+import { authoredFalsificationFacts, familyAuthoringFacts, familyChoiceFacts } from "./proof-discovery-response.mjs";
 import { AUTHORING_VOCABULARY_TOPIC, CASE_FAMILY_TOPIC, caseFamilySelections,
   deriveAuthoringJobVocabulary, deriveCaseFamilyGuidance } from "./requirement-authoring-job-guidance.mjs";
 import { inputContractSourceDigest, resolveToolInputGuidancePath } from
@@ -272,7 +272,7 @@ export const REQUIREMENT_AUTHORING_GUIDANCE = Object.freeze({
   schema_version: "requirement-authoring-guidance.v1",
   overview: `Author contract requirements through ${SAVE_TOOL} ${BATCH}, one batch of entities, requirement rows, ` +
     "collections and unresolved meaning. Select compact_record_comparison.planned_operation for typed result relationships; compact_record_comparison projects only protected fields with shared applicability and observation boundaries. save_record_inputs.requirement_batch states its members, row addressing and " +
-    `exact source links. ${CONTROLLED_CONTRACT_REQUIREMENT_FIELD_GUIDANCE} Select one topic at a time: fields explains subject, ` +
+    `exact source links. ${CONTROLLED_CONTRACT_REQUIREMENT_FIELD_GUIDANCE} Combine needed topics in one bulk read: fields explains subject, ` +
     "behavior, observes and fails_when; required_object_shapes holds the referent, statement and verification " +
     "shapes; authoring_vocabulary holds the complete job vocabulary, sharing signatures and stating their allowed " +
     "behavior, fails_when and observes positions, including observation-only reference:covers. vocabulary and " +
@@ -307,12 +307,59 @@ export const REQUIREMENT_AUTHORING_GUIDANCE = Object.freeze({
 export const REQUIREMENT_AUTHORING_GUIDANCE_TOPICS = Object.freeze(Object.keys(REQUIREMENT_AUTHORING_GUIDANCE)
   .filter((member) => !["schema_version", "overview"].includes(member)).map((member) => Object.freeze([member])));
 
+const TOPIC_CHOICES = Object.freeze({
+  save_record_inputs: ['Save member addressing, labels and associations.', 'Mapping authored changes to saved meaning.', 'Object shapes describe values; this topic explains their save bindings.'],
+  compact_record_comparison: ['Protected-field comparison patterns and their observation boundaries.', 'Expressing preservation or a planned result relationship.', 'Reuses typed vocabulary and schemas; not a general case or grammar inventory.'],
+  requirement_schema: ['Complete requirement-batch schemas for existing or new records, including reachable definitions.', 'Needing exact batch grammar; existing and birth are direct choices.', 'For multiple save/create members use that known unit/kind’s input_contract; semantic guidance is separate.'],
+  authoring_vocabulary: ['Combined relation signatures with behavior, fails_when and observes permissions.', 'Choosing terms across statement positions; capability subsets are direct choices.', 'Includes vocabulary and observation_vocabulary signatures once; reading those as well repeats meaning.'],
+  fields: ['Meaning of subject, behavior, verifier, observes and fails_when.', 'Deciding which statement field carries the intended meaning.', 'Shapes supply structures; vocabulary supplies accepted terms.'],
+  cel_definitions: ['Complete index of canonical relation and CEL definitions with selected-definition reads.', 'Needing a term’s semantics or upstream language definition.', 'Vocabulary already supplies signatures and allowed positions, not these full definitions.'],
+  unresolved_coverage: ['What remains to author when a proof, family or falsifier is missing.', 'Recording unfinished controlled meaning without inventing coverage.', 'Links to case and save guidance; does not supply a chosen family or waive required work.'],
+  required_object_shapes: ['Referent, statement and verification structures and dependency rules.', 'Constructing authored values; capability subsets are direct choices.', 'Schemas supply exact grammar; fields explain intent; vocabulary supplies terms.'],
+  conditional_verification_requirements: ['Rules for when a statement requires verification.', 'Deciding whether verification must be authored.', 'Fields includes its main verification rule; this is the complete conditional-rule inventory.'],
+  runtime_test_authoring: ['Runtime-test declaration and association rules.', 'Authoring saved runtime-test meaning.', 'Native runtime vocabulary lists values; chosen case-family guidance supplies executable case instructions.'],
+  vocabulary: ['Accepted behavior/fails_when terms and signatures.', 'Only needing those statement positions.', 'The combined authoring_vocabulary includes these and observation signatures; capability subsets narrow that combined view.'],
+  observation_vocabulary: ['Accepted observation terms and signatures.', 'Only needing observes-position vocabulary.', 'Included in combined authoring_vocabulary; avoid both for the same term population.'],
+  native_runtime_test_vocabulary: ['Accepted native runtime-test values.', 'Choosing values for a runtime-test declaration.', 'Runtime-test authoring supplies rules; case-family guidance supplies target and falsifier instructions.'],
+  case_authoring: ['Complete shared case rules, all families, target variants and falsifiers.', 'Comparing families or explicitly needing the full inventory.', 'A family selection already includes shared rules and that family’s complete target/falsifier instructions; general is unnecessary for one chosen family.'],
+  ordinary_authoring: ['Ordinary prose, criteria, validation, scope and slice authoring routes.', 'Authoring in a session without requirement compilation.', 'Saved contract meaning remains readable; this guidance supplies no compilation capability or exemption.']
+});
+
+export function requirementGuidanceDiscovery(registeredTier, exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION) {
+  const guidance = sessionRequirementAuthoringGuidance(registeredTier, exceptionPublication);
+  const topics = Object.keys(guidance).filter(member => !['schema_version', 'overview'].includes(member));
+  const selections = topics.map(topic => ({ guidance: [topic] }));
+  const meaning = { topics: Object.fromEntries(topics.map(topic => {
+    const description = TOPIC_CHOICES[topic];
+    if (!description) throw new Error(`requirement_guidance_choice_description_missing: ${topic}`);
+    const [supplies, when, overlap] = description;
+    return [topic, { supplies, when, overlap }];
+  })) };
+  if (recordAuthoringAvailability(registeredTier).compile_requirements) {
+    selections.push(...caseFamilySelections(CASE_AUTHORING),
+      ...['authoring_vocabulary', 'required_object_shapes'].flatMap(topic => REQUIREMENT_SCHEMA_METADATA.presets
+        .map(scope => ({ guidance: [topic, 'capabilities', ...scope] }))),
+      ...guidance.requirement_schema.contexts.map(context => ({ guidance: [REQUIREMENT_SCHEMA_TOPIC, context] })));
+    meaning.families = Object.fromEntries(familyChoiceFacts(CASE_AUTHORING).map(({ family_id, ...facts }) => {
+      const family = CASE_AUTHORING.families[family_id];
+      return [family_id, { ...facts, languages: family.languages, ...(family.provider ? { provider: family.provider } : {}) }];
+    }));
+    meaning.family_scope = 'Choose the intended family explicitly. Its selection includes shared case rules and only that family’s complete instructions; no general-case read is required.';
+    meaning.capabilities = REQUIREMENT_SCHEMA_METADATA.capabilities;
+    meaning.capability_topics = ['authoring_vocabulary', 'required_object_shapes'];
+    meaning.capability_binding = 'Choose topic from capability_topics and nonempty distinct keys from capabilities; call {reads:[{reference,select:{guidance:[topic,"capabilities",...keys]}},...]} with this reference unchanged. The listed selections include common scopes; this same form accepts the explicitly chosen union.';
+    meaning.capability_scope = 'Capability selections narrow both shapes and combined vocabulary. Choose the union of known needs; whole-topic selections retain every capability, including typed values. No capability is inferred.';
+  }
+  return { selections, meaning };
+}
+
 export const REQUIREMENT_BIRTH_SCHEMA_ENTRY_STATEMENT =
   `${READ_TOOL} ${JSON.stringify({ reads: [{ subject: { ...REQUIREMENT_GUIDANCE_SUBJECT, topic: [REQUIREMENT_SCHEMA_TOPIC, 'birth'] } }] })}`;
 
 export const REQUIREMENT_AUTHORING_GUIDANCE_REVISION = requirementGuidanceRevision();
 export function requirementGuidanceRevision(registeredTier = "paid_cce", detail = requirementSchemaIdentity(), exceptionPublication = DEFAULT_EXCEPTION_PUBLICATION) {
   return inputContractSourceDigest({ instructions: sessionRequirementAuthoringGuidance(registeredTier, exceptionPublication),
+    discovery: requirementGuidanceDiscovery(registeredTier, exceptionPublication),
     ...(recordAuthoringAvailability(registeredTier).compile_requirements ? { detail, planned_operation: PLANNED_OPERATION_PATTERN } : {}) });
 }
 
@@ -417,7 +464,7 @@ export function sessionRequirementAuthoringGuidance(registeredTier, exceptionPub
   return Object.freeze({ schema_version: REQUIREMENT_AUTHORING_GUIDANCE.schema_version,
     overview: "Preserve the full user request as user_requirements prose. Author criteria, validation, exact scopes and slices through save_record. Reading and saving establish no implementation readiness or proof credit.",
     ordinary_authoring: Object.freeze({
-      request: "save_record {unit, revision, changes}. Read the current unit with workspace_read_wiki {subject:<unit>} and select the supported input_contract members together.",
+      request: "save_record {unit, revision, changes}. When grammar is missing, read the known unit directly with workspace_read_wiki {reads:[{subject:<unit>,select:{input_contract:{tool:'save_record',members:[...needed members]}}}]}. Request for_changes on the Read only when a current write revision is needed.",
       members: ["user_requirements", "criteria", "validation", "read_scope", "write_scope", "repo_paths", "slices", "ready_slices"],
       required_work: "Required controlled acceptance retains its full meaning and required disposition when compilation is unavailable; record the limitation and do not describe it as ready.",
       applicability: exceptionPublication.applicability("The author independently chooses whether controlled acceptance applies. A deliberate opt-out states a nonempty unassessed rationale, earns zero proof credit and waives no native tests, review or repository policy. Missing capability never chooses exemption."),

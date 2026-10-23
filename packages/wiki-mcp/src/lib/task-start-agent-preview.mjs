@@ -31,8 +31,9 @@ export async function previewStartAgent({ request, context, workspace }) {
   const selected = await resolveStartedAgentDispatchSelection({ args: request, ...context, jsonContent: value => value });
   if (selected.response) return selected.response;
   const args = selected.args;
-  if (args.role === "worker" && args.diff_base_sha !== undefined) return { accepted: false,
-    refusal: { code: "caller_supplied_committed_slice_authority", reason: "worker_review_pair_forbidden" } };
+  if (args.role === "worker" && (args.diff_base_sha !== undefined || args.material !== undefined)) return { accepted: false,
+    refusal: { code: args.material === undefined ? 'caller_supplied_committed_slice_authority' : 'start_agent_findings_material_required',
+      reason: args.material === undefined ? 'worker_review_pair_forbidden' : 'worker_review_material_forbidden', effects_started: false } };
   if (args.role === "worker") {
     const completed = await loadIntegratedSliceDispatchRefusal({ dir: workspace.dir, unitAddress: args.subject });
     if (completed !== null) return completed;

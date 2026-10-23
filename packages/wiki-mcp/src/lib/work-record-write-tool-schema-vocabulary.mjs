@@ -30,7 +30,8 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/work-record-entry-schema.mjs";
 import { declareRequestConstraints } from "./zod-request-constraint-declarations.mjs";
 
-import { READY_TARGET_COARSE_FACET_VALUES } from
+import { READY_TARGET_COARSE_FACET_VALUES, WORK_RECORD_ACCEPTANCE_CRITERION_SCHEMA,
+  WORK_RECORD_STRUCTURED_ACCEPTANCE_CRITERION_SCHEMA } from
   "@agent-chassis/wiki-core/src/lib/work-record-ready-slice-contract.mjs";
 
 const READY_SLICE_WORK_KINDS = new Set(["implementation", "review", "redteam"]);
@@ -146,29 +147,11 @@ export function readyValidationInput(z, { nonempty = false } = {}) {
 }
 
 export function readyStructuredAcceptanceCriterion(z) {
-  return z
-    .object({
-      text: readyNonemptyString(z),
-      typed_identity: z.string().min(1).optional(),
-      verification_method: z
-        .enum(WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES)
-        .nullable()
-        .optional(),
-      evidence_target: z.string().nullable().optional(),
-      facet_provenance: z
-        .object({
-          text: readyFacetProvenanceValue(z).optional(),
-          verification_method: readyFacetProvenanceValue(z).optional(),
-          evidence_target: readyFacetProvenanceValue(z).optional()
-        })
-        .strict()
-        .optional()
-    })
-    .strict();
+  return requestSchema(z, WORK_RECORD_STRUCTURED_ACCEPTANCE_CRITERION_SCHEMA);
 }
 
 export function readyAcceptanceCriterion(z) {
-  return z.union([readyNonemptyString(z), readyStructuredAcceptanceCriterion(z)]);
+  return requestSchema(z, WORK_RECORD_ACCEPTANCE_CRITERION_SCHEMA);
 }
 
 export function readyAcceptance(z, { structuredCriteria = false } = {}) {

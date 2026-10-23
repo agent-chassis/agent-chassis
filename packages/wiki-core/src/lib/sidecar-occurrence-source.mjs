@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { checkoutContentIdentity } from "./sidecar-checkout-inputs.mjs";
 import { isUnindexedSidecarSourcePath, validateExistingSidecarPath, validateVirtualSidecarPath } from "./sidecar-paths.mjs";
 import { decodeCommittedSource, selectCommittedSourceRegion } from "./sidecar-source-regions.mjs";
+import { projectFailureDiagnosis } from "./diagnostic-projection.mjs";
 
 const REGULAR_FILE_MODES = new Set(["100644", "100755"]);
 
@@ -67,8 +68,8 @@ function groupSelection(selection) {
   return { hits, descriptors, definitions };
 }
 
-function unavailableFile(facts, reason) {
-  return { source: null, entry: { ...facts, state: "unavailable", reason } };
+function unavailableFile(facts, reason, failure = {}) {
+  return { source: null, entry: { ...facts, state: "unavailable", reason, ...failure } };
 }
 
 function objectId({ blob_oid: oid }) {
@@ -103,7 +104,11 @@ export async function readCompleteFiles(repoRoot, paths, descriptors) {
       source = checkoutContentIdentity(bytes) === objectId(facts)
         ? decodeCommittedSource(bytes) : { state: "unavailable", reason: "checkout_source_changed" };
     } catch (error) {
-      if (error?.code !== "ENOENT" && error?.code !== "missing_path" && error?.code !== "outside_repo") throw error;
+      if (error?.code !== "ENOENT" && error?.code !== "missing_path" && error?.code !== "outside_repo") {
+        files.set(facts.path, unavailableFile(facts, "checkout_source_read_failed", {
+          operation: "read_source_file", cause: projectFailureDiagnosis(error) }));
+        continue;
+      }
       source = { state: "unavailable", reason: "checkout_source_unavailable" };
     }
     if (source.state !== "available") {

@@ -32,6 +32,10 @@ function completion(subject) {
 }
 
 function recovery({ stage, outcome, resource, inputInvalid, outputFailed, effects, publicDelivery }) {
+  if (outcome.completion_recovery?.available === true && !outputFailed) return {
+    actor: "worker", action: "inspect_failed_delivery", instruction:
+      "This attempt left no delivery publication or review submission. Preserve its reported object effects and specific cause. " +
+      "A historical result read performs no correction and cannot establish current completion availability." };
 
   if (!inputInvalid && !outputFailed && effects.submitted_for_review === true &&
       ["pending", "superseded"].includes(effects.checkout)) {
@@ -90,11 +94,11 @@ export function prepareDeliverWorkResponse({ workspace, outcome = {}, observatio
   const decidingStage = outcome.output?.stage ?? settled.stage ?? stage ??
     (settled.scope?.contained === false && effects.submitted_for_review !== true ? "scope_verification" :
       transaction.compensation?.state === "failed" ? "compensation" :
-      ["threw", "refused"].includes(transaction.canonical_review?.state) ? "canonical_review" :
+      ["threw", "refused", "invalid"].includes(transaction.canonical_review?.state) ? "canonical_review" :
       ["pending", "superseded"].includes(effects.checkout) ? "checkout" :
       settled.transaction ? "settlement" : "binding_resolution");
   const resource = { subject, ref: transaction.ref ?? observation?.ref ?? null };
-  const state = classify(effects, selected);
+  const state = settled.completion_recovery?.available === true ? "refused" : classify(effects, selected);
   const original = { availability: outcome.original?.available === true ? "retained" : admitted ? "unavailable" : "not_captured",
     locator: outcome.original?.available === true ? outcome.original.locator : null, operator_only: true,
     reader_scope: "operator_only applies to generic retained-evidence access. When worker_read_available is true, the worker may follow the returned get_run_result call for the delivery original.",

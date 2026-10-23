@@ -1,34 +1,18 @@
+import { CODE_INDEX_QUERY_ROUTE } from "./code-index-query-contract.mjs";
 import { z } from "zod";
-import { projectToolInputValidationFailure } from "./register-tool.mjs";
-import {
-  getSidecarContextForPath,
-  getSidecarIndexStatus,
-  getSidecarQueryImpact
-} from "@agent-chassis/wiki-core";
-import { projectCodeContext, projectCodeImpact, projectCodeStatus } from "./code-index-query-meaning.mjs";
-import {
-  SIDECAR_CODE_QUESTION_ALTERNATIVES,
-  SIDECAR_CODE_QUESTION_FIELDS,
-  SIDECAR_CODE_QUESTION_RELATIONSHIPS,
-  normalizeSidecarCodeQuestionInput
-} from "@agent-chassis/wiki-core/src/lib/sidecar-query-input.mjs";
+import { projectCodeIndexInputFailure } from "./code-index-query-input-recovery.mjs";
+import { getSidecarIndexStatus } from "@agent-chassis/wiki-core";
 import { publishedQueryContext } from "@agent-chassis/wiki-core/src/lib/sidecar-published-preparation.mjs";
 import { collectSidecarCheckoutInputs, sidecarCheckoutObservationIdentity } from
   "@agent-chassis/wiki-core/src/lib/sidecar-checkout-inputs.mjs";
 import { readSidecarStoreStatus } from "@agent-chassis/wiki-core/src/lib/sidecar-store.mjs";
 import { sidecarProviderInputsChangedAtCommit } from "@agent-chassis/wiki-core/src/lib/sidecar-scip-projects.mjs";
-import {
-  codeIndexDetailSchema,
-  createCodeIndexAnswerSelection,
-  createCodeIndexPreparationGuidance,
-  createCodeIndexQuestionHandler
-} from "./code-index-query-response.mjs";
+import { codeIndexDetailSchema, codeIndexQueryInputSchema } from './code-index-query-schema.mjs';
+import { codeIndexHostMechanics } from './paid-composition.mjs';
+import { createCodeIndexPreparationGuidance, createCodeReviewAuthority } from './code-index-review-authority.mjs';
 import { registeredToolRequestContracts } from "./registered-tool-request-contracts.mjs";
 import { selectedResponseRequestSchema } from "./selected-response-snapshot.mjs";
 import { resolveWorkspaceRepo } from "./workspace-repo-resolution.mjs";
-import { createCodeReviewSource } from "./code-index-query-reviewed-source.mjs";
-
-export const CODE_INDEX_QUERY_ROUTE = "query_code_index";
 
 export const SELECTED_CODE_ANSWER_CONTRACT =
   "Compact answer; follow next_calls for retained detail without rerunning the query.";
@@ -45,35 +29,6 @@ const CODE_QUESTION_CONTRACT =
 const STATUS_CONTRACT =
   "status:true alone reports index availability and material limits without preparing or refreshing anything.";
 
-const QUESTION_FIELD_SHAPES = Object.freeze({
-  paths: () => z.array(z.string()).describe("Empty [] explicitly selects no changes."),
-  patchText: () => z.string().describe("Empty text explicitly selects no changes."),
-  diffRecords: () => z.array(z.object({
-    changeKind: z.string().describe("added, deleted, modified, renamed or copied; unsupported kinds are reported.").optional(),
-    oldPath: z.string().nullable().optional(),
-    newPath: z.string().nullable().optional()
-  }).strict()).describe("Empty [] selects no changes. added needs only newPath; deleted only oldPath; modified/renamed/copied need both endpoints."),
-  liveGit: () => z.boolean().describe("true selects live Git changes; false alone selects nothing."),
-  path: () => z.string().describe("Repository-relative file. In navigation, accompanies only document-local symbols. In impact, path/symbol select a union of seed paths within the changed subject."),
-  symbol: () => z.string().describe("Exact raw SCIP symbol returned by the index; preserve it unchanged. Navigation locals require their document path; impact uses the symbol's definition paths."),
-  line: () => z.union([z.number(), z.string()]).describe("One-based line: safe integer >= 1 or canonical decimal text."),
-  character: () => z.union([z.number(), z.string()]).describe("Zero-based character: safe integer >= 0 or canonical decimal text; requires line. Resolution remains whole-line; changing character does not narrow it."),
-  relationship: () => z.enum([...SIDECAR_CODE_QUESTION_RELATIONSHIPS]).describe("One navigation relationship; omit only when all four are needed. References do not establish calls."),
-  includeSuppressed: () => z.boolean().describe("Include suppressed canonical records for context/impact; not accepted in navigation.")
-});
-const QUERY_ARGUMENTS = new Set([...SIDECAR_CODE_QUESTION_FIELDS, "status", "detail"]);
-
-const queryInputSchema = () => z.object({
-  ...Object.fromEntries(SIDECAR_CODE_QUESTION_FIELDS.map((field) => {
-    if (!Object.hasOwn(QUESTION_FIELD_SHAPES, field)) {
-      throw new TypeError(`code question field ${field} has no registered shape`);
-    }
-    return [field, QUESTION_FIELD_SHAPES[field]().optional()];
-  })),
-  status: z.literal(true).optional(),
-  detail: codeIndexDetailSchema(z).optional()
-}).strict();
-
 function fitMeaning(project, result, { fits }) {
   for (let limit = 3; limit >= 0; limit -= 1) {
     const summary = project(result, { limit });
@@ -82,16 +37,13 @@ function fitMeaning(project, result, { fits }) {
   throw new RangeError("code question meaning exceeds compact admission");
 }
 
-export function createCodeIndexStatusResponse(_workspaceRepo, status, preparation) {
-  return projectCodeStatus(status, preparation);
-}
-
-export function createCodeIndexSelection({ workspaceRepos, env = process.env }) {
+export function createCodeIndexSelection({ workspaceRepos, codeIntelligence, env = process.env }) {
+  const { createCodeIndexAnswerSelection, createCodeReviewSource } = codeIntelligence.createMcpOperations(codeIndexHostMechanics);
   return createCodeIndexAnswerSelection({
     route: CODE_INDEX_QUERY_ROUTE,
     requestSchema: selectedResponseRequestSchema(z.object({ detail: codeIndexDetailSchema(z) }).strict()),
     detailSchema: codeIndexDetailSchema(z),
-    review: createCodeReviewSource({ workspaceRepos, env }),
+    review: createCodeReviewSource(createCodeReviewAuthority({ workspaceRepos, env })),
     buildDetailArguments: (_binding, selection) => ({ detail: selection }),
     resolveCurrentObservationIdentity: async (retained) => {
       const repoRoot = resolveWorkspaceRepo(workspaceRepos, retained.repository).dir;
@@ -105,9 +57,15 @@ export function createCodeIndexSelection({ workspaceRepos, env = process.env }) 
 }
 
 export function registerCodeIndexQueryTools({ registerTool, workspaceRepos, jsonContent, errorContent,
-  navigation, selection = null, env = process.env, published = publishedQueryContext(),
+  codeIntelligence, navigation, selection = null, env = process.env, published = publishedQueryContext(),
   status = options => getSidecarIndexStatus({ ...options, verifyCheckout: false }) }) {
-  const inputSchema = queryInputSchema();
+  const { getSidecarQueryImpact, getSidecarContextForPath } = codeIntelligence;
+  const { createCodeIndexQuestionHandler, projectCodeContext, projectCodeImpact, projectCodeStatus } = codeIntelligence.createMcpOperations(codeIndexHostMechanics);
+  const { fields, alternatives } = codeIntelligence.vocabulary;
+  const inputSchema = codeIndexQueryInputSchema(codeIntelligence.vocabulary);
+  const QUERY_ARGUMENTS = new Set([...fields, "status", "detail"]);
+  const session = selection ?? createCodeIndexSelection({ workspaceRepos, codeIntelligence, env });
+  const contracts = registeredToolRequestContracts(registerTool);
 
   registerTool(
     "query_code_index",
@@ -116,23 +74,21 @@ export function registerCodeIndexQueryTools({ registerTool, workspaceRepos, json
         `${STATUS_CONTRACT} ${PUBLISHED_INDEX_CONTRACT} ${SELECTED_CODE_ANSWER_CONTRACT}`,
       inputSchema, advertisedInputSchema: inputSchema,
       inputValidationErrorProjector: async ({ args, validationError }) => ({ terminal_result: {
-        ...jsonContent(await projectToolInputValidationFailure({ tool: CODE_INDEX_QUERY_ROUTE, args, validationError,
-          ownerGuidance: { calls: [],
-            information: "Preserve the intended question and correct the reported fields; status is not a correction." } }), { env }),
+        ...jsonContent(await projectCodeIndexInputFailure({ args, validationError, inputSchema, contracts, session, workspaceRepos, codeIntelligence }), { env }),
         isError: true } })
     },
     createCodeIndexQuestionHandler({
-      selectQuestion: normalizeSidecarCodeQuestionInput,
+      selectQuestion: codeIntelligence.normalizeSidecarCodeQuestionInput,
       queries: { impact: (args) => getSidecarQueryImpact(args, published),
         context: (args) => getSidecarContextForPath(args, published),
         navigation, prepareNavigation: published.prepare, status },
       projections: { impactSummary: (result, options) => fitMeaning(projectCodeImpact, result, options),
-        contextSummary: (result, options) => fitMeaning(projectCodeContext, result, options), status: createCodeIndexStatusResponse },
+        contextSummary: (result, options) => fitMeaning(projectCodeContext, result, options), status: (_repo, status, preparation) => projectCodeStatus(status, preparation) },
       argumentNames: QUERY_ARGUMENTS, invalidCode: "sidecar_query_input_invalid",
-      alternatives: SIDECAR_CODE_QUESTION_ALTERNATIVES,
-      session: selection ?? createCodeIndexSelection({ workspaceRepos, env }),
+      alternatives,
+      session,
 
-      preparation: createCodeIndexPreparationGuidance(registeredToolRequestContracts(registerTool)),
+      preparation: createCodeIndexPreparationGuidance(contracts),
       workspaceRepos, jsonContent, errorContent })
   );
 }

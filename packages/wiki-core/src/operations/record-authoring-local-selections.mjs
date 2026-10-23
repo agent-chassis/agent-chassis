@@ -6,14 +6,14 @@ import { ControlledContractToolError, controlledContractContentDigest } from '..
 import { projectRequirementMutationFailure } from './controlled-contract/proof-authoring-case-diagnosis.mjs';
 import { caseReferenceIds } from './controlled-contract/proof-authoring-preparation.mjs';
 
-export async function resolveRecordAuthoringLocalClaims({ pkg, captured, record, unit, changes, batch, selections }) {
+export async function resolveRecordAuthoringLocalClaims({ pkg, captured, record, unit, changes, batch, selections, requirementAuthoring }) {
   const slots = (changes.obligations ?? []).flatMap((row, index) => (row.claims ?? []).flatMap((selector, at) =>
     selector?.kind === 'claim' && typeof selector.requirement === 'string'
       ? [{ selector, field: `changes.obligations[${index}].claims[${at}]` }] : []));
   if (!slots.length) return new Map();
   let contract;
   try {
-    ({ contract } = compileProofAuthoringContractInputs({ pkg, initial: { ...captured, record, unit },
+    ({ contract } = compileProofAuthoringContractInputs({ pkg, requirementAuthoring, initial: { ...captured, record, unit },
       input: batch === null ? {} : { contractRequirements: batch.answer },
       retainedReferenceIds: caseReferenceIds(captured.cases) }));
   } catch (error) {

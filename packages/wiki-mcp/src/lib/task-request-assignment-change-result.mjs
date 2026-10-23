@@ -11,6 +11,7 @@ import { readSelectedResponseEvidence, selectedResponseQueryInvalidError } from 
 export const ASSIGNMENT_CHANGE_TOOL = "request_assignment_change";
 
 export function assignmentChangeAssignmentMeaning(assignment) {
+  if (assignment?.state === 'unavailable') return { state: 'unavailable', cause: assignment.cause };
   return typeof assignment?.presentation?.guidance === 'string'
     ? { guidance: assignment.presentation.guidance }
     : { state: 'unavailable', cause: 'The accepted handoff has no readable frozen assignment guidance.' };

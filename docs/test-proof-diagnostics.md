@@ -140,6 +140,14 @@ carries two run records:
   uncaught exception, or the first runner-level error
   (with their count) of a run whose selected test was not observed or whose exit
   status disagreed with it.
+  When no native error graph was supplied, the native diagnosis owner may
+  distill that failed run's own explicit loader exception report into a native
+  diagnostic graph before retaining these bounded facts. The loading subject,
+  exception and reported location remain diagnostic meaning only. A bare
+  error-looking line, passing run or incomplete capture establishes no such
+  cause; an existing native graph takes precedence. Missing selected-test
+  observation remains unavailable alongside this cause, without selector
+  correction advice or proof credit.
 - `captured_run` holds the complete captured run: stdout and stderr (head and
   tail bounded by the capture), normalized argv, timings, cleanup outcome, an
   interrupted run's `termination`

@@ -43,17 +43,17 @@
       "source_files": [
         "packages/wiki-core/data/tool-discovery/manifest.json",
         "packages/wiki-core/data/tool-discovery/code-index-query-tools.json",
-        "packages/wiki-core/src/lib/sidecar-query-input.mjs",
-        "packages/wiki-core/src/lib/sidecar-query-impact.mjs",
+        "packages/paid/src/code-intelligence/sidecar-query-input.mjs",
+        "packages/paid/src/code-intelligence/sidecar-query-impact.mjs",
         "packages/wiki-mcp/src/lib/code-index-query-tools.mjs",
-        "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
+        "packages/paid/src/code-intelligence/code-index-query-response.mjs",
         "docs/mcp-integration.md",
-        "packages/wiki-core/src/lib/sidecar-query-context.mjs",
-        "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
+        "packages/paid/src/code-intelligence/sidecar-query-context.mjs",
+        "packages/paid/src/code-intelligence/sidecar-symbol-query.mjs",
         "packages/wiki-core/src/lib/sidecar-status.mjs",
-        "packages/wiki-mcp/src/lib/code-index-query-meaning.mjs",
-        "packages/wiki-mcp/src/lib/code-index-query-selection.mjs",
-        "packages/wiki-mcp/src/lib/code-index-query-reviewed-source.mjs"
+        "packages/paid/src/code-intelligence/code-index-query-meaning.mjs",
+        "packages/paid/src/code-intelligence/code-index-query-selection.mjs",
+        "packages/paid/src/code-intelligence/code-index-query-reviewed-source.mjs"
       ],
       "notes": "Ask the code question directly for the bound repository: paths/patchText/diffRecords/liveGit:true select potential impact; symbol or path+line select navigation; relationship narrows to definition, references, callers or callees; path alone selects file context. Symbols are exact raw SCIP identities; locals require their document. Position resolution covers a whole line even with character. Authenticated findings questions check the bound review checkout. Matching content adds no provenance ritual; differing indexed meaning is supplemental, with small reviewed code inline or exact retained reviewed-source calls. Unavailable exact code limits dependent conclusions. Status:true is passive. Ordinary questions preserve existing background-refresh effects; status/detail request no refresh. No pagination, decoding or agent integrity work.",
       "use_when": [
@@ -107,7 +107,7 @@
       ],
       "source_files": [
         "packages/wiki-cli/src/commands/sidecar.mjs",
-        "packages/wiki-core/src/lib/sidecar-query-impact.mjs"
+        "packages/paid/src/code-intelligence/sidecar-query-impact.mjs"
       ],
       "notes": "Consolidated impact CLI for exactly one of paths, --patch, --patch-file, --diff-records-json, or --live-git. It auto-ensures the committed-HEAD index and may write its ignored derived cache. --json prints the complete answer; agents should prefer query_code_index."
     },
@@ -140,7 +140,7 @@
       ],
       "source_files": [
         "packages/wiki-cli/src/commands/sidecar.mjs",
-        "packages/wiki-core/src/lib/sidecar-query-context.mjs"
+        "packages/paid/src/code-intelligence/sidecar-query-context.mjs"
       ],
       "notes": "Committed file-context CLI that auto-ensures the committed-HEAD index and may write its ignored derived cache. --json prints the complete answer; plain output lists every population. Agents should prefer query_code_index."
     }

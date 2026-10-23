@@ -1,6 +1,11 @@
 
 
 export const ORCHESTRATOR_REFUSAL_MODE = "refusal";
+import { PaidProviderError } from '@agent-chassis/wiki-core/src/lib/paid-capability-contract.mjs';
+
+export function paidProviderLaunchRefusal(diagnostic) {
+  return PaidProviderError.fromEnvelope(diagnostic);
+}
 export const ORCHESTRATOR_REFUSAL_ROLE = "orchestrator";
 
 export const ORCHESTRATOR_REFUSAL_REASON_KINDS = Object.freeze({

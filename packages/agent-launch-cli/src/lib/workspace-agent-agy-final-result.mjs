@@ -22,17 +22,6 @@ export function decodeAgyFinalResult({ stdout, stderr = "", truncated = false } 
       if (!result || result.conversation_id !== init.conversation_id || lines.some(event =>
         event.step_update && event.step_update.conversation_id !== init.conversation_id)) return failure("agy_session_id_conflict");
       if (lines.some(event => !["init", "step_update", "result"].includes(event.event))) return failure("agy_event_type_invalid");
-
-      const pendingErrors = new Map();
-      for (const { step_update: step } of lines) {
-        if (step?.step_type !== "tool") continue;
-        const parameters = step.tool_info?.parameters;
-        const operation = JSON.stringify([step.tool_name, step.tool_name === "call_mcp_tool"
-          ? [parameters?.ServerName, parameters?.ToolName] : parameters]);
-        if (step.state === "ERROR") pendingErrors.set(operation, step.tool_info?.error ?? null);
-        else if (step.state === "DONE") pendingErrors.delete(operation);
-      }
-      if (pendingErrors.size > 0) return failure("agy_native_tool_error", { operations: [...pendingErrors.keys()] });
     }
   } catch (error) {
     return failure("agy_result_malformed", { message: error.message });

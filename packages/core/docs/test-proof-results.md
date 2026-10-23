@@ -7,6 +7,16 @@ verification timing. Failure diagnostics and retained evidence are in
 
 ## Execution outcome and retained reads
 
+Invalid execution requests return `tool_input_validation_failed` with
+`executed:false`, the independently known field faults and their deciding schema
+constraints. The same projection serves registration and the execution owner;
+there is no separate, unreachable owner refusal. Unknown members identify accepted
+members at the affected location. Commit constraints distinguish an exact full
+hexadecimal `git_sha` from a caller-selected `branch`. Missing source or execution
+choices remain the caller's decision: validation never silently omits a constraint,
+changes execution into a read or grants another role's authority. A corrected
+execution is always a new explicit call.
+
 The agent-facing `verify_proof` answer uses `verify-proof-execution-outcome.v1`.
 It reports the requested subject, tested commit/branch when applicable, authored
 unit/focus, proof and relationship outcome counts, and aggregate execution and
@@ -61,6 +71,21 @@ execution choice, with its original execution options, rather than a preview
 whose remaining choices cannot be discovered. Presenting a call executes
 nothing and grants no authorization.
 
+When a source prerequisite requires coordinator correction, an authenticated
+worker may receive `recovery.assignment_change` as a non-executable template.
+Its `known_arguments` contains diagnostic evidence; `missing_caller_input` names
+the assignment claim, prevented work, requested correction and completed/remaining
+work that the caller must supply. No terminal call appears in `next_calls` with
+placeholder testimony. Deliberate empty work arrays are valid. Acceptance of the
+caller-completed request ends the worker attempt; presenting or reading a
+template submits nothing. Retained reads recheck the receiving session's
+authority and completion availability.
+The shared assignment-context owner also permits an exactly bound worker to
+report unavailable frozen content, preserving the specific failed read under
+`recovery.assignment`. No unread assignment content is invented or verified.
+Corruption, pin/binding/authentication failures and competing completion still
+withhold the template. The same checks serve native and proof recovery.
+
 Shared failures after work began preserve `execution_effects`: confirmed
 completed candidate outcomes, interrupted or unstarted members and unknown
 execution where completion was not observed. These facts grant no proof credit.
@@ -100,6 +125,12 @@ proof, provider, precise observation code and any validated diagnostic facts.
 Known native execution and exit status remain separate from the unknown
 selected-test outcome. A candidate whose inventory is missing retains its
 actual run, stage and provider facts through worker and coordinator reads.
+When that execution or collection reports a known failure, preserve its own
+diagnosis beside the unavailable selected observation and direct correction
+to that failure before an explicit retry. An empty collection or absent selected
+observation alone does not establish a wrong saved selector or justify an
+authoring correction. Reported alternative identities remain choices only when
+collection establishes them; another execution's output supplies no cause.
 Missing run facts establish unknown effects, rather than an unstarted process;
 they never authorize replay. The inventory refusal supplies no unchanged retry.
 Unless the failure establishes a specific supported
